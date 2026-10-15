@@ -60,10 +60,16 @@ def ensure_labels(gh: Gh, labels: list[dict]) -> None:
 
 
 def ensure_milestones(gh: Gh, milestones: list[dict]) -> None:
-    existing = {m["title"] for m in gh.api_paginated("milestones")}
+    existing = {m["title"]: m for m in gh.api_paginated("milestones")}
     created = 0
     for ms in milestones:
         if ms["title"] in existing:
+            continue
+        old = existing.get(ms.get("replaces", ""))
+        if old:  # título anterior: renombrar en lugar de duplicar
+            gh.run("api", "-X", "PATCH", f"repos/{gh.repo}/milestones/{old['number']}",
+                   "-f", f"title={ms['title']}", "-f", f"description={ms['description']}", mutate=True)
+            print(f"  ↻ milestone renombrado: {ms['replaces']} → {ms['title']}")
             continue
         gh.run("api", f"repos/{gh.repo}/milestones", "-f", f"title={ms['title']}",
                "-f", f"description={ms['description']}", mutate=True)
@@ -72,10 +78,16 @@ def ensure_milestones(gh: Gh, milestones: list[dict]) -> None:
 
 
 def ensure_issues(gh: Gh, issues: list[dict], project: str | None, owner: str) -> None:
-    existing = {i["title"] for i in gh.api_paginated("issues") if "pull_request" not in i}
+    existing = {i["title"]: i for i in gh.api_paginated("issues") if "pull_request" not in i}
     created = 0
     for issue in issues:
         if issue["title"] in existing:
+            continue
+        old = existing.get(issue.get("replaces", ""))
+        if old:  # título anterior: actualizar en lugar de duplicar
+            gh.run("issue", "edit", str(old["number"]), "--repo", gh.repo, "--title", issue["title"],
+                   "--body", issue["body"], "--milestone", issue["milestone"], mutate=True)
+            print(f"  ↻ issue #{old['number']} renombrado: {issue['title']}")
             continue
         args = ["issue", "create", "--repo", gh.repo, "--title", issue["title"],
                 "--body", issue["body"], "--milestone", issue["milestone"]]

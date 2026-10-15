@@ -13,7 +13,7 @@
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
 | Esquema ejecutable | `supabase/migrations/` (7 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 74 pruebas pgTAP en 4 archivos, 74/74 OK sobre PostgreSQL 16 + pgvector 0.8 |
+| Pruebas del esquema | `supabase/tests/database/` — 79 pruebas pgTAP en 5 archivos, 79/79 OK sobre PostgreSQL 16 + pgvector 0.8 |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-15) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.

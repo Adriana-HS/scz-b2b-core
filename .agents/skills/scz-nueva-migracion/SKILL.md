@@ -8,6 +8,8 @@ description: Crea o revisa una migración SQL de Supabase para SCZ-B2B-Core con 
 ## Archivo
 `supabase/migrations/AAAAMMDDHHMMSS_<descripcion>.sql`. Solo hacia adelante: nunca edites una migración ya aplicada en staging o producción.
 
+Si está instalada, carga también la skill `supabase-postgres-best-practices` (supabase/agent-skills). La prueba `supabase/tests/database/05_schema_lint.test.sql` hace cumplir sus reglas básicas: FK con índice, RLS en todas las tablas, `search_path` en SECURITY DEFINER, vistas con `security_invoker` y `anon` sin privilegios.
+
 ## Checklist para tablas de negocio
 - [ ] `organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT`
 - [ ] `UNIQUE (organization_id, id)` si otras tablas la referencian

@@ -39,14 +39,21 @@ En `.agents/skills/` (las lee Codex; Claude Code las encuentra por `CLAUDE.md`):
 | `webapp-testing` | anthropics/skills | Pruebas del dashboard con Playwright | ✓ | — (Codex: `playwright`) |
 | `frontend-design` | anthropics/skills | Diseño visual del dashboard | ✓ | — |
 
+### Base de datos (Supabase/Postgres)
+
+| Skill | Repo | Para qué aquí | Claude | Codex |
+| :--- | :--- | :--- | :---: | :---: |
+| `supabase-postgres-best-practices` | [supabase/agent-skills](https://github.com/supabase/agent-skills) (oficial, MIT) | Reglas de índices, RLS, bloqueos, colas y pgvector. Cargarla en **toda** migración. De aquí salió la migración 08 (índices de FK) y la prueba `05_schema_lint` | ✓ | ✓ (también en openai/plugins → `supabase`) |
+| `supabase` | supabase/agent-skills | Checklist de seguridad de Supabase (Auth, RLS, Storage, Data API) y cambios recientes de la plataforma | ✓ | ✓ |
+
 ### Seguridad
 
 | Skill | Repo | Para qué aquí | Claude | Codex |
 | :--- | :--- | :--- | :---: | :---: |
 | `threat-model`, `security-scan`, `security-diff-scan`, `attack-path-analysis`, `propose-security-hardening` | [openai/plugins → codex-security](https://github.com/openai/plugins) | Modelo de amenazas del repo, escaneo completo y revisión de diffs | — | ✓ |
-| `sharp-edges`, `insecure-defaults` | [trailofbits/skills](https://github.com/trailofbits/skills) | Detectar APIs y configuraciones peligrosas ("seguro por defecto") | ✓ | ✓ (vía compatibilidad de marketplace) |
-| `differential-review` | trailofbits/skills | Revisión de seguridad de cada PR, con radio de impacto | ✓ | ✓ |
-| `static-analysis` (CodeQL, Semgrep, SARIF) | trailofbits/skills | Análisis estático. En repos privados, CodeQL de GitHub es de pago; Semgrep local es la alternativa | ✓ | ✓ |
+| `sharp-edges` | [trailofbits/skills](https://github.com/trailofbits/skills) | Detectar APIs y configuraciones peligrosas ("seguro por defecto") | ✓ | ✓ (vía compatibilidad de marketplace) |
+| `differential-review`, `review-pr` | trailofbits/skills | Revisión de seguridad de cada PR, con radio de impacto | ✓ | ✓ |
+| `semgrep`, `codeql`, `sarif-parsing` | trailofbits/skills | Análisis estático. En repos privados, CodeQL de GitHub es de pago; Semgrep local es la alternativa | ✓ | ✓ |
 | `supply-chain-risk-auditor` | trailofbits/skills | Auditar dependencias de Python y npm | ✓ | ✓ |
 | `agentic-actions-auditor` | trailofbits/skills | Revisar workflows de GitHub Actions que usen agentes de IA | ✓ | ✓ |
 
@@ -68,9 +75,12 @@ En `.agents/skills/` (las lee Codex; Claude Code las encuentra por `CLAUDE.md`):
 **Claude Code**
 
 ```text
+/plugin marketplace add supabase/agent-skills
 /plugin marketplace add trailofbits/skills
 /plugin marketplace add anthropics/skills
 ```
+
+Nombres verificados el 15-oct-2026 contra los repos: supabase/agent-skills `c9be0e9`, trailofbits/skills `1f68e03`, obra/superpowers `bb92a77`, openai/plugins (codex-security, supabase, superpowers). Antes de instalar, revisar que el nombre siga existiendo; estos repos cambian seguido.
 
 **Codex (CLI o IDE)**
 

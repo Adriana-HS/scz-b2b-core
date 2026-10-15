@@ -24,6 +24,7 @@ Lo que el proyecto **no controla** y puede cambiar: regulación, tarifas, polít
 | EXT-13 | GitHub Free: sin ramas protegidas en repos privados; CodeQL y secret scanning de pago en privados | Bajo | GitHub Pro (gratis con el Student Pack) o disciplina + gitleaks/bandit/semgrep | Anual |
 | EXT-14 | Proveedor de LLM: precios, límites de tasa y retiro de modelos cambian | Medio | Puerto `LLMPort`, modelo fijado por versión, evals antes de cambiar, costo medido | Mensual |
 | EXT-15 | Supabase: el plan gratuito pausa proyectos; PITR es un add-on | Bajo | Plan Pro en producción (ADR-0010) | Anual |
+| EXT-17 | Supabase deja de exponer tablas nuevas de `public` a la Data API sin GRANT explícito (obligatorio en todos los proyectos desde el 30-oct-2026). [Changelog](https://supabase.com/changelog) | Bajo | El esquema ya revoca los permisos por defecto y otorga GRANT explícitos; la prueba `05_schema_lint` verifica que `anon` no tenga privilegios | Con cada cambio de la CLI o la plataforma |
 
 ---
 
