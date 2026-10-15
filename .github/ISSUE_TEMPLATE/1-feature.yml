@@ -24,7 +24,7 @@ body:
       label: Criterios de aceptación
       description: Verificables (prueba, métrica o demo)
       value: |
-        - [ ] 
+        - [ ] (criterio verificable)
         - [ ] Pruebas automatizadas (unit/contrato/pgTAP según corresponda)
         - [ ] Documentación actualizada (SYSTEM_DESIGN / ADR / CHANGELOG)
     validations:

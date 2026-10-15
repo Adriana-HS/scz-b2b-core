@@ -1,7 +1,26 @@
-# Entornos y secretos
+# Entornos y secretos (NUNCA se suben; ver CONTRIBUTING.md "Qué se sube y qué no")
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+secrets/
+credentials*.json
+service-account*.json
+supabase/.env
+*.local.toml
+
+# Datos reales y documentos confidenciales (van al almacenamiento seguro del equipo, no al repo)
+private/
+confidencial/
+datos-reales/
+*.dump
+*.backup
+*.sql.gz
+exports/
 
 # Python
 __pycache__/
@@ -22,8 +41,21 @@ out/
 supabase/.branches
 supabase/.temp
 
+# Logs y temporales
+*.log
+logs/
+tmp/
+*.tmp
+*.swp
+
 # Sistema / IDE
 .DS_Store
 Thumbs.db
+desktop.ini
 .idea/
 .vscode/
+*.code-workspace
+
+# Herramientas de IA locales (configuración personal; las skills del proyecto sí se suben en .agents/)
+.claude/settings.local.json
+.codex/
