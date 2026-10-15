@@ -1,0 +1,31 @@
+name: Investigación (spike)
+description: Pregunta abierta que hay que responder antes de construir
+title: "[spike] "
+labels: ["type:spike"]
+body:
+  - type: textarea
+    id: pregunta
+    attributes:
+      label: Pregunta a responder
+    validations:
+      required: true
+  - type: textarea
+    id: por-que
+    attributes:
+      label: Por qué importa (qué decisión desbloquea)
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: Timebox
+      placeholder: 2 días
+    validations:
+      required: true
+  - type: textarea
+    id: salida
+    attributes:
+      label: Entregable
+      value: |
+        - [ ] Resumen con fuentes en docs/research/
+        - [ ] ADR nuevo o actualizado si cambia una decisión

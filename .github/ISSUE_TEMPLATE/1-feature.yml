@@ -1,0 +1,43 @@
+name: Funcionalidad / historia
+description: Trabajo que implementa uno o más requisitos (RF-xx) del SRS
+title: "[feat] "
+labels: ["type:feature"]
+body:
+  - type: input
+    id: requisitos
+    attributes:
+      label: Requisitos que cubre
+      description: IDs del SRS (docs/requirements/SRS.md) y/o ADR
+      placeholder: RF-20, ADR-0007
+    validations:
+      required: true
+  - type: textarea
+    id: objetivo
+    attributes:
+      label: Objetivo
+      description: Qué valor entrega, en una o dos frases
+    validations:
+      required: true
+  - type: textarea
+    id: aceptacion
+    attributes:
+      label: Criterios de aceptación
+      description: Verificables (prueba, métrica o demo)
+      value: |
+        - [ ] 
+        - [ ] Pruebas automatizadas (unit/contrato/pgTAP según corresponda)
+        - [ ] Documentación actualizada (SYSTEM_DESIGN / ADR / CHANGELOG)
+    validations:
+      required: true
+  - type: textarea
+    id: notas
+    attributes:
+      label: Notas técnicas
+      description: Archivos, decisiones, riesgos, dependencias (#issue)
+  - type: dropdown
+    id: prioridad
+    attributes:
+      label: Prioridad (MoSCoW)
+      options: ["M - must", "S - should", "C - could"]
+    validations:
+      required: true
