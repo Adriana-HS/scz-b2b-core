@@ -1,0 +1,11 @@
+# Configuración mínima de Supabase CLI. `supabase init` puede regenerar el resto de
+# claves con valores por defecto; mantener major_version igual al del proyecto remoto.
+project_id = "scz-b2b-core"
+
+[db]
+port = 54322
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed/*.sql"]

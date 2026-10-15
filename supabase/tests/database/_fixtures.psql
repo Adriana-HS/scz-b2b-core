@@ -1,0 +1,106 @@
+-- ============================================================================
+-- Fixtures compartidas por las pruebas pgTAP (se incluyen con \ir y se revierten
+-- con el ROLLBACK de cada archivo). Dos tenants: A (importadora) y B (clínica).
+-- ============================================================================
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SET search_path = public, extensions;
+
+-- En Supabase el rol `postgres` no es superusuario: necesita pertenecer a app_backend
+-- para poder hacer SET ROLE en las pruebas (se revierte con el ROLLBACK).
+DO $$ BEGIN EXECUTE format('GRANT app_backend TO %I', current_user); END $$;
+
+-- Helpers para cambiar de identidad dentro de la transacción de prueba
+CREATE SCHEMA IF NOT EXISTS tests;
+GRANT USAGE ON SCHEMA tests TO anon, authenticated, app_backend;
+
+CREATE OR REPLACE FUNCTION tests.as_user(p_uid uuid, p_aal text DEFAULT 'aal1') RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM set_config('request.jwt.claims',
+        json_build_object('sub', p_uid, 'role', 'authenticated', 'aal', p_aal)::text, true);
+    PERFORM set_config('app.current_org_id', '', true);
+    EXECUTE 'SET LOCAL ROLE authenticated';
+END $$;
+
+CREATE OR REPLACE FUNCTION tests.as_backend(p_org uuid, p_actor text DEFAULT 'BOT') RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM set_config('request.jwt.claims', '', true);
+    PERFORM set_config('app.current_org_id', coalesce(p_org::text, ''), true);
+    PERFORM set_config('app.actor', p_actor, true);
+    EXECUTE 'SET LOCAL ROLE app_backend';
+END $$;
+
+CREATE OR REPLACE FUNCTION tests.as_anon() RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM set_config('request.jwt.claims', '', true);
+    PERFORM set_config('app.current_org_id', '', true);
+    EXECUTE 'SET LOCAL ROLE anon';
+END $$;
+
+CREATE OR REPLACE FUNCTION tests.reset() RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+    EXECUTE 'RESET ROLE';
+    PERFORM set_config('request.jwt.claims', '', true);
+    PERFORM set_config('app.current_org_id', '', true);
+    PERFORM set_config('app.actor', '', true);
+END $$;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA tests TO anon, authenticated, app_backend;
+
+-- Identidades
+INSERT INTO auth.users (id, email) VALUES
+    ('a1000000-0000-4000-8000-000000000001', 'owner.a@example.test'),
+    ('a1000000-0000-4000-8000-000000000002', 'staff.a@example.test'),
+    ('a1000000-0000-4000-8000-000000000003', 'auditor.a@example.test'),
+    ('b1000000-0000-4000-8000-000000000001', 'owner.b@example.test');
+
+INSERT INTO public.organizations (id, name, vertical, deposit_percent, config) VALUES
+    ('a0000000-0000-4000-8000-000000000000', 'Importadora Test A', 'IMPORTADORA_REPUESTOS', 50, '{}'),
+    ('b0000000-0000-4000-8000-000000000000', 'Clínica Test B', 'CLINICA_CONSULTORIO', 30, '{"slot_step_minutes": 30}');
+
+INSERT INTO public.organization_members (organization_id, user_id, role) VALUES
+    ('a0000000-0000-4000-8000-000000000000', 'a1000000-0000-4000-8000-000000000001', 'OWNER'),
+    ('a0000000-0000-4000-8000-000000000000', 'a1000000-0000-4000-8000-000000000002', 'STAFF'),
+    ('a0000000-0000-4000-8000-000000000000', 'a1000000-0000-4000-8000-000000000003', 'AUDITOR'),
+    ('b0000000-0000-4000-8000-000000000000', 'b1000000-0000-4000-8000-000000000001', 'OWNER');
+
+INSERT INTO public.whatsapp_channels (organization_id, phone_number_id, waba_id, display_phone, access_token_ref) VALUES
+    ('a0000000-0000-4000-8000-000000000000', 'PNID-A', 'WABA-A', '+59100000001', 'vault:wa_token_a'),
+    ('b0000000-0000-4000-8000-000000000000', 'PNID-B', 'WABA-B', '+59100000002', 'vault:wa_token_b');
+
+-- Tipo de cambio vigente (TC oficial BCB publicado el 15/10/2026: 11.68 Bs/USD)
+INSERT INTO public.exchange_rates (organization_id, rate_bs_per_usd, source, effective_at) VALUES
+    ('a0000000-0000-4000-8000-000000000000', 11.6800, 'BCB_OFICIAL', now() - interval '2 hours');
+
+-- Catálogo A: repuestos (USD) — 1 sin embedding a propósito
+INSERT INTO public.catalog_items (id, organization_id, item_type, sku, name, description, category,
+                                  price_currency, list_price, stock_on_hand, embedding) VALUES
+    ('ca000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000000', 'PRODUCT',
+     'OEM-4451', 'Pastilla de freno delantera Toyota Hilux', 'Juego de 4 pastillas cerámicas', 'Frenos',
+     'USD', 25.00, 3, array_fill(0.10::real, ARRAY[1536])::extensions.vector),
+    ('ca000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000000', 'PRODUCT',
+     'FIL-0001', 'Filtro de aceite Toyota', 'Filtro roscado', 'Filtros',
+     'USD', 4.99, 100, NULL),
+    ('ca000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000000', 'PRODUCT',
+     'AMORT-77', 'Amortiguador trasero Nissan Frontier', 'Gas', 'Suspensión',
+     'BOB', 480.00, 10, array_fill(-0.10::real, ARRAY[1536])::extensions.vector);
+
+-- Clínica B: servicio de 30 min, profesional con horario todos los días 08:00-18:00
+INSERT INTO public.catalog_items (id, organization_id, item_type, sku, name, price_currency,
+                                  list_price, duration_minutes) VALUES
+    ('cb000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000000', 'SERVICE',
+     'LIMP-01', 'Limpieza dental profunda', 'BOB', 350.00, 30);
+INSERT INTO public.resources (id, organization_id, name) VALUES
+    ('eb000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000000', 'Dra. Prueba');
+INSERT INTO public.business_hours (organization_id, resource_id, weekday, opens_at, closes_at)
+SELECT 'b0000000-0000-4000-8000-000000000000', 'eb000000-0000-4000-8000-000000000001', d, '08:00', '18:00'
+FROM generate_series(0, 6) d;
+
+INSERT INTO public.customers (id, organization_id, wa_id, display_name) VALUES
+    ('cc000000-0000-4000-8000-00000000000a', 'a0000000-0000-4000-8000-000000000000', '59100000011', 'Mecánico Juan'),
+    ('cc000000-0000-4000-8000-00000000000b', 'b0000000-0000-4000-8000-000000000000', '59100000022', 'Paciente Ana');
+INSERT INTO public.conversations (id, organization_id, customer_id) VALUES
+    ('c0000000-0000-4000-8000-00000000000a', 'a0000000-0000-4000-8000-000000000000', 'cc000000-0000-4000-8000-00000000000a'),
+    ('c0000000-0000-4000-8000-00000000000b', 'b0000000-0000-4000-8000-000000000000', 'cc000000-0000-4000-8000-00000000000b');

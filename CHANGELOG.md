@@ -1,0 +1,29 @@
+# Changelog
+
+Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y [SemVer](https://semver.org/lang/es/).
+
+## [Sin publicar]
+
+### Cambiado (v2.2 — mínimo regulatorio)
+- ADR-0014: MVP con QR estático del negocio y aprobación humana; sin OpenBCB, sin facturación SIAT y sin comisiones por transacción; sin pedir CI/NIT por el chat; WhatsApp en modelo directo para el piloto; importadoras primero.
+- `docs/legal/marco-legal-y-modelo-de-negocio.md`: regulación aplicable, requisitos para constituir la empresa, modelo de ingresos y checklist legal.
+- Columnas de consentimiento en `customers` (`optin_utility_at`, `optin_marketing_at`, `optout_at`).
+- Backlog: 47 issues (nuevos: acuerdo de socios, constitución de la empresa, contratos y privacidad, onboarding directo, opt-in/opt-out).
+
+### Agregado (v2.1)
+- ADR-0012 (IVA por régimen vigente, Ley 1733) y ADR-0013 (la plataforma no custodia fondos).
+- Modelo de IVA en la BD: `tax_regimes`, `orders.subtotal_bs/iva_bs/tax_regime_id`, `private.tax_breakdown`; 11 pruebas pgTAP nuevas (74 en total).
+- Registro de restricciones externas (`docs/research/`), SRS con RF-xx, principios SOLID, patrones y UML (`docs/architecture/`).
+- Gestión del proyecto: plantillas de issues, backlog de 47 issues en 8 fases y script `scripts/github/bootstrap.py`.
+- `AGENTS.md`, `CLAUDE.md` y 5 skills del proyecto en `.agents/skills/`; guía `docs/HERRAMIENTAS_IA.md`.
+
+### Agregado
+- `SYSTEM_DESIGN.md` v2.0: requisitos medibles, arquitectura C4, FSM, agente IA, seguridad STRIDE, SLOs, costos.
+- 11 ADRs en `docs/adr/`.
+- Revisión de la v1 con evidencia reproducible (`docs/reviews/`).
+- Esquema de base de datos en 7 migraciones (`supabase/migrations/`): multi-tenancy con RLS también para el backend, FK compuestas, historial de tipo de cambio, cotización atómica con reserva de stock, agenda sin doble reserva, evidencias y libro de pagos, auditoría, cola durable y outbox.
+- 63 pruebas pgTAP (`supabase/tests/database/`), luego ampliadas a 74 con las de IVA.
+- CI de base de datos, plantilla de PR, guías de seguridad, contribución y pruebas.
+
+### Cambiado
+- La sección "Guía de ejecución en Claude Pro" de la v1 pasa a `docs/ROADMAP.md` como plan por fases.

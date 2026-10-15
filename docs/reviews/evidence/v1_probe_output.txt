@@ -1,0 +1,81 @@
+--- H1: rol anon (clave pública) lee processed_webhook_messages (sin RLS) ---
+ whatsapp_message_id |           organization_id            |         processed_at         
+---------------------+--------------------------------------+------------------------------
+ wamid.SECRETO       | b0000000-0000-0000-0000-000000000000 | 2026-10-15 15:16:28.82316+00
+
+--- H2: OWNER A no puede leer su propio perfil ni order_items (RLS sin políticas) ---
+                   set_config                   
+------------------------------------------------
+ {"sub":"aaaaaaaa-0000-0000-0000-000000000001"}
+
+ perfiles_visibles 
+-------------------
+                 0
+
+--- H3: AUDITOR (solo lectura en teoría) modifica el tipo de cambio de la empresa ---
+                   set_config                   
+------------------------------------------------
+ {"sub":"aaaaaaaa-0000-0000-0000-000000000002"}
+
+     name      | exchange_rate_bs 
+---------------+------------------
+ Importadora A |           1.0000
+
+--- H4: integridad cross-tenant: orden del tenant A con cliente del tenant B y item de B ---
+    resultado    
+-----------------
+ insert aceptado
+
+                 resultado                 
+-------------------------------------------
+ item de B aceptado, subtotal 999 != 2*100
+
+--- H5: REJECTED_DUPLICATE es inalcanzable: el UNIQUE impide registrar el intento duplicado ---
+psql:docs/reviews/evidence/v1_probe.sql:42: ERROR:  duplicate key value violates unique constraint "qr_payments_organization_id_image_sha256_hash_key"
+DETAIL:  Key (organization_id, image_sha256_hash)=(a0000000-0000-0000-0000-000000000000, abc) already exists.
+--- H6: el estado FLAGGED_MANUAL / PRE_VERIFIED del diagrama no existe en el ENUM ---
+psql:docs/reviews/evidence/v1_probe.sql:45: ERROR:  invalid input value for enum qr_verification_status: "FLAGGED_MANUAL"
+LINE 1: UPDATE qr_payments SET verification_status='FLAGGED_MANUAL';
+                                                   ^
+--- H7: búsqueda: item SIN embedding sale primero (NULLs FIRST en ORDER BY DESC) ---
+ sku_or_code | similarity_score 
+-------------+------------------
+ FIL-001     |                 
+ OEM-4451    |                1
+
+--- H8: comodín LIKE: la consulta "%" da score 1.0 a todo el catálogo ---
+ sku_or_code | similarity_score 
+-------------+------------------
+ OEM-4451    |                1
+ FIL-001     |                1
+
+--- H9: borrar una orden borra en cascada la evidencia de pago (auditoría) ---
+ pagos_antes 
+-------------
+           1
+
+ pagos_despues 
+---------------
+             0
+
+--- H10: doble reserva: dos citas solapadas en el mismo horario son aceptadas ---
+ reference_code |    r     
+----------------+----------
+ CITA-1         | aceptada
+ CITA-2         | aceptada
+
+--- H11: updated_at nunca se actualiza (sin trigger) ---
+ updated_at_sin_cambio 
+-----------------------
+ t
+
+--- H12: tipo de cambio por defecto 6.96 vs TCO BCB 15/10/2026 = 11.68 ---
+ column_default 
+----------------
+ 6.9600
+
+--- H13: función SECURITY DEFINER sin search_path fijo ---
+         proname          | prosecdef | proconfig 
+--------------------------+-----------+-----------
+ get_user_organization_id | t         | 
+

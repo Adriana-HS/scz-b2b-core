@@ -1,0 +1,22 @@
+name: Decisión de arquitectura (ADR)
+description: Proponer o cambiar una decisión de arquitectura
+title: "[adr] "
+labels: ["type:adr"]
+body:
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto
+    validations:
+      required: true
+  - type: textarea
+    id: opciones
+    attributes:
+      label: Alternativas y criterio de decisión
+    validations:
+      required: true
+  - type: input
+    id: afecta
+    attributes:
+      label: ADRs o requisitos afectados
+      placeholder: ADR-0005, RF-01

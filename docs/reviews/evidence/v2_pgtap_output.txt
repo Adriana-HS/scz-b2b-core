@@ -1,0 +1,78 @@
+# 01_tenant_isolation.test.sql
+ok 1 - anon no tiene privilegio sobre catalog_items
+ok 2 - anon no accede a tablas internas (esquema private)
+ok 3 - OWNER A ve solo sus 3 ítems
+ok 4 - OWNER A no ve el catálogo de B
+ok 5 - OWNER A ve solo su organización
+ok 6 - OWNER A ve las 3 membresías de su organización y ninguna de B
+ok 7 - usuario del dashboard no lee la cola interna
+ok 8 - OWNER A no puede insertar en el catálogo de B
+ok 9 - AUDITOR lee el catálogo de su tenant
+ok 10 - AUDITOR no logra modificar la organización
+ok 11 - AUDITOR no puede cambiar el tipo de cambio
+ok 12 - cambiar cuenta bancaria receptora exige MFA (aal2)
+ok 13 - OWNER con MFA registra la cuenta receptora
+ok 14 - backend sin app.current_org_id no ve nada
+ok 15 - backend con tenant A ve solo clientes de A
+ok 16 - backend con tenant A no puede escribir en B
+ok 17 - resolución de canal por phone_number_id funciona antes de fijar tenant
+ok 18 - FK compuesta: una orden de A no puede apuntar a un cliente de B
+ok 19 - toda función SECURITY DEFINER fija search_path
+ok 20 - OWNER A solo ve comprobantes de su tenant en Storage
+ok 21 - RLS activo en el 100% de las tablas
+# 02_pricing_fsm_payments.test.sql
+ok 1 - total = 2×(25 USD×11.68) + 480 Bs, calculado en BD
+ok 2 - seña 50% calculada por el motor
+ok 3 - TC aplicado congelado en la orden
+ok 4 - código de referencia correlativo legible
+ok 5 - orden queda en QUOTED
+ok 6 - no se puede cotizar un ítem de otro tenant
+ok 7 - reservas activas evitan sobreventa (3 en stock, 2 ya reservados)
+ok 8 - un "unit_price_bs" inyectado por el LLM se ignora (prompt injection financiero)
+ok 9 - el precio sale del catálogo: round(4.99×11.68) = 58.28
+ok 10 - cantidad 0 rechazada
+ok 11 - los montos no cambian después de DRAFT
+ok 12 - el agente IA no puede confirmar una orden
+ok 13 - nadie edita amount_paid_bs a mano
+ok 14 - el agente IA no puede registrar pagos
+ok 15 - candado 1: la misma imagen no respalda dos evidencias vigentes
+ok 16 - el intento duplicado SÍ queda registrado como REJECTED_DUPLICATE (trazabilidad)
+ok 17 - candado 2: la misma transacción bancaria no se reutiliza en otro tenant
+ok 18 - …y el tenant B sigue sin poder ver la evidencia de A
+ok 19 - STAFF no aprueba pagos
+ok 20 - OWNER sin MFA no aprueba pagos
+ok 21 - OWNER con MFA aprueba: la orden pasa a CONFIRMED por el libro de pagos
+ok 22 - al confirmar, la reserva descuenta stock (3 - 2 = 1)
+ok 23 - la bitácora registra quién aprobó el pago
+ok 24 - payments es append-only
+# 03_booking_search_queue.test.sql
+ok 1 - available_slots devuelve hasta 20 bloques libres
+ok 2 - primer bloque 08:00 hora de Bolivia (zona horaria del tenant)
+ok 3 - cita retenida con precio del servicio
+ok 4 - seña 30% de la clínica
+ok 5 - EXCLUDE impide la doble reserva solapada (09:15 vs 09:00-09:30)
+ok 6 - no se agenda fuera del horario (17:45 + 30 min > 18:00)
+ok 7 - el bloque retenido desaparece de la disponibilidad
+ok 8 - job de vencimiento expira la retención
+ok 9 - el horario liberado vuelve a reservarse
+ok 10 - SKU escrito distinto ("oem 4451") encuentra el código exacto primero
+ok 11 - texto con errores de tipeo encuentra el repuesto (FTS + trigram)
+ok 12 - un ítem SIN embedding no queda descartado ni sale primero por NULL
+ok 13 - el comodín "%" ya no coincide con todo el catálogo
+ok 14 - precio en Bs calculado por la misma función que la cotización
+ok 15 - con TC vencido el precio USD no se ofrece (price_status = FX_STALE)
+ok 16 - ráfaga de mensajes = un solo trabajo en cola (debounce)
+ok 17 - worker-1 reclama la conversación
+ok 18 - worker-2 NO procesa la misma conversación en paralelo (orden garantizado)
+# 04_tax_regimes.test.sql
+ok 1 - IVA por fuera: 13 % sobre neto 240,00 = 31,20
+ok 2 - IVA por fuera: total 271,20
+ok 3 - IVA incluido: 13 % de 275,86 = 35,86 (total sin cambio)
+ok 4 - IVA incluido: el total es el precio de lista
+ok 5 - IVA incluido: IVA informado = 13 % del total
+ok 6 - IVA por fuera: 480,00 + 62,40 = 542,40
+ok 7 - la seña (50 %) se calcula sobre el total con IVA
+ok 8 - la cotización informa el régimen aplicado
+ok 9 - una cotización emitida antes del cambio conserva su régimen (congelado)
+ok 10 - la búsqueda avisa al bot que el precio es "+ IVA"
+ok 11 - ningún tenant puede alterar el régimen tributario global

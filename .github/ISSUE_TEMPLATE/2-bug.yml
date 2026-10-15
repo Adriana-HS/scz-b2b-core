@@ -1,0 +1,37 @@
+name: Defecto
+description: Algo no funciona como dice el diseño o los requisitos
+title: "[bug] "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamiento actual
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Comportamiento esperado (cita RF/ADR si aplica)
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducir
+      value: |
+        1.
+        2.
+    validations:
+      required: true
+  - type: dropdown
+    id: severidad
+    attributes:
+      label: Severidad
+      options: ["Crítica (dinero, datos o fuga entre tenants)", "Alta", "Media", "Baja"]
+    validations:
+      required: true
+  - type: textarea
+    id: evidencia
+    attributes:
+      label: Evidencia (logs sin PII, trace_id, capturas)

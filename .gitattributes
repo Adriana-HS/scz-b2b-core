@@ -1,0 +1,26 @@
+# Finales de línea normalizados (el equipo usa Windows; el CI y los contenedores, Linux)
+* text=auto eol=lf
+
+# Scripts de Windows con CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binarios: sin conversión ni diff de texto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+
+# Diffs legibles para SQL y Markdown
+*.sql diff
+*.md diff=markdown
+
+# Evidencia generada: no contar en las estadísticas de lenguajes de GitHub
+docs/reviews/evidence/** linguist-generated

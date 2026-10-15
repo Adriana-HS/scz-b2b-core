@@ -1,0 +1,630 @@
+{
+  "labels": [
+    {
+      "name": "type:feature",
+      "color": "1D76DB",
+      "description": "Funcionalidad que implementa requisitos"
+    },
+    {
+      "name": "type:bug",
+      "color": "D73A4A",
+      "description": "Defecto"
+    },
+    {
+      "name": "type:spike",
+      "color": "FBCA04",
+      "description": "Investigación con timebox"
+    },
+    {
+      "name": "type:chore",
+      "color": "C5DEF5",
+      "description": "Mantenimiento, configuración"
+    },
+    {
+      "name": "type:docs",
+      "color": "0075CA",
+      "description": "Documentación"
+    },
+    {
+      "name": "type:test",
+      "color": "BFD4F2",
+      "description": "Pruebas, evals, carga"
+    },
+    {
+      "name": "type:adr",
+      "color": "5319E7",
+      "description": "Decisión de arquitectura"
+    },
+    {
+      "name": "area:db",
+      "color": "006B75",
+      "description": "PostgreSQL, migraciones, RLS"
+    },
+    {
+      "name": "area:backend",
+      "color": "0E8A16",
+      "description": "FastAPI, casos de uso, worker"
+    },
+    {
+      "name": "area:ia",
+      "color": "8A2BE2",
+      "description": "Agente, LLM, OCR, evals"
+    },
+    {
+      "name": "area:whatsapp",
+      "color": "25D366",
+      "description": "Meta Cloud API, plantillas"
+    },
+    {
+      "name": "area:pagos",
+      "color": "B60205",
+      "description": "QR, evidencias, bancos"
+    },
+    {
+      "name": "area:agenda",
+      "color": "FEF2C0",
+      "description": "Citas y recursos"
+    },
+    {
+      "name": "area:frontend",
+      "color": "1F6FEB",
+      "description": "Dashboard Next.js"
+    },
+    {
+      "name": "area:ops",
+      "color": "5A5A5A",
+      "description": "Infra, observabilidad, despliegue"
+    },
+    {
+      "name": "area:security",
+      "color": "000000",
+      "description": "Seguridad"
+    },
+    {
+      "name": "area:compliance",
+      "color": "E99695",
+      "description": "Legal, tributario, privacidad"
+    },
+    {
+      "name": "prio:M",
+      "color": "B60205",
+      "description": "Must"
+    },
+    {
+      "name": "prio:S",
+      "color": "D93F0B",
+      "description": "Should"
+    },
+    {
+      "name": "prio:C",
+      "color": "FBCA04",
+      "description": "Could"
+    },
+    {
+      "name": "blocked",
+      "color": "000000",
+      "description": "Bloqueado por dependencia externa"
+    }
+  ],
+  "milestones": [
+    {
+      "title": "Fase 0 · Fundaciones",
+      "description": "Repo, decisiones, migraciones verificadas en CI, investigaciones bloqueantes"
+    },
+    {
+      "title": "Fase 1 · Núcleo backend",
+      "description": "Webhook confiable, cola, outbox, observabilidad, Tech Provider"
+    },
+    {
+      "title": "Fase 2 · Agente MVP (importadora)",
+      "description": "Búsqueda, cotización, guardrails, PDF, evals"
+    },
+    {
+      "title": "Fase 3 · Pagos",
+      "description": "PaymentPort, antifraude, banco piloto"
+    },
+    {
+      "title": "Fase 4 · Agenda",
+      "description": "Agenda por recurso con seña; el rubro clínicas se habilita en la fase de escala (ADR-0014)"
+    },
+    {
+      "title": "Fase 5 · Dashboard",
+      "description": "Next.js, MFA, catálogo, pagos, conversaciones"
+    },
+    {
+      "title": "Fase 6 · Piloto",
+      "description": "2 negocios reales en Santa Cruz"
+    },
+    {
+      "title": "Fase 7 · Escala y conectores",
+      "description": "Tech Provider de Meta, conector bancario del negocio, conector SIAT autorizado, rubro clínicas"
+    }
+  ],
+  "issues": [
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Configurar repo privado: GitHub Pro/Student Pack, reglas de rama, secretos",
+      "labels": [
+        "type:chore",
+        "area:ops",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** docs/GESTION_DEL_PROYECTO.md §2, EXT-13\n\n### Objetivo\nDejar el repositorio privado con protección de `main` y secretos de Actions.\n\n### Criterios de aceptación\n- [ ] Repo privado\n- [ ] GitHub Pro (Student Developer Pack) activo o decisión documentada de no usarlo\n- [ ] Regla: PR + CI verde + 1 revisión para `main`\n- [ ] Dependabot habilitado\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Firmar acuerdo de socios y titularidad del software",
+      "labels": [
+        "type:chore",
+        "area:compliance",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** P-11, docs/legal §3.3, Ley 1322, D.S. 24582 art. 12\n\n### Objetivo\nDejar por escrito de quién es el código y cómo se reparten las decisiones y las ganancias.\n\n### Criterios de aceptación\n- [ ] Acuerdo firmado (guardado FUERA del repo)\n- [ ] Titularidad del repositorio y de las cuentas (GitHub, Meta, Supabase) definida\n- [ ] LICENSE del repo actualizado con los titulares\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Constituir la empresa (SEPREC + NIT) y confirmar el régimen tributario",
+      "labels": [
+        "type:chore",
+        "area:compliance",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** P-12, docs/legal §4\n\n### Objetivo\nPoder facturar suscripciones y verificar la empresa ante Meta.\n\n### Criterios de aceptación\n- [ ] Forma jurídica elegida con el abogado\n- [ ] Matrícula SEPREC y NIT\n- [ ] Régimen tributario confirmado por el contador (general o especial)\n- [ ] Modalidad de facturación en línea habilitada para nuestras ventas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Redactar Términos de servicio, acuerdo de tratamiento de datos y política de privacidad",
+      "labels": [
+        "type:docs",
+        "area:compliance",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** docs/legal §3, §6; política de WhatsApp\n\n### Objetivo\nContratos para vender a negocios y cumplir con Meta.\n\n### Criterios de aceptación\n- [ ] Términos de servicio SaaS (incluye SLA y límites de responsabilidad)\n- [ ] Acuerdo de tratamiento de datos con cada negocio\n- [ ] Política de privacidad publicada en una URL\n- [ ] Plantilla de aviso de IA y privacidad para los clientes finales\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Elegir licencia y aviso de propiedad intelectual",
+      "labels": [
+        "type:docs",
+        "area:compliance",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** README\n\n### Objetivo\nDefinir si el código es propietario o abierto y bajo qué licencia.\n\n### Criterios de aceptación\n- [ ] Archivo LICENSE agregado\n- [ ] Autoría y titularidad acordadas por escrito\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Verificar migraciones con `supabase test db` en CI (imagen oficial)",
+      "labels": [
+        "type:test",
+        "area:db",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** docs/TESTING.md, ADR-0002\n\n### Objetivo\nConfirmar que las 7 migraciones y las 74 pruebas pgTAP pasan contra la imagen oficial de Supabase (no solo el shim local).\n\n### Criterios de aceptación\n- [ ] Workflow `CI / database` en verde\n- [ ] Diferencias con el shim corregidas y documentadas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "[spike] Consulta legal: modelo 'solo software' en pagos (ASFI)",
+      "labels": [
+        "type:spike",
+        "area:compliance",
+        "area:pagos",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** EXT-01, ADR-0013\n\n### Objetivo\nConfirmar con un abogado que no custodiar fondos nos deja fuera de la regulación de pasarelas/fintech.\n\n### Criterios de aceptación\n- [ ] Opinión escrita archivada (fuera del repo si es confidencial)\n- [ ] ADR-0013 actualizado a Aceptado o revisado\n\n### Notas\nTimebox: 2 semanas.\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "[spike] Confirmar tarifas de WhatsApp vigentes (mensajes de servicio)",
+      "labels": [
+        "type:spike",
+        "area:whatsapp",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** EXT-04, P-3\n\n### Objetivo\nVerificar en WhatsApp Manager/factura si los mensajes de servicio se cobran desde 1-oct-2026 y a qué tarifa para Bolivia.\n\n### Criterios de aceptación\n- [ ] Tarifas registradas en docs/research\n- [ ] Modelo de costos (§11) y precios por plan ajustados\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "[spike] Validar el flujo de QR estático con el negocio piloto",
+      "labels": [
+        "type:spike",
+        "area:pagos",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-30, RF-32, ADR-0014\n\n### Objetivo\nConfirmar con el negocio piloto cómo cobra hoy por QR (banco, formato de comprobantes, volumen) para calibrar las reglas antifraude.\n\n### Criterios de aceptación\n- [ ] Muestras anonimizadas de comprobantes de los bancos que usan sus clientes\n- [ ] Volumen de pagos por día y tiempo actual de revisión\n- [ ] Cuenta receptora y titular registrados para la regla de beneficiario\n\n### Notas\nEl conector a la API del banco queda para la Fase 7 (ADR-0014).\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 7 · Escala y conectores",
+      "title": "[spike] Elegir proveedor SIAT homologado",
+      "labels": [
+        "type:spike",
+        "area:compliance",
+        "prio:C"
+      ],
+      "body": "**Requisitos / referencias:** P-2, ADR-0009, EXT-08\n\n### Objetivo\nComparar 2 proveedores autorizados: API, costo, soporte de Ley 1733 (IVA por fuera), contingencia.\n\n### Criterios de aceptación\n- [ ] Tabla comparativa en docs/research\n- [ ] Proveedor elegido\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Crear proyecto Supabase staging (São Paulo) y rol app_backend",
+      "labels": [
+        "type:chore",
+        "area:ops",
+        "area:db",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** ADR-0010, ADR-0002\n\n### Objetivo\nEntorno staging con migraciones aplicadas y rol app_backend con contraseña en el gestor de secretos.\n\n### Criterios de aceptación\n- [ ] Proyecto en plan Pro (o Free solo para staging, aceptando pausas)\n- [ ] `app_backend` con LOGIN vía Supavisor\n- [ ] Latencia BD↔cómputo medida (p50 < 5 ms)\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Guía de onboarding de WhatsApp en modelo directo",
+      "labels": [
+        "type:docs",
+        "area:whatsapp",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** ADR-0014, ADR-0006\n\n### Objetivo\nQue cada negocio cree su portafolio, WABA, app y token de usuario del sistema con nuestra ayuda.\n\n### Criterios de aceptación\n- [ ] Guía paso a paso con capturas en docs/runbooks\n- [ ] Token guardado en Vault (access_token_ref)\n- [ ] Medio de pago del negocio registrado en Meta\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Opt-in, opt-out y bloqueo de plantillas sin consentimiento",
+      "labels": [
+        "type:feature",
+        "area:whatsapp",
+        "area:compliance",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-08, EXT-16\n\n### Objetivo\nCumplir la política de mensajería de WhatsApp.\n\n### Criterios de aceptación\n- [ ] Registrar optin_utility_at / optin_marketing_at / optout_at\n- [ ] Palabras de baja reconocidas (BAJA, STOP, NO MÁS)\n- [ ] El outbox rechaza plantillas sin consentimiento (prueba)\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Scaffold del backend hexagonal (uv, ruff, mypy --strict, pytest, import-linter)",
+      "labels": [
+        "type:chore",
+        "area:backend",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** docs/architecture/principios-y-patrones.md §1\n\n### Objetivo\nEstructura de paquetes y herramientas de calidad listas.\n\n### Criterios de aceptación\n- [ ] `backend/` con domain/application/infrastructure/api/workers/verticals\n- [ ] import-linter impide que domain importe infraestructura\n- [ ] CI de backend en verde\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "UnitOfWork + repositorios asyncpg con SET LOCAL de tenant y actor",
+      "labels": [
+        "type:feature",
+        "area:backend",
+        "area:db",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** ADR-0011, ADR-0002\n\n### Objetivo\nAcceso transaccional seguro a la BD.\n\n### Criterios de aceptación\n- [ ] Repositorio usado fuera de UnitOfWork lanza excepción\n- [ ] Prueba: el contexto no se filtra entre conexiones del pooler\n- [ ] Errores HINT de RPC mapeados a excepciones de dominio\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Webhook de WhatsApp: verificación GET, HMAC, persistencia + encolado",
+      "labels": [
+        "type:feature",
+        "area:backend",
+        "area:security",
+        "area:whatsapp",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-01, ADR-0005, SYSTEM_DESIGN §8.3\n\n### Objetivo\nRecibir eventos de Meta de forma segura y sin pérdidas.\n\n### Criterios de aceptación\n- [ ] Firma inválida → 401 sin parsear JSON\n- [ ] Cuerpo > 1 MB → 413\n- [ ] Duplicado no crea filas nuevas\n- [ ] Ack p99 ≤ 250 ms en k6\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Worker: claim/lease/backoff/DLQ y reaper",
+      "labels": [
+        "type:feature",
+        "area:backend",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** ADR-0005\n\n### Objetivo\nProcesamiento confiable y ordenado por conversación.\n\n### Criterios de aceptación\n- [ ] Matar el worker a mitad de un job → se reintenta sin respuesta duplicada\n- [ ] Job DEAD genera alerta\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Outbox y envío por Cloud API + webhooks de estado",
+      "labels": [
+        "type:feature",
+        "area:whatsapp",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-06, ADR-0006\n\n### Objetivo\nEnvío idempotente y respeto de la ventana de 24 h.\n\n### Criterios de aceptación\n- [ ] idempotency_key única\n- [ ] Fuera de ventana solo plantillas\n- [ ] Estados SENT/DELIVERED/READ/FAILED actualizados\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Observabilidad: logs JSON sin PII, OpenTelemetry, Sentry, métricas SLO",
+      "labels": [
+        "type:feature",
+        "area:ops",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** SYSTEM_DESIGN §10.2\n\n### Objetivo\nPoder ver y alertar lo que pasa en producción.\n\n### Criterios de aceptación\n- [ ] trace_id de punta a punta\n- [ ] Métricas webhook_ack_ms, reply_latency_ms, jobs_dead, llm_cost_usd, wa_billable_messages\n- [ ] Alertas configuradas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 7 · Escala y conectores",
+      "title": "Registro como Tech Provider de Meta (verificación + App Review)",
+      "labels": [
+        "type:chore",
+        "area:whatsapp",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** EXT-06\n\n### Objetivo\nPoder conectar números de negocios con Embedded Signup.\n\n### Criterios de aceptación\n- [ ] Empresa verificada en Meta\n- [ ] Acceso avanzado a whatsapp_business_messaging y whatsapp_business_management\n- [ ] Embedded Signup probado con un número de prueba\n\n### Notas\nPuede tardar semanas: iniciar temprano.\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Pruebas de carga (k6) y de caos",
+      "labels": [
+        "type:test",
+        "area:ops",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** Q-PERF-1, Q-REL-1\n\n### Objetivo\nDemostrar los SLO del webhook y la ausencia de pérdidas.\n\n### Criterios de aceptación\n- [ ] 50 rps sostenidos con p99 ≤ 250 ms\n- [ ] Prueba de caos nocturna en CI\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Puertos de IA segregados y adaptadores (ChatModel, VisionExtractor, Embedder, SpeechToText)",
+      "labels": [
+        "type:feature",
+        "area:ia",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** principios-y-patrones §2.1\n\n### Objetivo\nAislar proveedores de IA detrás de interfaces pequeñas.\n\n### Criterios de aceptación\n- [ ] Decoradores de reintento, circuit breaker, trazas y costo\n- [ ] Modelo fijado por identificador exacto\n- [ ] Pruebas de contrato con fakes\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Job EMBED_ITEM y búsqueda híbrida desde la tool",
+      "labels": [
+        "type:feature",
+        "area:ia",
+        "area:db",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-11, ADR-0003\n\n### Objetivo\nEmbeddings mantenidos automáticamente y búsqueda de calidad.\n\n### Criterios de aceptación\n- [ ] Evaluación de 2 modelos de embeddings (P-4)\n- [ ] MRR@5 ≥ 0,8 en evals/search\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Tools del agente: search_catalog, get_item_details, create_quote, handoff_to_human",
+      "labels": [
+        "type:feature",
+        "area:ia",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-02, RF-04, RF-20, SYSTEM_DESIGN §7.2\n\n### Objetivo\nEl agente cotiza usando solo datos deterministas.\n\n### Criterios de aceptación\n- [ ] Validación Pydantic extra=forbid\n- [ ] tenant/cliente inyectados por el servidor\n- [ ] Errores con códigos estables traducidos al cliente\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Guardrails: grounding numérico, alcance del negocio, cuotas",
+      "labels": [
+        "type:feature",
+        "area:ia",
+        "area:security",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-07, RF-51, SYSTEM_DESIGN §7.4\n\n### Objetivo\nEvitar montos inventados, uso fuera de alcance y abuso de costos.\n\n### Criterios de aceptación\n- [ ] 0 violaciones en evals\n- [ ] Casos de inyección de prompt cubiertos\n- [ ] Degradación a plantilla al superar cuota\n- [ ] El bot nunca pide CI, NIT, tarjetas ni números de cuenta (RF-09)\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "PDF de cotización/recibo y envío por media_id",
+      "labels": [
+        "type:feature",
+        "area:backend",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-20, SYSTEM_DESIGN §8.3\n\n### Objetivo\nDocumento profesional con TC, IVA y vigencia.\n\n### Criterios de aceptación\n- [ ] Generado en thread pool\n- [ ] Subido a Meta, no enlace firmado\n- [ ] Snapshot visual en pruebas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Seeds sintéticos por rubro (importadora y clínica)",
+      "labels": [
+        "type:chore",
+        "area:db",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** supabase/seed/README.md\n\n### Objetivo\nDatos realistas pero ficticios para desarrollo y demos.\n\n### Criterios de aceptación\n- [ ] ≥ 25 repuestos y ≥ 15 servicios\n- [ ] TC inicial explícito\n- [ ] Sin marcas ni datos reales\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Evals golden: ≥ 30 conversaciones por rubro",
+      "labels": [
+        "type:test",
+        "area:ia",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** Q-ACC-5, SYSTEM_DESIGN §7.5\n\n### Objetivo\nMedir la exactitud del agente antes de cada cambio de prompt o modelo.\n\n### Criterios de aceptación\n- [ ] Suite en evals/conversations\n- [ ] Corre en CI con reporte comparativo\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Aviso de IA y privacidad en el primer contacto",
+      "labels": [
+        "type:feature",
+        "area:compliance",
+        "area:ia",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-03, EXT-12\n\n### Objetivo\nTransparencia con el cliente.\n\n### Criterios de aceptación\n- [ ] Texto aprobado por el negocio\n- [ ] privacy_notice_at registrado\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Transcripción de notas de voz",
+      "labels": [
+        "type:feature",
+        "area:ia",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** RF-05\n\n### Objetivo\nAtender audios igual que textos.\n\n### Criterios de aceptación\n- [ ] Audio ≤ 16 MB\n- [ ] p95 ≤ 10 s\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 3 · Pagos",
+      "title": "PaymentPort + StaticQrProvider + pipeline antifraude (Chain of Responsibility)",
+      "labels": [
+        "type:feature",
+        "area:pagos",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-32, ADR-0008\n\n### Objetivo\nEvidencias clasificadas por reglas deterministas.\n\n### Criterios de aceptación\n- [ ] Reglas: monto, beneficiario, fecha, pHash, confianza\n- [ ] Cliente recibe 'en verificación'\n- [ ] Pruebas con comprobantes manipulados\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 7 · Escala y conectores",
+      "title": "Conector opcional a la API QR del banco del negocio",
+      "labels": [
+        "type:feature",
+        "area:pagos",
+        "prio:C"
+      ],
+      "body": "**Requisitos / referencias:** RF-30, RF-31, ADR-0013\n\n### Objetivo\nConfirmación automática con el dinero en la cuenta del negocio.\n\n### Criterios de aceptación\n- [ ] QR dinámico con monto y referencia\n- [ ] Callback autenticado + consulta de estado\n- [ ] Suite de contrato de PaymentProvider en verde\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 3 · Pagos",
+      "title": "Dataset OCR ≥ 100 comprobantes + evals por campo",
+      "labels": [
+        "type:test",
+        "area:ia",
+        "area:pagos",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** Q-ACC-4\n\n### Objetivo\nCalibrar umbrales con datos reales anonimizados.\n\n### Criterios de aceptación\n- [ ] Consentimiento documentado\n- [ ] Métricas por campo publicadas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 3 · Pagos",
+      "title": "Bandeja de revisión de pagos (API) con MFA",
+      "labels": [
+        "type:feature",
+        "area:pagos",
+        "area:security",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-33\n\n### Objetivo\nAprobar o rechazar evidencias con trazabilidad.\n\n### Criterios de aceptación\n- [ ] Usa approve/reject_payment_evidence\n- [ ] Requiere aal2\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 4 · Agenda",
+      "title": "Tools de agenda: check_availability y hold_appointment",
+      "labels": [
+        "type:feature",
+        "area:agenda",
+        "area:ia",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-22, RF-23\n\n### Objetivo\nAgendar sin doble reserva desde WhatsApp.\n\n### Criterios de aceptación\n- [ ] Botones interactivos con horarios\n- [ ] SLOT_TAKEN manejado con alternativa\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 4 · Agenda",
+      "title": "Recordatorios de cita por plantilla de utilidad",
+      "labels": [
+        "type:feature",
+        "area:whatsapp",
+        "area:agenda",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** RF-24\n\n### Objetivo\nReducir inasistencias.\n\n### Criterios de aceptación\n- [ ] Plantilla aprobada\n- [ ] Job programado 24 h antes\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 4 · Agenda",
+      "title": "Consulta y cancelación de órdenes por el cliente",
+      "labels": [
+        "type:feature",
+        "area:ia",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** RF-25\n\n### Objetivo\nAutoservicio seguro.\n\n### Criterios de aceptación\n- [ ] Solo órdenes del mismo cliente\n- [ ] FSM respeta estados\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 5 · Dashboard",
+      "title": "Scaffold del dashboard Next.js + login con MFA",
+      "labels": [
+        "type:feature",
+        "area:frontend",
+        "area:security",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-40\n\n### Objetivo\nBase del panel con roles.\n\n### Criterios de aceptación\n- [ ] MFA obligatorio para OWNER/ADMIN\n- [ ] Roles reflejados en la UI\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 5 · Dashboard",
+      "title": "Catálogo, importación CSV y tipo de cambio",
+      "labels": [
+        "type:feature",
+        "area:frontend",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-10, RF-12\n\n### Objetivo\nGestión del catálogo y del TC.\n\n### Criterios de aceptación\n- [ ] Errores de CSV por fila\n- [ ] Historial de TC visible\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 5 · Dashboard",
+      "title": "Bandeja de pagos con visor de comprobantes",
+      "labels": [
+        "type:feature",
+        "area:frontend",
+        "area:pagos",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-33\n\n### Objetivo\nRevisión rápida y segura.\n\n### Criterios de aceptación\n- [ ] URLs firmadas de 5 min\n- [ ] Motivo obligatorio al rechazar\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 5 · Dashboard",
+      "title": "Bandeja de conversaciones con tomar/devolver al bot",
+      "labels": [
+        "type:feature",
+        "area:frontend",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-41\n\n### Objetivo\nAtención humana sin perder contexto.\n\n### Criterios de aceptación\n- [ ] Cambio de modo auditado\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 5 · Dashboard",
+      "title": "Órdenes, agenda y panel del día",
+      "labels": [
+        "type:feature",
+        "area:frontend",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** RF-42\n\n### Objetivo\nVisión diaria del negocio.\n\n### Criterios de aceptación\n- [ ] KPIs: ventas, citas, pagos pendientes, TC, costo IA y mensajes\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 5 · Dashboard",
+      "title": "Pruebas E2E (Playwright) de los 5 flujos del dashboard",
+      "labels": [
+        "type:test",
+        "area:frontend",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** SYSTEM_DESIGN §13.1\n\n### Objetivo\nEvitar regresiones de UI.\n\n### Criterios de aceptación\n- [ ] E2E en CI\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 6 · Piloto",
+      "title": "Runbooks y simulacro de restauración",
+      "labels": [
+        "type:docs",
+        "area:ops",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** SYSTEM_DESIGN §10.3-10.4\n\n### Objetivo\nOperación preparada para incidentes.\n\n### Criterios de aceptación\n- [ ] Runbooks en docs/runbooks\n- [ ] RTO medido\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 6 · Piloto",
+      "title": "Onboarding de 2 negocios piloto en Santa Cruz",
+      "labels": [
+        "type:chore",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-50\n\n### Objetivo\nValidar con usuarios reales.\n\n### Criterios de aceptación\n- [ ] Checklist < 30 min\n- [ ] 2 semanas con SLO cumplidos\n- [ ] Costo por tenant medido\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 7 · Escala y conectores",
+      "title": "Adaptador del proveedor SIAT con soporte de Ley 1733",
+      "labels": [
+        "type:feature",
+        "area:compliance",
+        "prio:C"
+      ],
+      "body": "**Requisitos / referencias:** RF-44, RF-13, ADR-0009, ADR-0012\n\n### Objetivo\nFacturar automáticamente.\n\n### Criterios de aceptación\n- [ ] Idempotencia por orden\n- [ ] Contingencia reflejada\n- [ ] IVA separado cuando rija\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 7 · Escala y conectores",
+      "title": "Asistente de transición de precios para Ley 1733 (IVA por fuera)",
+      "labels": [
+        "type:feature",
+        "area:compliance",
+        "area:frontend",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** ADR-0012, EXT-08\n\n### Objetivo\nAyudar al negocio a convertir sus precios de lista a netos cuando rija el nuevo régimen.\n\n### Criterios de aceptación\n- [ ] Simulación antes/después\n- [ ] Migración de tax_regimes revisada\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    }
+  ]
+}
