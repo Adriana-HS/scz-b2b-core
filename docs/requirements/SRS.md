@@ -3,7 +3,7 @@
 | Campo | Valor |
 | :--- | :--- |
 | Norma de referencia | ISO/IEC/IEEE 29148:2018 (estructura adaptada) |
-| Versión | 1.0 · 15-oct-2026 |
+| Versión | 1.1 · 15-oct-2026 (alcance de mínimo regulatorio, ADR-0014) |
 | Requisitos de calidad | `SYSTEM_DESIGN.md` §2 (Q-SEC, Q-ACC, Q-PERF, Q-REL, Q-MAINT, Q-COST) |
 | Prioridad | MoSCoW: **M** (must), **S** (should), **C** (could), **W** (won't, por ahora) |
 
@@ -39,6 +39,8 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 | RF-05 | Las notas de voz se transcriben y se procesan como texto | S | Transcripción guardada en `messages.body`; p95 de la respuesta ≤ 10 s |
 | RF-06 | Fuera de la ventana de 24 h solo se envían plantillas aprobadas | M | Ningún mensaje libre sale si `now − last_inbound_at > 24 h` |
 | RF-07 | El agente rechaza conversaciones ajenas al negocio (política de Meta sobre IA) | M | Casos "fuera de alcance" en las evals con respuesta de redirección ≥ 95 % |
+| RF-08 | Registrar opt-in y opt-out por cliente; los mensajes proactivos solo van a quien aceptó, y "BAJA" o equivalente lo excluye al instante | M | Ninguna plantilla sale a un cliente sin `optin_utility_at` (o `optin_marketing_at`) o con `optout_at` |
+| RF-09 | El bot nunca pide CI, NIT, números de tarjeta ni de cuentas por el chat | M | Evals y revisión de prompts; no existe una tool que lo haga |
 
 ### 4.2 Catálogo, precios e impuestos
 
@@ -48,7 +50,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 | RF-11 | Búsqueda por código exacto, texto con errores y significado | M | pgTAP 03 #10–#13; MRR@5 ≥ 0,8 en `evals/search` |
 | RF-12 | Registro del tipo de cambio con historial, fuente y autor; referencia diaria del BCB | M | Inserción append-only; alerta si el TC supera `fx_max_age_hours` |
 | RF-13 | El IVA se calcula según el régimen vigente (incluido o adicional) y se congela en cada orden | M | pgTAP 04 (11 pruebas) |
-| RF-14 | Cada ítem puede guardar su código de producto del SIN | S | Campo validado; obligatorio si el tenant activa la facturación |
+| RF-14 | Cada ítem puede guardar su código de producto del SIN (fase de escala) | C | Campo validado; obligatorio si el tenant activa la facturación |
 
 ### 4.3 Cotizaciones y agenda
 
@@ -65,8 +67,8 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 
 | ID | Requisito | Prior. | Criterio de aceptación |
 | :--- | :--- | :--- | :--- |
-| RF-30 | Generar un QR por orden con el monto exacto (seña o total) a nombre de la cuenta **del negocio** | M | ADR-0013; ningún adaptador usa cuentas de la plataforma |
-| RF-31 | Confirmar automáticamente con la notificación verificada del banco u OpenBCB | S | El callback autenticado + consulta de estado crea `payments(BANK_API)` |
+| RF-30 | Enviar al cliente el **QR del propio negocio** con el monto y la referencia a pagar | M | ADR-0013/0014; ningún flujo usa cuentas de la plataforma |
+| RF-31 | (Fase de escala) Confirmar automáticamente con el conector a la API del banco del negocio | C | El callback autenticado + consulta de estado crea `payments(BANK_API)` |
 | RF-32 | Recibir comprobantes, aplicar reglas antifraude y priorizar la revisión | M | pgTAP 02 #15–#18; el cliente recibe "en verificación", nunca "confirmado" |
 | RF-33 | Aprobar o rechazar evidencias en el dashboard (OWNER/ADMIN con MFA) | M | pgTAP 02 #19–#24 |
 | RF-34 | Ninguna orden se confirma sin pago suficiente registrado | M | pgTAP 02 #12, #21 |
@@ -79,7 +81,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 | RF-41 | Bandeja de conversaciones con la opción de tomar y devolver al bot | M | Prueba E2E |
 | RF-42 | Panel del día: ventas, citas, pagos pendientes, TC vigente, costo de IA y de mensajes | S | Prueba E2E |
 | RF-43 | Bitácora de auditoría consultable por OWNER y AUDITOR | S | Toda acción financiera aparece con actor y antes/después |
-| RF-44 | Emisión de factura vía proveedor SIAT, opcional por tenant | C | Prueba de contrato del adaptador; idempotencia por orden |
+| RF-44 | (Fase de escala) Emisión de factura vía un proveedor SIAT autorizado, contratado por el negocio | W (MVP) | Prueba de contrato del adaptador; idempotencia por orden |
 | RF-45 | Exportación de datos del tenant (baja o pedido del titular de los datos) | S | Export en un formato abierto; registro en auditoría |
 
 ### 4.6 Plataforma
@@ -89,6 +91,8 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 | RF-50 | Alta de un tenant nuevo (organización, número de WhatsApp vía Embedded Signup, cuenta bancaria, horario) | M | Checklist de onboarding completado en menos de 30 min |
 | RF-51 | Cuotas por plan (respuestas del bot, costo de IA) con alertas | S | Alerta al 80 %; degradación a plantilla al 100 % |
 | RF-52 | Otros canales (Instagram, web chat) | W | — |
+| RF-53 | El alta de tenants rechaza rubros prohibidos por la política de WhatsApp | M | Enum `business_vertical` + checklist de onboarding |
+| RF-54 | Cobro de la suscripción fija al negocio fuera del flujo de pagos de sus clientes | M | Ningún cálculo de comisión sobre ventas o pagos en el código |
 
 ## 5. Restricciones
 
@@ -107,6 +111,8 @@ Ver `SYSTEM_DESIGN.md` §1.3 y `docs/research/2026-10-15-restricciones-externas.
 | RF-13, RF-14 | §5.4 | 0012, 0009 | pgTAP 04 | 2 / 7 |
 | RF-20, RF-21 | §5, §6 | 0004, 0007 | pgTAP 02, 03 | 2 |
 | RF-22 … RF-25 | §6, §7.2 | 0004 | pgTAP 03 | 4 |
-| RF-30 … RF-34 | §4.5 | 0008, 0013 | pgTAP 02 | 3 |
+| RF-30 … RF-34 | §4.5 | 0008, 0013, 0014 | pgTAP 02 | 3 (RF-31: escala) |
+| RF-08, RF-09 | §7, §10.1 | 0006, 0014 | Evals, unit | 1 / 2 |
+| RF-53, RF-54 | — | 0014 | Revisión | 6 |
 | RF-40 … RF-45 | §8.2 | 0002 | pgTAP 01, E2E | 5 / 7 |
 | RF-50, RF-51 | §7.4, §11 | 0006 | E2E, métricas | 6 |

@@ -9,11 +9,12 @@ Lo que el proyecto **no controla** y puede cambiar: regulación, tarifas, polít
 | ID | Restricción | Nivel | Decisión | Revisar |
 | :--- | :--- | :--- | :--- | :--- |
 | EXT-01 | Recibir o retener fondos de terceros = actividad regulada por la ASFI ⚖️ | **Alto** | La plataforma **nunca custodia dinero**; los fondos van directo a la cuenta del negocio (ADR-0013) | Semestral |
-| EXT-02 | OpenBCB exige trámite por cada negocio, VPN o IP fija y reacreditación semestral | Medio | Adaptador disponible, pero no es el camino del MVP; se prioriza la API del banco de cada negocio | Semestral |
-| EXT-03 | Las APIs QR bancarias requieren convenio entre el negocio y su banco | Medio | `PaymentPort` con un adaptador por banco; arrancar con 1 banco | Por banco |
+| EXT-02 | OpenBCB exige trámite por cada negocio, VPN o IP fija y reacreditación semestral | Medio | **Fuera del roadmap** (ADR-0014) | Anual |
+| EXT-03 | Las APIs QR bancarias requieren convenio entre el negocio y su banco | Medio | Conector de la fase de escala; el MVP usa el QR estático del negocio (ADR-0014) | Por banco |
 | EXT-04 | WhatsApp cobra mensajes de servicio desde el 1-oct-2026 (1.000 gratis por número/mes), según varios BSP | **Alto** (margen) | Medir mensajes por número; agrupar respuestas; incluirlo en el precio por plan | Trimestral (Meta cambia tarifas el día 1 de cada trimestre) |
 | EXT-05 | Meta prohíbe chatbots de IA de propósito general (desde 15-ene-2026) | Medio | El bot es de atención del negocio y no responde temas ajenos al negocio | Semestral |
-| EXT-06 | Para conectar números de clientes hay que ser **Tech Provider** de Meta | Medio | Verificar la empresa y pasar App Review en la fase 1 | Una vez + cambios de Meta |
+| EXT-06 | Para conectar números de clientes hay que ser **Tech Provider** de Meta | Medio | Piloto en modelo directo (cada negocio es dueño de su WABA); Tech Provider al escalar (ADR-0014) | Una vez + cambios de Meta |
+| EXT-16 | Política de WhatsApp: opt-in, baja, escalamiento a humano, prohibido pedir CI o cuentas por el chat, rubros prohibidos | **Alto** (cierre del número) | RF-08, RF-09, RF-53 | Semestral |
 | EXT-07 | Límite de mensajería por portafolio (los nuevos empiezan en 250 contactos fuera de ventana por 24 h) | Bajo | Las plantillas proactivas son pocas; monitorear el tier | Trimestral |
 | EXT-08 | Ley 1733: IVA "por fuera"; nuevos formatos de factura en piloto (1-oct al 16-nov-2026) ⚖️ | **Alto** (exactitud) | Modelo de IVA con régimen vigente por fecha (ADR-0012) | Mensual hasta su vigencia |
 | EXT-09 | El SIN asignará la modalidad de facturación en línea a quienes aún no la tienen (RND 102600000038) | Medio | Facturación vía proveedor homologado (ADR-0009) | Trimestral |

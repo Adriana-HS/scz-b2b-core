@@ -2,16 +2,16 @@
 
 **Motor transaccional multi-tenant de atención, cotización, agendamiento y conciliación de pagos QR por WhatsApp**, para PyMEs de Santa Cruz de la Sierra (importadoras de repuestos, ferreterías industriales, clínicas y consultorios).
 
-> Estado: **diseño v2.1 + esquema de base de datos probado (74 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
+> Estado: **diseño v2.2 + esquema de base de datos probado (74 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
 
 ## Qué resuelve
 
 | Problema | Cómo lo resuelve |
 | :--- | :--- |
 | Cotizaciones con tipo de cambio desactualizado | TC con historial y control de antigüedad; precio calculado y congelado por la base de datos |
-| Conciliación manual y fraude con comprobantes QR | QR dinámico con confirmación bancaria; comprobantes como evidencia con reglas y aprobación humana con MFA |
+| Conciliación manual y fraude con comprobantes QR | El bot envía el QR **del propio negocio**; los comprobantes se clasifican con reglas antifraude y una persona aprueba con MFA. La plataforma nunca toca el dinero |
 | Atención 24/7 por WhatsApp sin perder el control | Agente IA que usa herramientas deterministas; traspaso a humano; el bot no puede confirmar pagos ni cambiar precios |
-| Doble carga fiscal | Facturación SIAT vía proveedor homologado (opcional por tenant) |
+| Doble carga fiscal | (Fase de escala) Integración con un proveedor SIAT autorizado que contrata el negocio |
 
 ## Arquitectura en una línea
 
@@ -24,7 +24,8 @@ Monolito modular hexagonal en **Python/FastAPI** (procesos `api` + `worker`) · 
 | [`SYSTEM_DESIGN.md`](SYSTEM_DESIGN.md) | Diseño completo: requisitos medibles, arquitectura C4, datos, FSM, agente IA, seguridad, rendimiento, operación, costos |
 | [`docs/requirements/SRS.md`](docs/requirements/SRS.md) | Requisitos funcionales RF-xx con criterios de aceptación y trazabilidad |
 | [`docs/architecture/`](docs/architecture/) | Estilo arquitectónico, revisión SOLID, catálogo de patrones, diagramas UML |
-| [`docs/adr/`](docs/adr/) | 13 decisiones de arquitectura (formato MADR) |
+| [`docs/adr/`](docs/adr/) | 14 decisiones de arquitectura (formato MADR) |
+| [`docs/legal/`](docs/legal/) | Marco legal, modelo de negocio y checklist antes del piloto |
 | [`docs/research/`](docs/research/) | Restricciones externas verificadas (pagos, WhatsApp, IVA, TC, plataformas) |
 | [`docs/GESTION_DEL_PROYECTO.md`](docs/GESTION_DEL_PROYECTO.md) | Tareas, tablero, fases y flujo de trabajo |
 | [`AGENTS.md`](AGENTS.md) · [`docs/HERRAMIENTAS_IA.md`](docs/HERRAMIENTAS_IA.md) | Instrucciones y skills para Codex/ChatGPT y Claude |
@@ -54,4 +55,4 @@ backend/  frontend/    (fase 1 y siguientes del roadmap)
 
 ## Autoría
 
-Arquitectura: Adriana Hernández Severich (AHS). Licencia: por definir (ver `docs/ROADMAP.md`, fase 0).
+Arquitectura: Adriana Hernández Severich (AHS). Software propietario, todos los derechos reservados (ver `LICENSE`).

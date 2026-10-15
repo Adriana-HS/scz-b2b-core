@@ -16,7 +16,8 @@ Usar exclusivamente la **Cloud API oficial** (número verificado, WABA del tenan
 
 ### Actualización (15-oct-2026, ver `docs/research/2026-10-15-restricciones-externas.md` §2)
 * **Política de IA:** desde el 15-ene-2026 Meta prohíbe los chatbots de IA de propósito general. Nuestro agente es de atención del negocio y se limita a su catálogo, agenda y pagos; las evals incluyen casos de "fuera de alcance".
-* **Tech Provider:** para conectar los números de los negocios con *Embedded Signup* se requiere verificar la empresa y pasar App Review (fase 1 del roadmap).
+* **Tech Provider:** para conectar los números de los negocios con *Embedded Signup* se requiere verificar la empresa y pasar App Review. **Piloto (ADR-0014):** modelo directo, en el que cada negocio es dueño de su WABA, su app y su token de usuario del sistema, y nosotros solo configuramos. Tech Provider en la fase de escala.
+* **Política de mensajería:** opt-in obligatorio para mensajes proactivos, baja inmediata, vía de escalamiento a humano, prohibido pedir por el chat números de identificación o de cuentas financieras.
 * **Costos:** varios BSP informan que desde el 1-oct-2026 los mensajes de servicio se cobran (1.000 gratis por número y mes; Bolivia ≈ US$ 0,0113 cada uno). Diseño: una sola respuesta por turno, mensajes interactivos y cupo por plan.
 * **Coexistencia:** opción de onboarding para que el dueño use el mismo número desde la app; el webhook `smb_message_echoes` pasa la conversación a modo `HUMAN`.
 

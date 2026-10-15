@@ -18,7 +18,9 @@ En oct-2025 el BCB lanzó **OpenBCB**, con generación gratuita de QR, consulta 
 * **Camino B (respaldo):** QR estático + comprobante → `payment_evidence`. Las reglas deterministas (monto, beneficiario y últimos 4 dígitos de la cuenta, ventana de fecha, pHash contra evidencias previas, confianza del OCR, unicidad normalizada global de banco + nro. de transacción) clasifican la evidencia en `AUTO_CHECK_PASSED` o `NEEDS_REVIEW`. **Siempre** se requiere aprobación humana (OWNER/ADMIN con MFA). Al cliente se le dice "recibido, en verificación".
 * Todo intento queda registrado, incluidos los duplicados (UNIQUE parciales).
 
-### Actualización (15-oct-2026)
+### Actualización (15-oct-2026, ADR-0014)
+**En el MVP comercial solo se usa el camino B** (QR estático del negocio + evidencia + aprobación humana). El camino A pasa a la fase de escala.
+
 La investigación de integración (ver `docs/research/…` §1) ajusta el camino A: el adaptador preferido para el MVP es la **API QR del banco de cada negocio** (por ejemplo, BNB: QR dinámico, sandbox y webhook, con convenio previo). **OpenBCB** queda como adaptador opcional, porque su habilitación es por negocio (nota formal, VPN o IP fija y reacreditación semestral). En todos los casos el dinero va a la cuenta del negocio (ADR-0013).
 
 ## Alternativas consideradas

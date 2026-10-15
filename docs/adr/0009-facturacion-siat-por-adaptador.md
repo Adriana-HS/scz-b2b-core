@@ -8,6 +8,8 @@
 Homologar un sistema propio ante el SIN (firma digital, servicios del SIAT, contingencias) toma meses y no es el núcleo del producto. La v1 lo resolvía bien con un `BillingPort`, pero no tenía dónde guardar el resultado (CUF, CUFD, número, estado, contingencia).
 
 ## Decisión
+> **Actualización (ADR-0014):** fuera del MVP comercial. Nunca seremos "proveedor de sistemas de facturación" (eso requiere autorización del SIN). En la fase de escala, el negocio contrata directamente a un proveedor autorizado y nuestro adaptador usa sus credenciales.
+
 * `BillingPort` con adaptadores por proveedor homologado; se activa por tenant.
 * Tabla `invoices` (una vigente por orden): `status` (`PENDING/ISSUED/CONTINGENCY/FAILED/VOIDED`), `cuf`, `cufd`, `invoice_number`, datos del comprador, PDF/XML en Storage y `provider_payload`.
 * La emisión es un trabajo de la cola (reintento idempotente por `order_id`), disparado por la regla del tenant (al confirmar el pago o al completar la orden).

@@ -7,9 +7,10 @@
 | Proyecto | `scz-b2b-core` |
 | Autora / Arquitecta principal | Adriana Hernández Severich (AHS) |
 | Mercado inicial | Santa Cruz de la Sierra, Bolivia |
-| Versión | **2.1** (15-oct-2026) — reemplaza a la v1.0 |
+| Versión | **2.2** (15-oct-2026) — reemplaza a la v1.0 |
 | Estado | Propuesta para revisión (ver `docs/reviews/2026-10-15-revision-system-design-v1.md`) |
-| Decisiones | `docs/adr/` (ADR-0001 … ADR-0013) |
+| Decisiones | `docs/adr/` (ADR-0001 … ADR-0014) |
+| Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
 | Esquema ejecutable | `supabase/migrations/` (7 migraciones) — **fuente única de verdad del modelo de datos** |
 | Pruebas del esquema | `supabase/tests/database/` — 74 pruebas pgTAP en 4 archivos, 74/74 OK sobre PostgreSQL 16 + pgvector 0.8 |
@@ -24,6 +25,7 @@
 | 1.0 | 15-oct-2026 | Especificación base (AHS). |
 | 2.0 | 15-oct-2026 | Revisión de ingeniería: 30 hallazgos corregidos (13 confirmados ejecutando el SQL v1). RLS también para el backend, modelo de confianza de pagos, cola durable, FSM en BD, historial de tipo de cambio, búsqueda híbrida real, conversaciones y handoff, seguridad/privacidad, SLOs, costos, CI y pruebas. |
 | 2.1 | 15-oct-2026 | Investigación de restricciones externas: IVA por régimen (Ley 1733, ADR-0012), la plataforma no custodia fondos (ADR-0013), APIs QR bancarias y OpenBCB, cobro de mensajes de servicio de WhatsApp, política de IA de Meta, TC flotante. SRS, principios SOLID, patrones y UML. |
+| 2.2 | 15-oct-2026 | **Alcance de mínimo regulatorio** (ADR-0014): MVP con QR estático del negocio y aprobación humana, sin OpenBCB, sin facturación, sin comisiones por transacción, sin pedir CI/NIT por el chat, onboarding de WhatsApp en modelo directo, importadoras primero, opt-in y opt-out. |
 
 ---
 
@@ -44,9 +46,9 @@ Las PyMEs de alto flujo transaccional de Santa Cruz —en particular **importado
 | Atención por WhatsApp (texto, imagen, nota de voz) con agente IA y traspaso a humano | Otros canales (Instagram, web chat) |
 | Catálogo con búsqueda híbrida, cotización en Bs con TC vigente y reserva de stock | ERP/inventario completo, compras, multi-almacén |
 | Agenda por profesional/recurso con seña | Historia clínica electrónica |
-| Pagos: QR dinámico con confirmación bancaria (preferido) y comprobante + revisión humana (respaldo) | Pasarela de tarjetas |
+| Pagos: QR estático **del propio negocio** + comprobante + reglas + aprobación humana (ADR-0014) | Pasarela de tarjetas; custodia de fondos; comisiones por transacción; OpenBCB |
 | Dashboard: catálogo, TC, órdenes/agenda, bandeja de pagos, bandeja de conversaciones | App móvil nativa |
-| Facturación SIAT vía proveedor homologado (opcional por tenant) | Homologación propia ante el SIN |
+| Rubro inicial: importadoras y ferreterías; clínicas (solo agenda) después del piloto | Facturación SIAT (fase de escala, vía proveedor autorizado contratado por el negocio); conector a la API del banco del negocio (fase de escala); homologación propia ante el SIN |
 
 ### 1.3 Supuestos y restricciones
 
@@ -110,6 +112,7 @@ El detalle (contexto, alternativas, consecuencias y verificación) está en `doc
 | [0011](docs/adr/0011-acceso-a-datos-transaccional.md) | El backend accede a Postgres directo (asyncpg vía Supavisor) para transacciones; la lógica crítica vive en RPCs | v1 asumía `supabase-py` (PostgREST, sin transacciones) |
 | [0012](docs/adr/0012-iva-por-regimen-vigente.md) | **IVA por régimen vigente** (incluido o adicional), congelado en cada orden | v1 no modelaba el IVA |
 | [0013](docs/adr/0013-la-plataforma-no-custodia-fondos.md) | **La plataforma no custodia fondos**: QR a nombre de la cuenta de cada negocio | Nuevo (riesgo regulatorio ASFI) |
+| [0014](docs/adr/0014-alcance-de-minimo-regulatorio-para-el-mvp.md) | **MVP de mínimo regulatorio**: QR estático + aprobación humana, suscripción fija, sin facturación ni datos de identidad por chat | Nuevo (viabilidad comercial) |
 
 ---
 
@@ -258,7 +261,9 @@ sequenceDiagram
 
 ### 4.5 Flujo de pago
 
-**Camino A — QR dinámico con confirmación bancaria (preferido, automático).** El QR se genera con la API **del banco del negocio** (por ejemplo, el BNB ofrece QR dinámico con webhook previo convenio) o con OpenBCB si el negocio tramitó su habilitación, siempre a nombre de **su** cuenta (ADR-0013). Lleva el monto exacto y la referencia de la orden. El banco u OpenBCB notifica el pago, y solo esa confirmación externa crea un registro en `payments` con `confirmed_via = 'BANK_API'`.
+> **MVP comercial (ADR-0014): solo el camino B.** El camino A se describe porque el modelo de datos ya lo soporta y se activa en la fase de escala.
+
+**Camino A — QR dinámico con confirmación bancaria (fase de escala, automático).** El QR se genera con la API **del banco del negocio** (por ejemplo, el BNB ofrece QR dinámico con webhook previo convenio) o con OpenBCB si el negocio tramitó su habilitación, siempre a nombre de **su** cuenta (ADR-0013). Lleva el monto exacto y la referencia de la orden. El banco u OpenBCB notifica el pago, y solo esa confirmación externa crea un registro en `payments` con `confirmed_via = 'BANK_API'`.
 
 **Camino B — QR estático + comprobante (respaldo).** La captura es **evidencia, no prueba**. Las reglas deterministas la clasifican y una persona con MFA la aprueba en el dashboard.
 
@@ -451,8 +456,9 @@ stateDiagram-v2
 | `request_payment` | `reference_code: str` | `PaymentPort`: QR dinámico si el tenant lo tiene, si no QR estático | `{qr_media_id, amount_bs, instructions}` |
 | `get_order_status` | `reference_code: str` | Lectura (solo órdenes del mismo cliente) | `{status, total_bs, amount_paid_bs, valid_until}` |
 | `cancel_order` | `reference_code: str`, `reason: str` | UPDATE con FSM (solo estados previos al pago) | `{status}` |
-| `update_billing_info` | `doc_type: enum`, `doc_number: str`, `billing_name: str` | Validación de formato NIT/CI | `{ok}` |
 | `handoff_to_human` | `reason: enum`, `summary: str` | `mode = 'HUMAN'` + notificación al equipo | `{ok}` |
+
+> Por la política de WhatsApp no hay herramientas que pidan CI, NIT ni números de cuenta por el chat. Si un flujo futuro los necesita, se usa un formulario web con enlace temporal.
 
 **Códigos de error estables** (HINT de las RPC → excepción de dominio → mensaje al cliente): `ITEM_NOT_FOUND`, `OUT_OF_STOCK`, `FX_STALE`, `SLOT_TAKEN`, `OUTSIDE_BUSINESS_HOURS`, `SLOT_IN_PAST`, `INVALID_ITEMS`, `INVALID_QUANTITY`, `DUPLICATE_ITEM`, `TENANT_REQUIRED`.
 
@@ -616,12 +622,14 @@ La v1 estimaba `$us 0 – 15/mes`. No es viable en producción: el plan gratuito
 
 ```text
 scz-b2b-core/
-├── README.md · SYSTEM_DESIGN.md · SECURITY.md · CONTRIBUTING.md · CHANGELOG.md
+├── README.md · SYSTEM_DESIGN.md · SECURITY.md · CONTRIBUTING.md · CHANGELOG.md · LICENSE
+├── .gitignore · .gitattributes · .editorconfig · .pre-commit-config.yaml · .env.example
 ├── AGENTS.md · CLAUDE.md          # instrucciones para asistentes de IA (Codex, Claude)
 ├── .agents/skills/               # skills del proyecto (formato SKILL.md)
 ├── docs/
-│   ├── adr/                      # ADR-0001 … ADR-0013 (formato MADR)
+│   ├── adr/                      # ADR-0001 … ADR-0014 (formato MADR)
 │   ├── architecture/             # estilo, SOLID, patrones, UML
+│   ├── legal/                    # marco legal y modelo de negocio (sin documentos firmados)
 │   ├── requirements/SRS.md       # requisitos RF-xx (ISO/IEC/IEEE 29148)
 │   ├── research/                 # restricciones externas con fuentes y fecha
 │   ├── reviews/                  # revisiones de diseño + evidencia reproducible
@@ -694,7 +702,9 @@ Código con pruebas y cobertura del módulo ≥ 85 %; migración con su prueba p
 | P-6 | Plazo de conservación tributaria aplicable | §5.5 | Confirmar con un contador | AHS |
 | P-7 | Uso de la *service role key* en el `StorageAdapter` | Privilegio amplio residual | Evaluar claves con alcance o un proxy de Storage | Equipo |
 | P-8 | Opinión legal sobre el modelo "solo software" en pagos (ASFI) | Regulatorio | Consulta con un abogado antes del piloto (EXT-01, ADR-0013) | AHS |
-| P-9 | Aprobación como *Tech Provider* de Meta | Sin ella no se pueden conectar números de clientes | Iniciar la verificación de la empresa y el App Review en la fase 1 (EXT-06) | AHS |
+| P-9 | Aprobación como *Tech Provider* de Meta | Sin ella no se pueden conectar números de clientes | Piloto en modelo directo; verificación de la empresa y App Review en la fase de escala (EXT-06, ADR-0014) | AHS |
+| P-11 | Acuerdo de socios y titularidad del código (Ley 1322, D.S. 24582 art. 12) | Sin él, la propiedad del software es ambigua | Firmar antes de seguir desarrollando entre varias personas | Fundadores |
+| P-12 | Forma jurídica y régimen tributario de nuestra empresa | Facturar suscripciones, verificar la empresa en Meta | Abogado y contador (`docs/legal/…` §4) | Fundadores |
 | P-10 | Fecha de vigencia del IVA por fuera (Ley 1733) | Exactitud de cotizaciones y facturas | Seguir las RND del SIN; insertar el régimen con migración (ADR-0012) | AHS |
 
 ---

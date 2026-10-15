@@ -17,7 +17,8 @@ SCZ-B2B-Core: SaaS multi-tenant de atención, cotización, agenda y conciliació
 - **El backend NUNCA usa la service role para datos.** Usa el rol `app_backend` dentro de un `UnitOfWork` que ejecuta `SET LOCAL app.current_org_id` y `SET LOCAL app.actor`.
 - **Dinero:** `Decimal` en Python y `numeric` en SQL. Los precios, el IVA, el TC, la seña y los totales los calcula **solo** la BD (`private.unit_price_bs`, `private.tax_breakdown`, triggers). Python formatea, no recalcula.
 - **El LLM no calcula, no confirma pagos ni cambia estados.** Las herramientas reciben IDs y cantidades; el servidor inyecta tenant y cliente. Toda cifra que diga el bot debe venir de una herramienta (*grounding* numérico).
-- **Pagos:** la plataforma no custodia fondos (ADR-0013). Un comprobante es *evidencia*; solo `payments` (banco o humano con MFA) confirma.
+- **Pagos:** la plataforma no custodia fondos ni cobra comisiones sobre ventas o pagos (ADR-0013, ADR-0014). MVP: QR estático **del negocio** + comprobante + aprobación humana con MFA. Un comprobante es *evidencia*; solo `payments` confirma.
+- **Mínimo regulatorio (ADR-0014):** no implementar facturación SIAT, OpenBCB ni integraciones bancarias en el MVP; no pedir CI, NIT ni números de cuenta por el chat; plantillas solo con opt-in y respetando el opt-out.
 - **WhatsApp:** solo Cloud API oficial; fuera de la ventana de 24 h, solo plantillas; una respuesta por turno (cada mensaje cuesta).
 - **Funciones SQL `SECURITY DEFINER`** siempre con `SET search_path = ''`.
 - **Migraciones solo hacia adelante.** Nunca editar una migración ya aplicada en un entorno compartido.

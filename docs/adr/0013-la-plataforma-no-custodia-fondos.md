@@ -11,7 +11,7 @@ En Bolivia las pasarelas de pago requieren autorización de la ASFI (R.D. BCB 06
 * **El dinero nunca pasa por cuentas de la plataforma.** El QR se genera con las credenciales del **negocio** y a nombre de **su** cuenta (API de su banco u OpenBCB tramitado por el propio negocio). La plataforma solo orquesta: genera la solicitud, muestra el QR y recibe y verifica la confirmación.
 * Las credenciales bancarias de cada negocio se guardan como secretos por tenant (Vault), nunca en tablas.
 * Se descartan integradores que **cobran y liquidan el neto**, salvo que demuestren autorización de la ASFI.
-* El cobro del SaaS al negocio (suscripción) es independiente y va por un canal propio, sin descontarse de las ventas.
+* El cobro del SaaS al negocio (suscripción fija) es independiente y va por un canal propio, sin descontarse de las ventas. **No se cobran comisiones porcentuales sobre ventas ni pagos** (ADR-0014).
 
 ## Consecuencias
 * (+) Menor riesgo regulatorio; el negocio conserva la relación con su banco y su conciliación.

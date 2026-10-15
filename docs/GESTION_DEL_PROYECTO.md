@@ -36,7 +36,7 @@ Milestone (fase)  ──►  Issue (historia, spike, chore)  ──►  PR  ─�
 
 * **Etiquetas:** `type:*` (feature, bug, spike, chore, docs, test, adr), `area:*` (db, backend, ia, whatsapp, pagos, agenda, frontend, ops, security, compliance), `prio:*` (M, S, C), `blocked`.
 * **Plantillas:** `.github/ISSUE_TEMPLATE/` (funcionalidad, defecto, spike, ADR).
-* **Backlog inicial:** `scripts/github/backlog.json`, con 42 issues en 8 fases, cada uno con criterios de aceptación.
+* **Backlog inicial:** `scripts/github/backlog.json`, con 47 issues en 8 fases, cada uno con criterios de aceptación.
 
 ### 3.1 Cargar el backlog en GitHub (una sola vez)
 

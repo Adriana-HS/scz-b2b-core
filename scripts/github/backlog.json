@@ -124,8 +124,8 @@
       "description": "PaymentPort, antifraude, banco piloto"
     },
     {
-      "title": "Fase 4 · Agenda (clínica)",
-      "description": "Disponibilidad, retención, recordatorios"
+      "title": "Fase 4 · Agenda",
+      "description": "Agenda por recurso con seña; el rubro clínicas se habilita en la fase de escala (ADR-0014)"
     },
     {
       "title": "Fase 5 · Dashboard",
@@ -136,8 +136,8 @@
       "description": "2 negocios reales en Santa Cruz"
     },
     {
-      "title": "Fase 7 · SIAT",
-      "description": "Facturación vía proveedor homologado"
+      "title": "Fase 7 · Escala y conectores",
+      "description": "Tech Provider de Meta, conector bancario del negocio, conector SIAT autorizado, rubro clínicas"
     }
   ],
   "issues": [
@@ -150,6 +150,36 @@
         "prio:M"
       ],
       "body": "**Requisitos / referencias:** docs/GESTION_DEL_PROYECTO.md §2, EXT-13\n\n### Objetivo\nDejar el repositorio privado con protección de `main` y secretos de Actions.\n\n### Criterios de aceptación\n- [ ] Repo privado\n- [ ] GitHub Pro (Student Developer Pack) activo o decisión documentada de no usarlo\n- [ ] Regla: PR + CI verde + 1 revisión para `main`\n- [ ] Dependabot habilitado\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Firmar acuerdo de socios y titularidad del software",
+      "labels": [
+        "type:chore",
+        "area:compliance",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** P-11, docs/legal §3.3, Ley 1322, D.S. 24582 art. 12\n\n### Objetivo\nDejar por escrito de quién es el código y cómo se reparten las decisiones y las ganancias.\n\n### Criterios de aceptación\n- [ ] Acuerdo firmado (guardado FUERA del repo)\n- [ ] Titularidad del repositorio y de las cuentas (GitHub, Meta, Supabase) definida\n- [ ] LICENSE del repo actualizado con los titulares\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Constituir la empresa (SEPREC + NIT) y confirmar el régimen tributario",
+      "labels": [
+        "type:chore",
+        "area:compliance",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** P-12, docs/legal §4\n\n### Objetivo\nPoder facturar suscripciones y verificar la empresa ante Meta.\n\n### Criterios de aceptación\n- [ ] Forma jurídica elegida con el abogado\n- [ ] Matrícula SEPREC y NIT\n- [ ] Régimen tributario confirmado por el contador (general o especial)\n- [ ] Modalidad de facturación en línea habilitada para nuestras ventas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "Redactar Términos de servicio, acuerdo de tratamiento de datos y política de privacidad",
+      "labels": [
+        "type:docs",
+        "area:compliance",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** docs/legal §3, §6; política de WhatsApp\n\n### Objetivo\nContratos para vender a negocios y cumplir con Meta.\n\n### Criterios de aceptación\n- [ ] Términos de servicio SaaS (incluye SLA y límites de responsabilidad)\n- [ ] Acuerdo de tratamiento de datos con cada negocio\n- [ ] Política de privacidad publicada en una URL\n- [ ] Plantilla de aviso de IA y privacidad para los clientes finales\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
       "milestone": "Fase 0 · Fundaciones",
@@ -194,21 +224,21 @@
     },
     {
       "milestone": "Fase 0 · Fundaciones",
-      "title": "[spike] Banco piloto: convenio API QR + contacto OpenBCB",
+      "title": "[spike] Validar el flujo de QR estático con el negocio piloto",
       "labels": [
         "type:spike",
         "area:pagos",
         "prio:M"
       ],
-      "body": "**Requisitos / referencias:** P-1, EXT-02, EXT-03\n\n### Objetivo\nObtener documentación, sandbox y requisitos del banco del primer negocio piloto; pedir al BCB la especificación Swagger de OpenBCB.\n\n### Criterios de aceptación\n- [ ] Documentación del banco en docs/research\n- [ ] Mecanismo de notificación (webhook/polling) confirmado\n- [ ] Decisión: adaptador a implementar en Fase 3\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+      "body": "**Requisitos / referencias:** RF-30, RF-32, ADR-0014\n\n### Objetivo\nConfirmar con el negocio piloto cómo cobra hoy por QR (banco, formato de comprobantes, volumen) para calibrar las reglas antifraude.\n\n### Criterios de aceptación\n- [ ] Muestras anonimizadas de comprobantes de los bancos que usan sus clientes\n- [ ] Volumen de pagos por día y tiempo actual de revisión\n- [ ] Cuenta receptora y titular registrados para la regla de beneficiario\n\n### Notas\nEl conector a la API del banco queda para la Fase 7 (ADR-0014).\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
-      "milestone": "Fase 0 · Fundaciones",
+      "milestone": "Fase 7 · Escala y conectores",
       "title": "[spike] Elegir proveedor SIAT homologado",
       "labels": [
         "type:spike",
         "area:compliance",
-        "prio:S"
+        "prio:C"
       ],
       "body": "**Requisitos / referencias:** P-2, ADR-0009, EXT-08\n\n### Objetivo\nComparar 2 proveedores autorizados: API, costo, soporte de Ley 1733 (IVA por fuera), contingencia.\n\n### Criterios de aceptación\n- [ ] Tabla comparativa en docs/research\n- [ ] Proveedor elegido\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
@@ -222,6 +252,27 @@
         "prio:M"
       ],
       "body": "**Requisitos / referencias:** ADR-0010, ADR-0002\n\n### Objetivo\nEntorno staging con migraciones aplicadas y rol app_backend con contraseña en el gestor de secretos.\n\n### Criterios de aceptación\n- [ ] Proyecto en plan Pro (o Free solo para staging, aceptando pausas)\n- [ ] `app_backend` con LOGIN vía Supavisor\n- [ ] Latencia BD↔cómputo medida (p50 < 5 ms)\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Guía de onboarding de WhatsApp en modelo directo",
+      "labels": [
+        "type:docs",
+        "area:whatsapp",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** ADR-0014, ADR-0006\n\n### Objetivo\nQue cada negocio cree su portafolio, WABA, app y token de usuario del sistema con nuestra ayuda.\n\n### Criterios de aceptación\n- [ ] Guía paso a paso con capturas en docs/runbooks\n- [ ] Token guardado en Vault (access_token_ref)\n- [ ] Medio de pago del negocio registrado en Meta\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 1 · Núcleo backend",
+      "title": "Opt-in, opt-out y bloqueo de plantillas sin consentimiento",
+      "labels": [
+        "type:feature",
+        "area:whatsapp",
+        "area:compliance",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-08, EXT-16\n\n### Objetivo\nCumplir la política de mensajería de WhatsApp.\n\n### Criterios de aceptación\n- [ ] Registrar optin_utility_at / optin_marketing_at / optout_at\n- [ ] Palabras de baja reconocidas (BAJA, STOP, NO MÁS)\n- [ ] El outbox rechaza plantillas sin consentimiento (prueba)\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
       "milestone": "Fase 1 · Núcleo backend",
@@ -287,7 +338,7 @@
       "body": "**Requisitos / referencias:** SYSTEM_DESIGN §10.2\n\n### Objetivo\nPoder ver y alertar lo que pasa en producción.\n\n### Criterios de aceptación\n- [ ] trace_id de punta a punta\n- [ ] Métricas webhook_ack_ms, reply_latency_ms, jobs_dead, llm_cost_usd, wa_billable_messages\n- [ ] Alertas configuradas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
-      "milestone": "Fase 1 · Núcleo backend",
+      "milestone": "Fase 7 · Escala y conectores",
       "title": "Registro como Tech Provider de Meta (verificación + App Review)",
       "labels": [
         "type:chore",
@@ -346,7 +397,7 @@
         "area:security",
         "prio:M"
       ],
-      "body": "**Requisitos / referencias:** RF-07, RF-51, SYSTEM_DESIGN §7.4\n\n### Objetivo\nEvitar montos inventados, uso fuera de alcance y abuso de costos.\n\n### Criterios de aceptación\n- [ ] 0 violaciones en evals\n- [ ] Casos de inyección de prompt cubiertos\n- [ ] Degradación a plantilla al superar cuota\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+      "body": "**Requisitos / referencias:** RF-07, RF-51, SYSTEM_DESIGN §7.4\n\n### Objetivo\nEvitar montos inventados, uso fuera de alcance y abuso de costos.\n\n### Criterios de aceptación\n- [ ] 0 violaciones en evals\n- [ ] Casos de inyección de prompt cubiertos\n- [ ] Degradación a plantilla al superar cuota\n- [ ] El bot nunca pide CI, NIT, tarjetas ni números de cuenta (RF-09)\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
       "milestone": "Fase 2 · Agente MVP (importadora)",
@@ -410,12 +461,12 @@
       "body": "**Requisitos / referencias:** RF-32, ADR-0008\n\n### Objetivo\nEvidencias clasificadas por reglas deterministas.\n\n### Criterios de aceptación\n- [ ] Reglas: monto, beneficiario, fecha, pHash, confianza\n- [ ] Cliente recibe 'en verificación'\n- [ ] Pruebas con comprobantes manipulados\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
-      "milestone": "Fase 3 · Pagos",
-      "title": "Adaptador de la API QR del banco piloto",
+      "milestone": "Fase 7 · Escala y conectores",
+      "title": "Conector opcional a la API QR del banco del negocio",
       "labels": [
         "type:feature",
         "area:pagos",
-        "prio:M"
+        "prio:C"
       ],
       "body": "**Requisitos / referencias:** RF-30, RF-31, ADR-0013\n\n### Objetivo\nConfirmación automática con el dinero en la cuenta del negocio.\n\n### Criterios de aceptación\n- [ ] QR dinámico con monto y referencia\n- [ ] Callback autenticado + consulta de estado\n- [ ] Suite de contrato de PaymentProvider en verde\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
@@ -442,7 +493,7 @@
       "body": "**Requisitos / referencias:** RF-33\n\n### Objetivo\nAprobar o rechazar evidencias con trazabilidad.\n\n### Criterios de aceptación\n- [ ] Usa approve/reject_payment_evidence\n- [ ] Requiere aal2\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
-      "milestone": "Fase 4 · Agenda (clínica)",
+      "milestone": "Fase 4 · Agenda",
       "title": "Tools de agenda: check_availability y hold_appointment",
       "labels": [
         "type:feature",
@@ -453,7 +504,7 @@
       "body": "**Requisitos / referencias:** RF-22, RF-23\n\n### Objetivo\nAgendar sin doble reserva desde WhatsApp.\n\n### Criterios de aceptación\n- [ ] Botones interactivos con horarios\n- [ ] SLOT_TAKEN manejado con alternativa\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
-      "milestone": "Fase 4 · Agenda (clínica)",
+      "milestone": "Fase 4 · Agenda",
       "title": "Recordatorios de cita por plantilla de utilidad",
       "labels": [
         "type:feature",
@@ -464,7 +515,7 @@
       "body": "**Requisitos / referencias:** RF-24\n\n### Objetivo\nReducir inasistencias.\n\n### Criterios de aceptación\n- [ ] Plantilla aprobada\n- [ ] Job programado 24 h antes\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
-      "milestone": "Fase 4 · Agenda (clínica)",
+      "milestone": "Fase 4 · Agenda",
       "title": "Consulta y cancelación de órdenes por el cliente",
       "labels": [
         "type:feature",
@@ -555,7 +606,7 @@
       "body": "**Requisitos / referencias:** RF-50\n\n### Objetivo\nValidar con usuarios reales.\n\n### Criterios de aceptación\n- [ ] Checklist < 30 min\n- [ ] 2 semanas con SLO cumplidos\n- [ ] Costo por tenant medido\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
-      "milestone": "Fase 7 · SIAT",
+      "milestone": "Fase 7 · Escala y conectores",
       "title": "Adaptador del proveedor SIAT con soporte de Ley 1733",
       "labels": [
         "type:feature",
@@ -565,7 +616,7 @@
       "body": "**Requisitos / referencias:** RF-44, RF-13, ADR-0009, ADR-0012\n\n### Objetivo\nFacturar automáticamente.\n\n### Criterios de aceptación\n- [ ] Idempotencia por orden\n- [ ] Contingencia reflejada\n- [ ] IVA separado cuando rija\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
-      "milestone": "Fase 7 · SIAT",
+      "milestone": "Fase 7 · Escala y conectores",
       "title": "Asistente de transición de precios para Ley 1733 (IVA por fuera)",
       "labels": [
         "type:feature",
