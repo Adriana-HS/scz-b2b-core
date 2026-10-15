@@ -182,6 +182,9 @@ CREATE TABLE public.customers (
     billing_doc_number text,
     billing_name       text,
     privacy_notice_at  timestamptz,           -- aviso de privacidad / IA mostrado
+    optin_utility_at   timestamptz,           -- aceptó recordatorios/avisos (plantillas de utilidad)
+    optin_marketing_at timestamptz,           -- aceptó promociones (plantillas de marketing)
+    optout_at          timestamptz,           -- pidió no recibir mensajes proactivos (prevalece)
     metadata           jsonb NOT NULL DEFAULT '{}'::jsonb,
     last_inbound_at    timestamptz,           -- controla la ventana de 24 h de Meta
     created_at         timestamptz NOT NULL DEFAULT now(),

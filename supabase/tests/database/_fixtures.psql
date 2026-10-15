@@ -51,10 +51,10 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA tests TO anon, authenticated, app_backe
 
 -- Identidades
 INSERT INTO auth.users (id, email) VALUES
-    ('a1000000-0000-4000-8000-000000000001', 'owner.a@test.bo'),
-    ('a1000000-0000-4000-8000-000000000002', 'staff.a@test.bo'),
-    ('a1000000-0000-4000-8000-000000000003', 'auditor.a@test.bo'),
-    ('b1000000-0000-4000-8000-000000000001', 'owner.b@test.bo');
+    ('a1000000-0000-4000-8000-000000000001', 'owner.a@example.test'),
+    ('a1000000-0000-4000-8000-000000000002', 'staff.a@example.test'),
+    ('a1000000-0000-4000-8000-000000000003', 'auditor.a@example.test'),
+    ('b1000000-0000-4000-8000-000000000001', 'owner.b@example.test');
 
 INSERT INTO public.organizations (id, name, vertical, deposit_percent, config) VALUES
     ('a0000000-0000-4000-8000-000000000000', 'Importadora Test A', 'IMPORTADORA_REPUESTOS', 50, '{}'),
@@ -67,8 +67,8 @@ INSERT INTO public.organization_members (organization_id, user_id, role) VALUES
     ('b0000000-0000-4000-8000-000000000000', 'b1000000-0000-4000-8000-000000000001', 'OWNER');
 
 INSERT INTO public.whatsapp_channels (organization_id, phone_number_id, waba_id, display_phone, access_token_ref) VALUES
-    ('a0000000-0000-4000-8000-000000000000', 'PNID-A', 'WABA-A', '+59170000001', 'vault:wa_token_a'),
-    ('b0000000-0000-4000-8000-000000000000', 'PNID-B', 'WABA-B', '+59170000002', 'vault:wa_token_b');
+    ('a0000000-0000-4000-8000-000000000000', 'PNID-A', 'WABA-A', '+59100000001', 'vault:wa_token_a'),
+    ('b0000000-0000-4000-8000-000000000000', 'PNID-B', 'WABA-B', '+59100000002', 'vault:wa_token_b');
 
 -- Tipo de cambio vigente (TC oficial BCB publicado el 15/10/2026: 11.68 Bs/USD)
 INSERT INTO public.exchange_rates (organization_id, rate_bs_per_usd, source, effective_at) VALUES
@@ -99,8 +99,8 @@ SELECT 'b0000000-0000-4000-8000-000000000000', 'eb000000-0000-4000-8000-00000000
 FROM generate_series(0, 6) d;
 
 INSERT INTO public.customers (id, organization_id, wa_id, display_name) VALUES
-    ('cc000000-0000-4000-8000-00000000000a', 'a0000000-0000-4000-8000-000000000000', '59171111111', 'Mecánico Juan'),
-    ('cc000000-0000-4000-8000-00000000000b', 'b0000000-0000-4000-8000-000000000000', '59172222222', 'Paciente Ana');
+    ('cc000000-0000-4000-8000-00000000000a', 'a0000000-0000-4000-8000-000000000000', '59100000011', 'Mecánico Juan'),
+    ('cc000000-0000-4000-8000-00000000000b', 'b0000000-0000-4000-8000-000000000000', '59100000022', 'Paciente Ana');
 INSERT INTO public.conversations (id, organization_id, customer_id) VALUES
     ('c0000000-0000-4000-8000-00000000000a', 'a0000000-0000-4000-8000-000000000000', 'cc000000-0000-4000-8000-00000000000a'),
     ('c0000000-0000-4000-8000-00000000000b', 'b0000000-0000-4000-8000-000000000000', 'cc000000-0000-4000-8000-00000000000b');

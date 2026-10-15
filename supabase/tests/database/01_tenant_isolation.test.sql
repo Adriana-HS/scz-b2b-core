@@ -65,7 +65,7 @@ SELECT tests.reset();
 SELECT tests.as_backend('a0000000-0000-4000-8000-000000000000');
 SELECT is((SELECT count(*)::int FROM public.customers), 1, 'backend con tenant A ve solo clientes de A');
 SELECT throws_ok(
-    $$ INSERT INTO public.customers (organization_id, wa_id) VALUES ('b0000000-0000-4000-8000-000000000000', '59179999999') $$,
+    $$ INSERT INTO public.customers (organization_id, wa_id) VALUES ('b0000000-0000-4000-8000-000000000000', '59100000099') $$,
     '42501', NULL, 'backend con tenant A no puede escribir en B');
 SELECT is((SELECT organization_id FROM private.resolve_whatsapp_channel('PNID-B')),
           'b0000000-0000-4000-8000-000000000000'::uuid,
