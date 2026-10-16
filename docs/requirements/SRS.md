@@ -57,7 +57,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 | ID | Requisito | Prior. | Criterio de aceptación |
 | :--- | :--- | :--- | :--- |
 | RF-20 | Cotizar ítems con cantidades, reservando stock y con vigencia configurable; PDF enviado por WhatsApp | M | pgTAP 02 #1–#10; PDF con TC, IVA y vigencia; envío por `media_id` |
-| RF-21 | Las cotizaciones y retenciones vencidas expiran solas y liberan stock u horario | M | pgTAP 03 #8–#9 |
+| RF-21 | Las cotizaciones y retenciones vencidas expiran solas y liberan stock u horario; cancelar también libera en el acto, y una orden en revisión de pago conserva su stock | M | pgTAP 03 #8–#9, 07 #1–#7, #12–#13 |
 | RF-22 | Mostrar horarios libres por servicio, fecha y profesional, en la hora local del negocio | M | pgTAP 03 #1–#2, #7 |
 | RF-23 | Retener un horario sin posibilidad de doble reserva | M | pgTAP 03 #5–#6 + prueba de concurrencia |
 | RF-24 | Recordatorio de cita 24 h antes mediante plantilla de utilidad | S | Job programado; plantilla aprobada por Meta |
@@ -70,7 +70,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 | RF-30 | Enviar al cliente el **QR del propio negocio** con el monto y la referencia a pagar | M | ADR-0013/0014; ningún flujo usa cuentas de la plataforma |
 | RF-31 | (Fase de escala) Confirmar automáticamente con el conector a la API del banco del negocio | C | El callback autenticado + consulta de estado crea `payments(BANK_API)` |
 | RF-32 | Recibir comprobantes, aplicar reglas antifraude y priorizar la revisión | M | pgTAP 02 #15–#18; el cliente recibe "en verificación", nunca "confirmado" |
-| RF-33 | Aprobar evidencias en el dashboard (OWNER/ADMIN, **siempre** con MFA); rechazarlas (OWNER/ADMIN/STAFF; rechazar no mueve dinero) | M | pgTAP 02 #19–#24, 06 |
+| RF-33 | Aprobar evidencias en el dashboard (OWNER/ADMIN, **siempre** con MFA); rechazarlas (OWNER/ADMIN/STAFF; rechazar no mueve dinero). Solo las RPC de revisión aprueban o rechazan: el backend no cambia esos estados ni los datos ya verificados. Reembolsar, cancelar órdenes pagadas o en revisión y confirmar sin seña: OWNER/ADMIN con MFA; STAFF solo cancela antes del pago | M | pgTAP 02 #19–#24, 06, 08 |
 | RF-34 | Ninguna orden se confirma sin pago suficiente registrado | M | pgTAP 02 #12, #21 |
 
 ### 4.5 Dashboard, auditoría y facturación
@@ -96,7 +96,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 
 ## 5. Restricciones
 
-Ver `SYSTEM_DESIGN.md` §1.3 y `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-15).
+Ver `SYSTEM_DESIGN.md` §1.3 y `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17).
 
 ## 6. Matriz de trazabilidad
 

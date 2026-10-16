@@ -4,9 +4,22 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+### Corregido
+- **Reservas de stock (Alta, H1):** una orden en `PAYMENT_REVIEW` con `valid_until` vencido dejaba de bloquear su stock; otro cliente podía reservarlo y, al aprobar el pago, `stock_on_hand` quedaba < 0 (la aprobación fallaba por `CHECK`) o había sobreventa. Ahora una reserva está activa mientras no se libere ni se comprometa; la termina el estado de la orden, no el reloj (ADR-0015).
+- **Reservas de stock (Alta, H2):** cancelar no liberaba la reserva hasta su vencimiento, y cancelar o reembolsar una orden `CONFIRMED` nunca devolvía el stock. Confirmar con seña 0 tampoco comprometía stock. Migración 10: trigger `trg_orders_stock_lifecycle` que compromete, libera o devuelve el stock en cada cambio de estado; columna `stock_reservations.returned_at`. Si al confirmar no hay stock físico, el error es `HINT = STOCK_CONFLICT`, sin efectos parciales.
+- Prueba `07_stock_lifecycle.test.sql` (19 casos; fallaba antes del fix). 109 pruebas pgTAP en total.
+
 ### Seguridad
-- **Orden con pago parcial (Media, #57):** `BOT` y `SYSTEM` podían cancelar una orden con `amount_paid_bs > 0` y `expire_stale_orders` la pasaba a `EXPIRED`: quedaba dinero en `payments` sin orden viva y sin que una persona decidiera el reembolso. Migración 12 (`trg_orders_paid_exit_guard`): cancelarla exige OWNER/ADMIN con aal2 (HINT `HUMAN_REVIEW_REQUIRED` para el backend) y el vencimiento la omite, sin frenar el resto del job. Prueba `09_paid_order_exit.test.sql` (18 casos; fallaba antes del fix). 108 pruebas pgTAP en total.
+- **SEC-02 (Media, #53):** tres caminos de menor privilegio sin cerrar en la BD. (M1) Sin `app.actor`, `private.actor_kind()` devolvía `SYSTEM` y el backend podía registrar un pago `BANK_API`; además podía declararse `HUMAN`. (M2) STAFF sin MFA podía reembolsar, cancelar órdenes pagadas o en revisión y confirmar órdenes sin seña. (M3) `app_backend` podía marcar una evidencia `APPROVED` sin la RPC con MFA. Migración 11: actor por defecto `BOT`, `app_backend` sin INSERT en `payments` hasta la fase 7 (ADR-0014), guarda de actor en `payments`, trigger de roles en `orders` y FSM de evidencias en la BD (`private.evidence_transitions`) con columnas acotadas y datos congelados al pasar a revisión. Prueba `08_actor_roles.test.sql` (40 casos; fallaba antes del fix). 149 pruebas pgTAP en total.
+- **Orden con pago parcial (Media, #57):** `BOT` y `SYSTEM` podían cancelar una orden con `amount_paid_bs > 0` y `expire_stale_orders` la pasaba a `EXPIRED`: quedaba dinero en `payments` sin orden viva y sin que una persona decidiera el reembolso. Migración 12 (`trg_orders_paid_exit_guard`): cancelarla exige OWNER/ADMIN con aal2 (HINT `HUMAN_REVIEW_REQUIRED` para el backend) y el vencimiento la omite, sin frenar el resto del job. Prueba `09_paid_order_exit.test.sql` (18 casos; fallaba antes del fix). 167 pruebas pgTAP en total.
 - **SEC-01 (Alta):** una sesión de OWNER/ADMIN sin MFA podía apagar `config.require_mfa_for_payments` y aprobar pagos sin segundo factor. La revisión del fix encontró dos caminos más: dar de alta o ascender un ADMIN, y cargar un tipo de cambio, ambos sin MFA. Migración 09: `aal2` incondicional en la aprobación, en la edición de la organización, en membresías y en el TC; la clave queda prohibida por `CHECK`. Prueba `06_payment_mfa.test.sql` (11 casos; fallaba antes del fix). 90 pruebas pgTAP en total.
+
+### Cambiado (documentación y herramientas)
+- `supabase db lint` bloquea el PR (`--fail-on error`; sin esa opción la CLI sale con 0 aunque haya errores). El primer reporte salió limpio. `scripts/test-db.ps1` también falla si el lint falla.
+- Skills visibles en Claude Code: puentes en `.claude/skills/` con el mismo frontmatter que `.agents/skills/` (fuente única); `check_repo.py` verifica que coincidan.
+- `SYSTEM_DESIGN.md`: 9 migraciones, EXT-01 … EXT-17, la CI corre sobre PostgreSQL 17, `request_payment` usa el QR estático del negocio en el MVP y los diagramas C4 marcan banco y SIAT como fase de escala (ADR-0014). SRS: EXT-01 … EXT-17.
+- `supabase/seed/README.md`: los seeds siguen pendientes (issue #27).
+- Regla de autoría en `AGENTS.md` y `CONTRIBUTING.md`: AHS es la única autora; ningún asistente de IA figura como coautor en commits ni PRs.
 
 ### Agregado (CI)
 - CI con versiones fijas (Supabase CLI 2.120.0, gitleaks 8.21.2), cancelación de runs viejos, lint de funciones (informativo) y logs de Postgres si falla.

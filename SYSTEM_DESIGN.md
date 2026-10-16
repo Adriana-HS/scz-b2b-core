@@ -9,12 +9,12 @@
 | Mercado inicial | Santa Cruz de la Sierra, Bolivia |
 | Versión | **2.2** (15-oct-2026) — reemplaza a la v1.0 |
 | Estado | Propuesta para revisión (ver `docs/reviews/2026-10-15-revision-system-design-v1.md`) |
-| Decisiones | `docs/adr/` (ADR-0001 … ADR-0014) |
+| Decisiones | `docs/adr/` (ADR-0001 … ADR-0015) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — pgTAP por archivo, en verde en la CI (`supabase test db`); detalle en `docs/TESTING.md` |
-| Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-15) |
+| Esquema ejecutable | `supabase/migrations/` (12 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 167 pruebas pgTAP en 9 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
 
@@ -106,13 +106,14 @@ El detalle (contexto, alternativas, consecuencias y verificación) está en `doc
 | [0005](docs/adr/0005-cola-durable-postgres.md) | **Cola durable en PostgreSQL** (`FOR UPDATE SKIP LOCKED`) + outbox; descarta `BackgroundTasks` | v1 podía perder mensajes |
 | [0006](docs/adr/0006-solo-whatsapp-cloud-api.md) | **Solo WhatsApp Cloud API oficial**; descarta Evolution API | v1 dejaba ambas |
 | [0007](docs/adr/0007-dinero-y-tipo-de-cambio.md) | Cálculo monetario en **una sola función SQL**; **historial de TC** append-only; cotizaciones con vigencia | v1 duplicaba el cálculo y fijaba 6,96 |
-| [0008](docs/adr/0008-modelo-de-confianza-de-pagos.md) | **QR dinámico con confirmación bancaria** como camino preferido; el comprobante + OCR es *evidencia* y exige aprobación humana | v1 confirmaba con el pre-chequeo de IA |
+| [0008](docs/adr/0008-modelo-de-confianza-de-pagos.md) | **QR dinámico con confirmación bancaria** como camino preferido; el comprobante + OCR es *evidencia* y exige aprobación humana. **MVP: solo el camino B** (QR estático, ADR-0014) | v1 confirmaba con el pre-chequeo de IA |
 | [0009](docs/adr/0009-facturacion-siat-por-adaptador.md) | Facturación SIAT vía `BillingPort` + proveedor homologado | Se mantiene; se agrega la entidad `invoices` |
 | [0010](docs/adr/0010-despliegue-y-region.md) | Cómputo co-ubicado con la BD (São Paulo); worker *always-on* | v1 dejaba Cloud Run o Railway sin restricciones |
 | [0011](docs/adr/0011-acceso-a-datos-transaccional.md) | El backend accede a Postgres directo (asyncpg vía Supavisor) para transacciones; la lógica crítica vive en RPCs | v1 asumía `supabase-py` (PostgREST, sin transacciones) |
 | [0012](docs/adr/0012-iva-por-regimen-vigente.md) | **IVA por régimen vigente** (incluido o adicional), congelado en cada orden | v1 no modelaba el IVA |
 | [0013](docs/adr/0013-la-plataforma-no-custodia-fondos.md) | **La plataforma no custodia fondos**: QR a nombre de la cuenta de cada negocio | Nuevo (riesgo regulatorio ASFI) |
 | [0014](docs/adr/0014-alcance-de-minimo-regulatorio-para-el-mvp.md) | **MVP de mínimo regulatorio**: QR estático + aprobación humana, suscripción fija, sin facturación ni datos de identidad por chat | Nuevo (viabilidad comercial) |
+| [0015](docs/adr/0015-ciclo-de-vida-de-reservas-de-stock.md) | La vigencia de una **reserva de stock** la decide el estado de la orden; un trigger compromete, libera o devuelve el stock en cada transición | Nuevo (revisión del 15-oct-2026: sobreventa) |
 
 ---
 
@@ -127,14 +128,14 @@ graph LR
     SCZ["SCZ-B2B-Core"]
     Meta["WhatsApp Cloud API<br/>(Meta)"]
     LLM["Proveedor LLM / Visión / STT"]
-    Banco["QR dinámico y notificación de pago<br/>(OpenBCB / API bancaria)"]
-    SIAT["Proveedor de facturación<br/>homologado SIAT"]
+    Banco["API QR del banco del negocio<br/>(fase de escala; MVP sin integración)"]
+    SIAT["Proveedor de facturación<br/>autorizado SIAT (fase de escala)"]
 
     Cliente <--> Meta
     Meta <--> SCZ
     Duenio <--> SCZ
     SCZ <--> LLM
-    SCZ <--> Banco
+    SCZ -.-> Banco
     SCZ -.-> SIAT
 ```
 
@@ -145,8 +146,8 @@ graph TB
     subgraph Externos["Plataformas externas"]
         Meta["WhatsApp Cloud API<br/>Webhooks firmados HMAC-SHA256"]
         LLM["LLM (chat + visión)<br/>Embeddings · STT"]
-        Bank["OpenBCB / API QR bancaria<br/>generación + notificación"]
-        Siat["Proveedor SIAT homologado"]
+        Bank["API QR del banco del negocio<br/>generación + notificación (fase de escala)"]
+        Siat["Proveedor SIAT autorizado (fase de escala)"]
     end
 
     subgraph Plataforma["SCZ-B2B-Core (región São Paulo)"]
@@ -169,8 +170,8 @@ graph TB
     Worker -->|"tool calling · OCR estructurado"| LLM
     Worker -->|"envío desde outbox"| Meta
     Worker --> Store
-    Worker -->|"QR dinámico"| Bank
-    Bank -->|"callback de pago firmado"| API
+    Worker -.->|"QR dinámico (fase de escala)"| Bank
+    Bank -.->|"callback de pago firmado (fase de escala)"| API
     Worker -.->|"emisión opcional"| Siat
     Web --> Auth
     Web -->|"supabase-js con JWT del usuario (RLS)"| DB
@@ -359,12 +360,18 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 | I-7 | Una misma imagen no respalda dos evidencias vigentes en el tenant | UNIQUE parcial `(organization_id, sha256)` | 02-#15, #16 |
 | I-8 | Una transacción bancaria respalda un solo pago **en toda la plataforma** | UNIQUE parcial global `(bank_code, txn_number_normalized)` | 02-#17, #18 |
 | I-9 | Un recurso no tiene dos citas activas solapadas | `EXCLUDE USING gist (organization_id =, resource_id =, slot &&)` | 03-#5 + concurrencia |
-| I-10 | No se reserva más stock del disponible | `create_quote` bloquea filas (`FOR UPDATE`) y descuenta reservas activas | 02-#7 + concurrencia |
+| I-10 | No se reserva más stock del disponible | `create_quote` bloquea filas (`FOR UPDATE`) y descuenta las reservas activas. Una reserva está activa mientras no se libera ni se compromete: la termina el estado de la orden, no `expires_at` (ADR-0015) | 02-#7, 07-#2, #3 + concurrencia |
 | I-11 | No se cotiza en USD con un TC ausente o vencido | `private.current_fx().is_stale` | 03-#15 |
 | I-12 | Toda función `SECURITY DEFINER` fija `search_path` | Revisión automática en pgTAP | 01-#19 |
 | I-13 | Una orden conserva el régimen de IVA vigente al crearse; subtotal, IVA y total se derivan de él | `tax_regime_id` congelado + `private.tax_breakdown` | 04-#4…#9 |
 | I-14 | Ningún tenant puede alterar el régimen tributario global | `tax_regimes` de solo lectura para los roles de runtime | 04-#11 |
-| I-19 | Una orden con pagos registrados (`amount_paid_bs > 0`) no sale del flujo sin una persona: cancelarla exige OWNER/ADMIN con aal2 y el vencimiento automático la omite | `trg_orders_paid_exit_guard` (migración 12) | 09-#3…#18 |
+| I-15 | El stock sigue a la orden: `CONFIRMED` compromete (por cualquier camino, incluso con seña 0); `CANCELLED` y `EXPIRED` liberan en el acto; si no hay stock físico al confirmar, falla con `STOCK_CONFLICT` y no deja efectos | `trg_orders_stock_lifecycle` (AFTER UPDATE OF status) | 07-#5…#7, #12…#13, #16…#19 |
+| I-16 | Cancelar o reembolsar una orden `CONFIRMED` (aún no entregada) devuelve el stock una sola vez | `trg_orders_stock_lifecycle` + `stock_reservations.returned_at` | 07-#10, #11, #15 |
+| I-17 | Sin actor válido, el backend es `BOT` (falla cerrado); el backend nunca es `HUMAN` | `private.actor_kind()` (migración 11) | 08-#1…#7 |
+| I-18 | El MVP no registra pagos bancarios; un pago `BANK_API` exige `SYSTEM` explícito y uno `HUMAN`, OWNER/ADMIN con aal2 a su nombre | sin INSERT en `payments` para `app_backend` + `trg_payments_actor_guard` | 08-#8…#10 |
+| I-19 | Reembolsar, cancelar órdenes pagadas o en revisión y confirmar las requiere OWNER/ADMIN con aal2; STAFF solo cancela antes del pago | `trg_orders_human_guard` | 08-#12…#25 |
+| I-20 | Las evidencias siguen su FSM; `APPROVED` y los rechazos humanos solo desde las RPC de revisión; los datos verificados no cambian | `private.evidence_transitions` + `trg_payment_evidence_guard` + columnas acotadas | 08-#26…#40 |
+| I-21 | Una orden con pagos registrados (`amount_paid_bs > 0`) no sale del flujo sin una persona: cancelarla exige OWNER/ADMIN con aal2 y el vencimiento automático la omite | `trg_orders_paid_exit_guard` (migración 12) | 09-#3…#18 |
 
 **Prueba de concurrencia (ejecutada):** 4 sesiones simultáneas pidieron 2 unidades de un ítem con stock 3; una obtuvo `COT-2026-000001` y tres recibieron `OUT_OF_STOCK`. Otras 4 sesiones pidieron el mismo horario; una obtuvo `CITA-2026-000001` y tres recibieron `SLOT_TAKEN`.
 
@@ -376,7 +383,7 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 * **Precio unitario:** `private.unit_price_bs(currency, list_price, fx)` es la única función de cálculo. La usan la búsqueda y la cotización. Redondeo comercial a 2 decimales, mitad lejos de cero; Python solo **formatea** (con `Decimal`, nunca `float`).
 * **IVA (ADR-0012):** cada orden congela su `tax_regime_id` y guarda `subtotal_bs` (Σ líneas), `iva_bs` y `total_bs` (a pagar). Con `IVA_INCLUIDO` (vigente) el total es la suma de líneas y el IVA informado es el 13 % del total. Con `IVA_ADICIONAL` (Ley 1733) el IVA es el 13 % del subtotal y se suma. La búsqueda devuelve `tax_mode` para que el bot diga "IVA incluido" o "+ IVA".
 * **Seña:** promedio ponderado de `coalesce(deposit_percent_override, organizations.deposit_percent)` por línea, aplicado sobre el **total a pagar**, redondeado a 2 decimales y acotado al total.
-* **Vigencia:** cada cotización guarda `fx_rate_id`, `applied_fx_rate` y `valid_until` (por defecto 24 h). Al vencer pasa a `EXPIRED` y libera su reserva de stock. El PDF muestra el TC aplicado y la vigencia.
+* **Vigencia:** cada cotización guarda `fx_rate_id`, `applied_fx_rate` y `valid_until` (por defecto 24 h). Al vencer, el job `expire_stale_orders` (cada minuto) la pasa a `EXPIRED` y el trigger libera su reserva de stock. Una orden en `PAYMENT_REVIEW` no vence por tiempo: conserva su reserva hasta que un humano apruebe o rechace la evidencia (ADR-0015). El PDF muestra el TC aplicado y la vigencia.
 
 ### 5.5 Retención de datos
 
@@ -424,11 +431,17 @@ stateDiagram-v2
 
 | Actor | Cómo se identifica | Puede |
 | :--- | :--- | :--- |
-| `BOT` | `app_backend` con `SET LOCAL app.actor = 'BOT'` (en todo turno del agente) | Crear borradores, cotizar, retener horario, pasar a esperar pago o a revisión, cancelar antes del pago |
+| `BOT` | `app_backend` con `SET LOCAL app.actor = 'BOT'` (en todo turno del agente). También es el actor de **cualquier** sesión sin `app.actor` válido (falla cerrado) | Crear borradores, cotizar, retener horario, pasar a esperar pago o a revisión, cancelar antes del pago |
 | `SYSTEM` | `app_backend` con `app.actor = 'SYSTEM'` (callbacks bancarios, jobs) | Confirmar por pago bancario, expirar, completar |
-| `HUMAN` | JWT de usuario (`authenticated` o RPC con `auth.uid()`) | Todo lo anterior + aprobar/rechazar evidencias (OWNER/ADMIN con MFA), reembolsar, cancelar confirmadas |
+| `HUMAN` | JWT de usuario (`authenticated` o RPC con `auth.uid()`). El backend **no** puede declararse `HUMAN` (ni con `app.actor` ni con un JWT propio) | STAFF: cancelar antes del pago y rechazar evidencias. OWNER/ADMIN con MFA: además aprobar evidencias, reembolsar, cancelar órdenes pagadas o en revisión, confirmar y completar |
 
-> La separación BOT/SYSTEM protege contra **errores y manipulación del LLM** (defensa en profundidad), no contra un backend comprometido. Por eso el código que ejecuta los turnos del agente **nunca** cambia `app.actor`, y una prueba lo verifica.
+**Efectos sobre el stock (ADR-0015).** `trg_orders_stock_lifecycle` aplica estos efectos en cada cambio de estado: → `CONFIRMED` compromete las reservas (o falla con `STOCK_CONFLICT`); → `CANCELLED`/`EXPIRED` las libera; `CONFIRMED` → `CANCELLED`/`REFUNDED` devuelve el stock comprometido. `COMPLETED` (entregado) no devuelve nada.
+
+> La separación BOT/SYSTEM protege contra **errores y manipulación del LLM** (defensa en profundidad), no contra un backend comprometido. Por eso el código que ejecuta los turnos del agente **nunca** cambia `app.actor`, y una prueba lo verifica. Un `UnitOfWork` que olvide el actor queda como `BOT`, nunca con más privilegio (SEC-02, migración 11).
+>
+> **Qué persona** puede hacer una transición `HUMAN` lo decide `trg_orders_human_guard`: STAFF solo cancela órdenes sin pagos registrados (`DRAFT`, `QUOTED`, `HELD`, `AWAITING_PAYMENT`) y devuelve a `AWAITING_PAYMENT` una orden sin evidencias pendientes (el efecto de rechazar una evidencia); todo lo demás exige OWNER/ADMIN con `aal2`.
+>
+> **Evidencias** (`docs/architecture/uml.md` §7.1): las transiciones válidas por actor viven en `private.evidence_transitions`. El backend solo hace `RECEIVED → OCR_DONE → AUTO_CHECK_PASSED/NEEDS_REVIEW` y `→ REJECTED_DUPLICATE`; `APPROVED` y los demás rechazos solo los hacen las RPC de revisión. Desde `AUTO_CHECK_PASSED`/`NEEDS_REVIEW` los datos extraídos quedan congelados y los estados finales son inmutables.
 >
 > **Orden con pagos registrados (issue #57, migración 12).** Si `amount_paid_bs > 0` (por ejemplo, un pago parcial aprobado), la orden ya no sale del flujo sin una persona, porque eso implica decidir un reembolso que en el MVP hace el negocio a mano (ADR-0013, ADR-0014). `trg_orders_paid_exit_guard` aplica dos reglas sobre `fsm_transitions`:
 > * **→ `CANCELLED`:** solo OWNER/ADMIN con aal2. `BOT` y `SYSTEM` reciben `42501` con HINT `HUMAN_REVIEW_REQUIRED`; ante ese HINT, la herramienta `cancel_order` llama a `handoff_to_human` y el bot no promete devolución. STAFF recibe `ROLE_REQUIRED` y una sesión sin MFA, `MFA_REQUIRED`.
@@ -460,7 +473,7 @@ stateDiagram-v2
 | `create_quote` | `items: [{item_id: UUID, quantity: 1..10000}] (1..50)` | RPC `create_quote` (atómica) → PDF → subida del documento a Meta | `{reference_code, subtotal_bs, iva_bs, total_bs, deposit_required_bs, applied_fx_rate, tax_mode, valid_until}` |
 | `check_availability` | `service_item_id: UUID`, `date: date`, `resource_id: UUID \| None` | RPC `available_slots` | Lista cerrada de bloques `[{resource, start, end}]` |
 | `hold_appointment` | `service_item_id`, `resource_id`, `start: datetime` (debe venir de `check_availability`) | RPC `hold_appointment` | `{reference_code, start, end, total_bs, deposit_required_bs, valid_until}` |
-| `request_payment` | `reference_code: str` | `PaymentPort`: QR dinámico si el tenant lo tiene, si no QR estático | `{qr_media_id, amount_bs, instructions}` |
+| `request_payment` | `reference_code: str` | `PaymentPort` → `StaticQrProvider`: imagen del **QR estático del propio negocio** (ADR-0014). El QR dinámico del banco del negocio llega en la fase de escala detrás del mismo puerto | `{qr_media_id, amount_bs, instructions}` |
 | `get_order_status` | `reference_code: str` | Lectura (solo órdenes del mismo cliente) | `{status, total_bs, amount_paid_bs, valid_until}` |
 | `cancel_order` | `reference_code: str`, `reason: str` | UPDATE con FSM (solo estados previos al pago y sin pagos registrados; con pagos, la BD responde `HUMAN_REVIEW_REQUIRED` y se deriva a una persona) | `{status}` |
 | `handoff_to_human` | `reason: enum`, `summary: str` | `mode = 'HUMAN'` + notificación al equipo | `{ok}` |
@@ -506,12 +519,13 @@ Cada rubro es un paquete `app/verticals/<rubro>/` que implementa `VerticalPolicy
 | **D**oS | "Denial of wallet" contra el LLM | Cuotas y degradación (§7.4) |
 | **E**levation | STAFF/AUDITOR cambian TC o cuentas | Políticas por rol; MFA (`aal2`) para cuentas bancarias y aprobación de pagos (pruebas 01-#11, #12) |
 | **E**levation | Sesión de OWNER/ADMIN sin segundo factor (aal1) apaga controles, crea un aprobador o carga un TC falso (SEC-01) | `aal2` **incondicional** para aprobar pagos, editar la organización, cambiar membresías y cargar TC; ningún interruptor por tenant (migración 09, prueba 06) |
+| **E**levation | Un `UnitOfWork` sin `app.actor` (o que se declara `HUMAN`) registra un pago "bancario", aprueba una evidencia o reembolsa; STAFF sin MFA reembolsa o cancela órdenes pagadas (SEC-02) | Actor por defecto `BOT`; `app_backend` sin INSERT en `payments` (ADR-0014); FSM de evidencias en BD; transiciones humanas por rol con `aal2` (migración 11, prueba 08) |
 | **E**levation | Secuestro de `search_path` en funciones privilegiadas | `SET search_path = ''` en todas (prueba 01-#19) |
 
 ### 8.2 Identidad y acceso
 
-* **Dashboard:** Supabase Auth, MFA TOTP obligatorio para `OWNER`/`ADMIN`. Roles: `OWNER` (todo), `ADMIN` (todo excepto membresías), `STAFF` (catálogo, conversaciones, agenda, rechazar evidencias), `AUDITOR` (solo lectura).
-* **Backend:** rol `app_backend` (LOGIN, sin BYPASSRLS, sin `DELETE`). Cada unidad de trabajo abre una transacción y ejecuta `SET LOCAL app.current_org_id` y `SET LOCAL app.actor`. El *repository* no expone ninguna forma de consultar sin tenant.
+* **Dashboard:** Supabase Auth, MFA TOTP obligatorio para `OWNER`/`ADMIN`. Roles: `OWNER` (todo), `ADMIN` (todo excepto membresías), `STAFF` (catálogo, conversaciones, agenda, rechazar evidencias y cancelar órdenes antes del pago; sin reembolsos ni cancelaciones de órdenes pagadas o en revisión), `AUDITOR` (solo lectura).
+* **Backend:** rol `app_backend` (LOGIN, sin BYPASSRLS, sin `DELETE`). Cada unidad de trabajo abre una transacción y ejecuta `SET LOCAL app.current_org_id` y `SET LOCAL app.actor` (`BOT` o `SYSTEM`; si falta, la BD asume `BOT`). El *repository* no expone ninguna forma de consultar sin tenant. En el MVP no tiene INSERT en `payments` (ADR-0014) y en `payment_evidence` solo actualiza el estado y los resultados de OCR/reglas, nunca `reviewed_by`, `reviewed_at` ni `review_note`.
 * **Webhook → tenant:** `metadata.phone_number_id` → `private.resolve_whatsapp_channel()` (única función que lee antes de fijar el tenant). Si el número no se conoce, se responde 200 y se registra el evento. No se responde 4xx, porque Meta reintentaría.
 
 ### 8.3 Webhook y media
@@ -633,9 +647,10 @@ scz-b2b-core/
 ├── README.md · SYSTEM_DESIGN.md · SECURITY.md · CONTRIBUTING.md · CHANGELOG.md · LICENSE
 ├── .gitignore · .gitattributes · .editorconfig · .pre-commit-config.yaml · .env.example
 ├── AGENTS.md · CLAUDE.md          # instrucciones para asistentes de IA (Codex, Claude)
-├── .agents/skills/               # skills del proyecto (formato SKILL.md)
+├── .agents/skills/               # skills del proyecto (formato SKILL.md, fuente única)
+├── .claude/skills/               # puentes para Claude Code (mismo frontmatter, remiten a .agents/)
 ├── docs/
-│   ├── adr/                      # ADR-0001 … ADR-0014 (formato MADR)
+│   ├── adr/                      # ADR-0001 … ADR-0015 (formato MADR)
 │   ├── architecture/             # estilo, SOLID, patrones, UML
 │   ├── legal/                    # marco legal y modelo de negocio (sin documentos firmados)
 │   ├── requirements/SRS.md       # requisitos RF-xx (ISO/IEC/IEEE 29148)
@@ -650,7 +665,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0007 (este documento las referencia)
+│   ├── migrations/               # 0001…0010 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/

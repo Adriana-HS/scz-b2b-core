@@ -29,6 +29,7 @@ Para el MVP comercial:
 * (+) El valor central (atención 24/7, cotización exacta, menos revisión manual de comprobantes) se mantiene.
 * (−) La revisión de pagos sigue siendo humana, aunque priorizada y asistida. Es el argumento de venta para el plan superior con conector bancario.
 * El modelo de datos no cambia: las tablas de pagos bancarios y de facturas ya existen y se activan en la fase de escala.
+* **Privilegios (SEC-02, migración 11):** mientras no exista el conector bancario, `app_backend` **no tiene INSERT en `payments`**; el único camino al libro de pagos es `approve_payment_evidence` (OWNER/ADMIN con MFA). Un pago `BANK_API` exige además el actor `SYSTEM` explícito. La fase 7 vuelve a otorgar el INSERT en su propia migración, junto con el callback autenticado y la consulta de estado de vuelta (ADR-0008), y con pruebas pgTAP que lo cubran.
 
 ## Verificación
 Revisión de arquitectura en cada PR que toque pagos o mensajería (skill `scz-revision-seguridad`); checklist legal firmado antes del piloto.

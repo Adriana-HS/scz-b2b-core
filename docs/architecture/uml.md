@@ -348,6 +348,8 @@ stateDiagram-v2
     REJECTED_OTHER --> [*]
 ```
 
+La BD aplica esta máquina (migración 11): las transiciones por actor están en `private.evidence_transitions` y las valida `trg_payment_evidence_guard`. El backend (BOT/SYSTEM) solo hace las de extracción y duplicados; `APPROVED` exige OWNER/ADMIN con MFA y los rechazos OWNER/ADMIN/STAFF, siempre a través de `approve_payment_evidence` / `reject_payment_evidence`. Una persona puede rechazar desde cualquier estado no final (la RPC lo permite, por ejemplo una imagen ilegible en `RECEIVED`). Desde `AUTO_CHECK_PASSED`/`NEEDS_REVIEW` los datos extraídos ya no cambian, y los estados finales son inmutables.
+
 ### 7.2 Conversación
 
 ```mermaid

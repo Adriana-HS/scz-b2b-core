@@ -2,7 +2,7 @@
 
 **Motor transaccional multi-tenant de atención, cotización, agendamiento y conciliación de pagos QR por WhatsApp**, para PyMEs de Santa Cruz de la Sierra (importadoras de repuestos, ferreterías industriales, clínicas y consultorios).
 
-> Estado: **diseño v2.2 + esquema de base de datos probado (90 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
+> Estado: **diseño v2.2 + esquema de base de datos probado (167 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
 
 ## Qué resuelve
 
@@ -48,7 +48,7 @@ supabase test db      # corre las pruebas pgTAP de supabase/tests/database
 
 ```text
 supabase/migrations/   esquema, RLS, triggers y RPCs (fuente única de verdad del modelo de datos)
-supabase/tests/        pruebas pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
+supabase/tests/        pruebas pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA, MFA, stock
 docs/                  ADRs, revisiones, guías
 backend/  frontend/    (fase 1 y siguientes del roadmap)
 ```
