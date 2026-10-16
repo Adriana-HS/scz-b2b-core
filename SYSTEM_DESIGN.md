@@ -13,8 +13,8 @@
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
 | Esquema ejecutable | `supabase/migrations/` (10 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 109 pruebas pgTAP en 7 archivos, ejecutadas en CI con `supabase test db` |
-| Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-15) |
+| Pruebas del esquema | `supabase/tests/database/` — 109 pruebas pgTAP en 7 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
 
@@ -106,7 +106,7 @@ El detalle (contexto, alternativas, consecuencias y verificación) está en `doc
 | [0005](docs/adr/0005-cola-durable-postgres.md) | **Cola durable en PostgreSQL** (`FOR UPDATE SKIP LOCKED`) + outbox; descarta `BackgroundTasks` | v1 podía perder mensajes |
 | [0006](docs/adr/0006-solo-whatsapp-cloud-api.md) | **Solo WhatsApp Cloud API oficial**; descarta Evolution API | v1 dejaba ambas |
 | [0007](docs/adr/0007-dinero-y-tipo-de-cambio.md) | Cálculo monetario en **una sola función SQL**; **historial de TC** append-only; cotizaciones con vigencia | v1 duplicaba el cálculo y fijaba 6,96 |
-| [0008](docs/adr/0008-modelo-de-confianza-de-pagos.md) | **QR dinámico con confirmación bancaria** como camino preferido; el comprobante + OCR es *evidencia* y exige aprobación humana | v1 confirmaba con el pre-chequeo de IA |
+| [0008](docs/adr/0008-modelo-de-confianza-de-pagos.md) | **QR dinámico con confirmación bancaria** como camino preferido; el comprobante + OCR es *evidencia* y exige aprobación humana. **MVP: solo el camino B** (QR estático, ADR-0014) | v1 confirmaba con el pre-chequeo de IA |
 | [0009](docs/adr/0009-facturacion-siat-por-adaptador.md) | Facturación SIAT vía `BillingPort` + proveedor homologado | Se mantiene; se agrega la entidad `invoices` |
 | [0010](docs/adr/0010-despliegue-y-region.md) | Cómputo co-ubicado con la BD (São Paulo); worker *always-on* | v1 dejaba Cloud Run o Railway sin restricciones |
 | [0011](docs/adr/0011-acceso-a-datos-transaccional.md) | El backend accede a Postgres directo (asyncpg vía Supavisor) para transacciones; la lógica crítica vive en RPCs | v1 asumía `supabase-py` (PostgREST, sin transacciones) |
@@ -128,14 +128,14 @@ graph LR
     SCZ["SCZ-B2B-Core"]
     Meta["WhatsApp Cloud API<br/>(Meta)"]
     LLM["Proveedor LLM / Visión / STT"]
-    Banco["QR dinámico y notificación de pago<br/>(OpenBCB / API bancaria)"]
-    SIAT["Proveedor de facturación<br/>homologado SIAT"]
+    Banco["API QR del banco del negocio<br/>(fase de escala; MVP sin integración)"]
+    SIAT["Proveedor de facturación<br/>autorizado SIAT (fase de escala)"]
 
     Cliente <--> Meta
     Meta <--> SCZ
     Duenio <--> SCZ
     SCZ <--> LLM
-    SCZ <--> Banco
+    SCZ -.-> Banco
     SCZ -.-> SIAT
 ```
 
@@ -146,8 +146,8 @@ graph TB
     subgraph Externos["Plataformas externas"]
         Meta["WhatsApp Cloud API<br/>Webhooks firmados HMAC-SHA256"]
         LLM["LLM (chat + visión)<br/>Embeddings · STT"]
-        Bank["OpenBCB / API QR bancaria<br/>generación + notificación"]
-        Siat["Proveedor SIAT homologado"]
+        Bank["API QR del banco del negocio<br/>generación + notificación (fase de escala)"]
+        Siat["Proveedor SIAT autorizado (fase de escala)"]
     end
 
     subgraph Plataforma["SCZ-B2B-Core (región São Paulo)"]
@@ -170,8 +170,8 @@ graph TB
     Worker -->|"tool calling · OCR estructurado"| LLM
     Worker -->|"envío desde outbox"| Meta
     Worker --> Store
-    Worker -->|"QR dinámico"| Bank
-    Bank -->|"callback de pago firmado"| API
+    Worker -.->|"QR dinámico (fase de escala)"| Bank
+    Bank -.->|"callback de pago firmado (fase de escala)"| API
     Worker -.->|"emisión opcional"| Siat
     Web --> Auth
     Web -->|"supabase-js con JWT del usuario (RLS)"| DB
@@ -458,7 +458,7 @@ stateDiagram-v2
 | `create_quote` | `items: [{item_id: UUID, quantity: 1..10000}] (1..50)` | RPC `create_quote` (atómica) → PDF → subida del documento a Meta | `{reference_code, subtotal_bs, iva_bs, total_bs, deposit_required_bs, applied_fx_rate, tax_mode, valid_until}` |
 | `check_availability` | `service_item_id: UUID`, `date: date`, `resource_id: UUID \| None` | RPC `available_slots` | Lista cerrada de bloques `[{resource, start, end}]` |
 | `hold_appointment` | `service_item_id`, `resource_id`, `start: datetime` (debe venir de `check_availability`) | RPC `hold_appointment` | `{reference_code, start, end, total_bs, deposit_required_bs, valid_until}` |
-| `request_payment` | `reference_code: str` | `PaymentPort`: QR dinámico si el tenant lo tiene, si no QR estático | `{qr_media_id, amount_bs, instructions}` |
+| `request_payment` | `reference_code: str` | `PaymentPort` → `StaticQrProvider`: imagen del **QR estático del propio negocio** (ADR-0014). El QR dinámico del banco del negocio llega en la fase de escala detrás del mismo puerto | `{qr_media_id, amount_bs, instructions}` |
 | `get_order_status` | `reference_code: str` | Lectura (solo órdenes del mismo cliente) | `{status, total_bs, amount_paid_bs, valid_until}` |
 | `cancel_order` | `reference_code: str`, `reason: str` | UPDATE con FSM (solo estados previos al pago) | `{status}` |
 | `handoff_to_human` | `reason: enum`, `summary: str` | `mode = 'HUMAN'` + notificación al equipo | `{ok}` |
@@ -631,7 +631,8 @@ scz-b2b-core/
 ├── README.md · SYSTEM_DESIGN.md · SECURITY.md · CONTRIBUTING.md · CHANGELOG.md · LICENSE
 ├── .gitignore · .gitattributes · .editorconfig · .pre-commit-config.yaml · .env.example
 ├── AGENTS.md · CLAUDE.md          # instrucciones para asistentes de IA (Codex, Claude)
-├── .agents/skills/               # skills del proyecto (formato SKILL.md)
+├── .agents/skills/               # skills del proyecto (formato SKILL.md, fuente única)
+├── .claude/skills/               # puentes para Claude Code (mismo frontmatter, remiten a .agents/)
 ├── docs/
 │   ├── adr/                      # ADR-0001 … ADR-0015 (formato MADR)
 │   ├── architecture/             # estilo, SOLID, patrones, UML
@@ -648,7 +649,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0007 (este documento las referencia)
+│   ├── migrations/               # 0001…0010 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/

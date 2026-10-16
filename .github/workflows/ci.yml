@@ -39,11 +39,10 @@ jobs:
       - name: Pruebas pgTAP
         run: supabase test db
 
-      # plpgsql_check sobre las funciones. Informativo hasta revisar el primer reporte;
-      # después se quita continue-on-error para que bloquee (ver docs/TESTING.md).
+      # plpgsql_check sobre las funciones. Bloquea el PR: el primer reporte (run 38836685095,
+      # 16-oct-2026) salió sin errores, así que cualquier error nuevo es una regresión.
       - name: Lint de funciones (plpgsql_check)
-        continue-on-error: true
-        run: supabase db lint --level error
+        run: supabase db lint --level error --fail-on error
 
       - name: Logs de Postgres si algo falló
         if: failure()

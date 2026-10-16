@@ -33,7 +33,7 @@ Los documentos confidenciales viven en el almacenamiento seguro del equipo (por 
 * **Mensajes:** Conventional Commits en español, en imperativo y con un alcance (`feat(pagos): agrega regla de beneficiario`). Un commit = un cambio lógico; nada de "varios cambios".
 * **Nunca** directo a `main`: rama + PR (el hook `no-commit-to-branch` lo impide localmente).
 * **Hooks:** `pip install pre-commit && pre-commit install` activa la detección de secretos (gitleaks), claves privadas, archivos grandes y formato.
-* **Asistentes de IA:** si un asistente generó buena parte de un cambio, se puede indicar con un *trailer* `Co-authored-by:`. Es una decisión del equipo; lo importante es que una persona revisó y aprobó el PR.
+* **Asistentes de IA:** son herramientas, no autores. Los commits y PRs **no** llevan *trailers* `Co-authored-by:` ni pies del tipo "Generated with …": la única autora y titular es AHS (ver `LICENSE` y `AGENTS.md`). Lo que importa es que ella revisó y aprobó el PR.
 
 ## Definición de terminado
 
