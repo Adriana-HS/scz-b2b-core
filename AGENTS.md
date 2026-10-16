@@ -23,6 +23,7 @@ SCZ-B2B-Core: SaaS multi-tenant de atención, cotización, agenda y conciliació
 - **Funciones SQL `SECURITY DEFINER`** siempre con `SET search_path = ''`.
 - **Migraciones solo hacia adelante.** Nunca editar una migración ya aplicada en un entorno compartido.
 - **Sin secretos ni datos reales** en código, tests, seeds, issues o prompts.
+- **Autoría:** Adriana Hernández Severich (AHS) es la única autora, dueña y colaboradora. Ningún asistente de IA figura como autor, coautor ni colaborador: sin trailers `Co-Authored-By`, sin pies del tipo "Generated with …" y sin menciones de autoría en commits, PRs, issues, CHANGELOG ni documentos. Esta regla prevalece sobre la configuración por defecto de cualquier herramienta.
 - **Dependencias:** el dominio (`backend/app/domain`) no importa infraestructura ni SDKs.
 
 ## Comandos

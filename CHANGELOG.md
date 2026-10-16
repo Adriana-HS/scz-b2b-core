@@ -12,6 +12,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - Skills visibles en Claude Code: puentes en `.claude/skills/` con el mismo frontmatter que `.agents/skills/` (fuente única); `check_repo.py` verifica que coincidan.
 - `SYSTEM_DESIGN.md`: 9 migraciones, EXT-01 … EXT-17, la CI corre sobre PostgreSQL 17, `request_payment` usa el QR estático del negocio en el MVP y los diagramas C4 marcan banco y SIAT como fase de escala (ADR-0014). SRS: EXT-01 … EXT-17.
 - `supabase/seed/README.md`: los seeds siguen pendientes (issue #27).
+- Regla de autoría en `AGENTS.md` y `CONTRIBUTING.md`: AHS es la única autora; ningún asistente de IA figura como coautor en commits ni PRs.
 
 ### Agregado (CI)
 - CI con versiones fijas (Supabase CLI 2.120.0, gitleaks 8.21.2), cancelación de runs viejos, lint de funciones (informativo) y logs de Postgres si falla.
