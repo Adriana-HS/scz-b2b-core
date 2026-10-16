@@ -57,7 +57,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 | ID | Requisito | Prior. | Criterio de aceptación |
 | :--- | :--- | :--- | :--- |
 | RF-20 | Cotizar ítems con cantidades, reservando stock y con vigencia configurable; PDF enviado por WhatsApp | M | pgTAP 02 #1–#10; PDF con TC, IVA y vigencia; envío por `media_id` |
-| RF-21 | Las cotizaciones y retenciones vencidas expiran solas y liberan stock u horario | M | pgTAP 03 #8–#9 |
+| RF-21 | Las cotizaciones y retenciones vencidas expiran solas y liberan stock u horario; cancelar también libera en el acto, y una orden en revisión de pago conserva su stock | M | pgTAP 03 #8–#9, 07 #1–#7, #12–#13 |
 | RF-22 | Mostrar horarios libres por servicio, fecha y profesional, en la hora local del negocio | M | pgTAP 03 #1–#2, #7 |
 | RF-23 | Retener un horario sin posibilidad de doble reserva | M | pgTAP 03 #5–#6 + prueba de concurrencia |
 | RF-24 | Recordatorio de cita 24 h antes mediante plantilla de utilidad | S | Job programado; plantilla aprobada por Meta |
