@@ -2,7 +2,7 @@
 
 **Motor transaccional multi-tenant de atención, cotización, agendamiento y conciliación de pagos QR por WhatsApp**, para PyMEs de Santa Cruz de la Sierra (importadoras de repuestos, ferreterías industriales, clínicas y consultorios).
 
-> Estado: **diseño v2.2 + esquema de base de datos probado (176 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
+> Estado: **diseño v2.2 + esquema de base de datos probado (196 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
 
 ## Qué resuelve
 
@@ -24,7 +24,7 @@ Monolito modular hexagonal en **Python/FastAPI** (procesos `api` + `worker`) · 
 | [`SYSTEM_DESIGN.md`](SYSTEM_DESIGN.md) | Diseño completo: requisitos medibles, arquitectura C4, datos, FSM, agente IA, seguridad, rendimiento, operación, costos |
 | [`docs/requirements/SRS.md`](docs/requirements/SRS.md) | Requisitos funcionales RF-xx con criterios de aceptación y trazabilidad |
 | [`docs/architecture/`](docs/architecture/) | Estilo arquitectónico, revisión SOLID, catálogo de patrones, diagramas UML |
-| [`docs/adr/`](docs/adr/) | 14 decisiones de arquitectura (formato MADR) |
+| [`docs/adr/`](docs/adr/) | 16 decisiones de arquitectura (formato MADR) |
 | [`docs/legal/`](docs/legal/) | Marco legal, modelo de negocio y checklist antes del piloto |
 | [`docs/research/`](docs/research/) | Restricciones externas verificadas (pagos, WhatsApp, IVA, TC, plataformas) |
 | [`docs/GESTION_DEL_PROYECTO.md`](docs/GESTION_DEL_PROYECTO.md) | Tareas, tablero, fases y flujo de trabajo |
