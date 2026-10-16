@@ -13,7 +13,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI (requiere Docker De
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones sobre la imagen oficial de Supabase y las 130 pruebas pgTAP | Sí |
+| `database` | Migraciones sobre la imagen oficial de Supabase y las 149 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint` (plpgsql_check) sobre las funciones | No, hasta revisar el primer reporte; después se quita `continue-on-error` |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs y nombres de migraciones | Sí |
 | `secrets` | gitleaks sobre todo el historial | Sí |
@@ -28,8 +28,9 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `04_tax_regimes.test.sql` | IVA incluido y por fuera (Ley 1733), régimen congelado por orden, seña sobre el total, régimen global de solo lectura | 11 |
 | `05_schema_lint.test.sql` | Guardas de regresión: FK con índice, RLS en todas las tablas, `search_path` en SECURITY DEFINER, vistas con `security_invoker`, `anon` sin privilegios | 5 |
 | `06_payment_mfa.test.sql` | SEC-01: MFA incondicional para aprobar pagos, editar la organización, cambiar membresías y cargar TC; el interruptor `require_mfa_for_payments` ya no existe | 11 |
+| `07_stock_lifecycle.test.sql` | Reservas de stock (ADR-0015): una orden en revisión con `valid_until` vencido sigue bloqueando; cancelar libera; cancelar o reembolsar una confirmada devuelve el stock; seña 0 compromete; `STOCK_CONFLICT` sin efectos parciales | 19 |
 | `08_actor_roles.test.sql` | SEC-02: actor por defecto `BOT` (el backend nunca es `HUMAN`), sin pagos bancarios en el MVP, transiciones humanas por rol (STAFF solo cancela antes del pago; el resto OWNER/ADMIN con MFA), FSM de evidencias y datos congelados | 40 |
-| **Total** | | **130** |
+| **Total** | | **149** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 
