@@ -5,6 +5,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Sin publicar]
 
 ### Seguridad
+- **Orden con pago parcial (Media, #57):** `BOT` y `SYSTEM` podían cancelar una orden con `amount_paid_bs > 0` y `expire_stale_orders` la pasaba a `EXPIRED`: quedaba dinero en `payments` sin orden viva y sin que una persona decidiera el reembolso. Migración 12 (`trg_orders_paid_exit_guard`): cancelarla exige OWNER/ADMIN con aal2 (HINT `HUMAN_REVIEW_REQUIRED` para el backend) y el vencimiento la omite, sin frenar el resto del job. Prueba `09_paid_order_exit.test.sql` (18 casos; fallaba antes del fix). 108 pruebas pgTAP en total.
 - **SEC-01 (Alta):** una sesión de OWNER/ADMIN sin MFA podía apagar `config.require_mfa_for_payments` y aprobar pagos sin segundo factor. La revisión del fix encontró dos caminos más: dar de alta o ascender un ADMIN, y cargar un tipo de cambio, ambos sin MFA. Migración 09: `aal2` incondicional en la aprobación, en la edición de la organización, en membresías y en el TC; la clave queda prohibida por `CHECK`. Prueba `06_payment_mfa.test.sql` (11 casos; fallaba antes del fix). 90 pruebas pgTAP en total.
 
 ### Agregado (CI)
