@@ -12,6 +12,7 @@ La v1 decidió correctamente que el LLM no decide estados. Pero la FSM vivía so
 * El trigger `tg_orders_guard` rechaza toda transición no listada para el actor (`BOT`, `SYSTEM`, `HUMAN`). También congela los montos después de `DRAFT`, impide editar `amount_paid_bs` fuera del libro de pagos y exige `amount_paid_bs ≥ deposit_required_bs` para entrar en `CONFIRMED`.
 * El paso a `CONFIRMED` lo hace el trigger del libro `payments` (append-only), nunca el agente.
 * El backend Python carga `fsm_transitions` y una prueba de paridad verifica que coinciden.
+* **Actualización (issue #57, migración 12):** `allowed_actors` no basta cuando la orden ya tiene pagos. Con `amount_paid_bs > 0`, pasar a `CANCELLED` exige OWNER/ADMIN con aal2 (el reembolso lo decide una persona, ADR-0013/0014) y el vencimiento automático omite la orden, que queda para revisión humana. Lo aplica `trg_orders_paid_exit_guard`; detalle en SYSTEM_DESIGN.md §6.
 
 ## Alternativas consideradas
 | Alternativa | A favor | En contra |

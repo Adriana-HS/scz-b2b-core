@@ -12,8 +12,8 @@
 | Decisiones | `docs/adr/` (ADR-0001 … ADR-0015) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (11 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 149 pruebas pgTAP en 8 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (12 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 167 pruebas pgTAP en 9 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -371,6 +371,7 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 | I-18 | El MVP no registra pagos bancarios; un pago `BANK_API` exige `SYSTEM` explícito y uno `HUMAN`, OWNER/ADMIN con aal2 a su nombre | sin INSERT en `payments` para `app_backend` + `trg_payments_actor_guard` | 08-#8…#10 |
 | I-19 | Reembolsar, cancelar órdenes pagadas o en revisión y confirmar las requiere OWNER/ADMIN con aal2; STAFF solo cancela antes del pago | `trg_orders_human_guard` | 08-#12…#25 |
 | I-20 | Las evidencias siguen su FSM; `APPROVED` y los rechazos humanos solo desde las RPC de revisión; los datos verificados no cambian | `private.evidence_transitions` + `trg_payment_evidence_guard` + columnas acotadas | 08-#26…#40 |
+| I-21 | Una orden con pagos registrados (`amount_paid_bs > 0`) no sale del flujo sin una persona: cancelarla exige OWNER/ADMIN con aal2 y el vencimiento automático la omite | `trg_orders_paid_exit_guard` (migración 12) | 09-#3…#18 |
 
 **Prueba de concurrencia (ejecutada):** 4 sesiones simultáneas pidieron 2 unidades de un ítem con stock 3; una obtuvo `COT-2026-000001` y tres recibieron `OUT_OF_STOCK`. Otras 4 sesiones pidieron el mismo horario; una obtuvo `CITA-2026-000001` y tres recibieron `SLOT_TAKEN`.
 
@@ -416,13 +417,13 @@ stateDiagram-v2
     CONFIRMED --> COMPLETED
     CONFIRMED --> NO_SHOW: solo citas
     CONFIRMED --> REFUNDED: HUMAN
-    QUOTED --> EXPIRED: vence (SYSTEM)
-    HELD --> EXPIRED: vence (SYSTEM)
-    AWAITING_PAYMENT --> EXPIRED: vence (SYSTEM)
+    QUOTED --> EXPIRED: vence sin pagos (SYSTEM)
+    HELD --> EXPIRED: vence sin pagos (SYSTEM)
+    AWAITING_PAYMENT --> EXPIRED: vence sin pagos (SYSTEM)
     DRAFT --> CANCELLED
-    QUOTED --> CANCELLED
-    HELD --> CANCELLED
-    AWAITING_PAYMENT --> CANCELLED
+    QUOTED --> CANCELLED: sin pagos / con pagos solo OWNER·ADMIN (MFA)
+    HELD --> CANCELLED: sin pagos / con pagos solo OWNER·ADMIN (MFA)
+    AWAITING_PAYMENT --> CANCELLED: sin pagos / con pagos solo OWNER·ADMIN (MFA)
     PAYMENT_REVIEW --> CANCELLED: HUMAN
     CONFIRMED --> CANCELLED: HUMAN
     COMPLETED --> [*]
@@ -441,6 +442,12 @@ stateDiagram-v2
 > **Qué persona** puede hacer una transición `HUMAN` lo decide `trg_orders_human_guard`: STAFF solo cancela órdenes sin pagos registrados (`DRAFT`, `QUOTED`, `HELD`, `AWAITING_PAYMENT`) y devuelve a `AWAITING_PAYMENT` una orden sin evidencias pendientes (el efecto de rechazar una evidencia); todo lo demás exige OWNER/ADMIN con `aal2`.
 >
 > **Evidencias** (`docs/architecture/uml.md` §7.1): las transiciones válidas por actor viven en `private.evidence_transitions`. El backend solo hace `RECEIVED → OCR_DONE → AUTO_CHECK_PASSED/NEEDS_REVIEW` y `→ REJECTED_DUPLICATE`; `APPROVED` y los demás rechazos solo los hacen las RPC de revisión. Desde `AUTO_CHECK_PASSED`/`NEEDS_REVIEW` los datos extraídos quedan congelados y los estados finales son inmutables.
+>
+> **Orden con pagos registrados (issue #57, migración 12).** Si `amount_paid_bs > 0` (por ejemplo, un pago parcial aprobado), la orden ya no sale del flujo sin una persona, porque eso implica decidir un reembolso que en el MVP hace el negocio a mano (ADR-0013, ADR-0014). `trg_orders_paid_exit_guard` aplica dos reglas sobre `fsm_transitions`:
+> * **→ `CANCELLED`:** solo OWNER/ADMIN con aal2. `BOT` y `SYSTEM` reciben `42501` con HINT `HUMAN_REVIEW_REQUIRED`; ante ese HINT, la herramienta `cancel_order` llama a `handoff_to_human` y el bot no promete devolución. STAFF recibe `ROLE_REQUIRED` y una sesión sin MFA, `MFA_REQUIRED`.
+> * **→ `EXPIRED`:** el trigger omite la fila (devuelve `NULL`, 0 filas actualizadas) y no lanza error, para que una orden pagada no frene el vencimiento de las demás en el `UPDATE` del job. La orden sigue en su estado, con su reserva de stock o de horario, hasta que OWNER/ADMIN la cancele (y el negocio reembolse) o el cliente complete el pago. El dashboard lista estas órdenes con el filtro `status IN ('QUOTED','HELD','AWAITING_PAYMENT') AND valid_until < now() AND amount_paid_bs > 0`.
+>
+> Se descartó lanzar error también al vencer: una sola orden pagada haría fallar `expire_stale_orders` en todos los tenants cada minuto. Se descartó cambiar el filtro de `expire_stale_orders` en esta migración para no reemplazar la versión de la migración 10 (PR #55); el trigger cubre también cualquier otro `UPDATE` a `EXPIRED`.
 
 ---
 
@@ -468,7 +475,7 @@ stateDiagram-v2
 | `hold_appointment` | `service_item_id`, `resource_id`, `start: datetime` (debe venir de `check_availability`) | RPC `hold_appointment` | `{reference_code, start, end, total_bs, deposit_required_bs, valid_until}` |
 | `request_payment` | `reference_code: str` | `PaymentPort` → `StaticQrProvider`: imagen del **QR estático del propio negocio** (ADR-0014). El QR dinámico del banco del negocio llega en la fase de escala detrás del mismo puerto | `{qr_media_id, amount_bs, instructions}` |
 | `get_order_status` | `reference_code: str` | Lectura (solo órdenes del mismo cliente) | `{status, total_bs, amount_paid_bs, valid_until}` |
-| `cancel_order` | `reference_code: str`, `reason: str` | UPDATE con FSM (solo estados previos al pago) | `{status}` |
+| `cancel_order` | `reference_code: str`, `reason: str` | UPDATE con FSM (solo estados previos al pago y sin pagos registrados; con pagos, la BD responde `HUMAN_REVIEW_REQUIRED` y se deriva a una persona) | `{status}` |
 | `handoff_to_human` | `reason: enum`, `summary: str` | `mode = 'HUMAN'` + notificación al equipo | `{ok}` |
 
 > Por la política de WhatsApp no hay herramientas que pidan CI, NIT ni números de cuenta por el chat. Si un flujo futuro los necesita, se usa un formulario web con enlace temporal.
