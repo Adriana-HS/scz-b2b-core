@@ -14,7 +14,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI (requiere Docker De
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
 | `database` | Migraciones sobre la imagen oficial de Supabase y las 90 pruebas pgTAP | Sí |
-| `database` → lint | `supabase db lint` (plpgsql_check) sobre las funciones | No, hasta revisar el primer reporte; después se quita `continue-on-error` |
+| `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs y nombres de migraciones | Sí |
 | `secrets` | gitleaks sobre todo el historial | Sí |
 
@@ -34,7 +34,7 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 
 ### Verificación local sin Docker
 
-El esquema también se verificó en PostgreSQL 16 + pgvector 0.8 + pgTAP con el *shim* `scripts/local_supabase_shim.sql`, que emula roles y `auth.uid()` de Supabase. **No reemplaza** a `supabase test db`: es solo para entornos sin Docker.
+La CI corre sobre la imagen oficial de Supabase con PostgreSQL 17 (`supabase/config.toml`, `major_version = 17`). Antes de tener CI, el esquema se verificó en PostgreSQL 16 + pgvector 0.8 + pgTAP con el *shim* `scripts/local_supabase_shim.sql`, que emula roles y `auth.uid()` de Supabase. **No reemplaza** a `supabase test db`: es solo para entornos sin Docker.
 
 ```bash
 createdb scz_test

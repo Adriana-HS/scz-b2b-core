@@ -36,7 +36,7 @@ Verificación sin Docker: ver `docs/TESTING.md`.
 Un issue → rama `feat/<n>-<slug>` → pruebas primero → implementación → docs y CHANGELOG → PR con `Closes #n`. Definición de terminado: `SYSTEM_DESIGN.md` §13.3. Commits: Conventional Commits en español (`feat(pagos): …`).
 
 ## Skills del proyecto
-En `.agents/skills/`: `scz-implementar-issue`, `scz-nueva-migracion`, `scz-revision-seguridad`, `scz-nuevo-adr`, `scz-nuevo-rubro`. Úsalas cuando la tarea coincida.
+En `.agents/skills/` (fuente única; Claude Code las ve por los puentes de `.claude/skills/`): `scz-implementar-issue`, `scz-nueva-migracion`, `scz-revision-seguridad`, `scz-nuevo-adr`, `scz-nuevo-rubro`. Úsalas cuando la tarea coincida. Si cambias el `name` o la `description` de una skill, copia el mismo frontmatter a su puente (lo verifica `scripts/ci/check_repo.py`).
 
 ## Idioma
 Documentación, issues, commits y mensajes al usuario final en **español**. Identificadores de código en inglés.

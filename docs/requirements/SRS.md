@@ -96,7 +96,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 
 ## 5. Restricciones
 
-Ver `SYSTEM_DESIGN.md` §1.3 y `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-15).
+Ver `SYSTEM_DESIGN.md` §1.3 y `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17).
 
 ## 6. Matriz de trazabilidad
 

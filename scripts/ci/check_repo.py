@@ -9,6 +9,8 @@ Verifica, sin dependencias externas:
   2. Enlaces relativos en archivos Markdown: el archivo destino existe.
   3. ADRs: numeración única y consecutiva; cada ADR tiene un estado.
   4. Migraciones: nombre AAAAMMDDhhmmss_nombre.sql, orden estricto, sin duplicados.
+  5. Skills: cada skill de .agents/skills/ tiene su puente en .claude/skills/ con el mismo
+     frontmatter (Claude Code solo descubre skills ahí) y el puente apunta a la fuente.
 
 Sale con código 1 si encuentra errores.
 """
@@ -57,7 +59,9 @@ SKIP_DIRS = {".git", "node_modules", ".venv", "evidence"}
 
 
 def check_markdown_links() -> None:
-    files = [p for p in ROOT.rglob("*.md") if not SKIP_DIRS & set(p.relative_to(ROOT).parts)]
+    files = [p for p in ROOT.rglob("*.md")
+             if not SKIP_DIRS & set(p.relative_to(ROOT).parts)
+             and p.relative_to(ROOT).parts[:2] != (".claude", "worktrees")]  # worktrees de otras sesiones
     checked = 0
     for md in files:
         text = md.read_text(encoding="utf-8")
@@ -109,6 +113,29 @@ def check_migrations() -> None:
     print(f"  migraciones: {len(files)}")
 
 
+FRONTMATTER = re.compile(r"^---\n(.*?)\n---\n", re.S)
+
+
+def check_skills() -> None:
+    sources = {p.parent.name: p for p in (ROOT / ".agents/skills").glob("*/SKILL.md")}
+    bridges = {p.parent.name: p for p in (ROOT / ".claude/skills").glob("*/SKILL.md")}
+    for name in sorted(set(bridges) - set(sources)):
+        err(f"skills: .claude/skills/{name} no tiene fuente en .agents/skills/")
+    for name, src in sorted(sources.items()):
+        bridge = bridges.get(name)
+        if bridge is None:
+            err(f"skills: falta el puente .claude/skills/{name}/SKILL.md (Claude Code no verá la skill)")
+            continue
+        src_fm = FRONTMATTER.match(src.read_text(encoding="utf-8"))
+        text = bridge.read_text(encoding="utf-8")
+        bridge_fm = FRONTMATTER.match(text)
+        if not src_fm or not bridge_fm or src_fm.group(1) != bridge_fm.group(1):
+            err(f"skills: el frontmatter de .claude/skills/{name} no coincide con la fuente")
+        if f".agents/skills/{name}/SKILL.md" not in text:
+            err(f"skills: .claude/skills/{name} no apunta a .agents/skills/{name}/SKILL.md")
+    print(f"  skills: {len(sources)}")
+
+
 def main() -> int:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -118,6 +145,7 @@ def main() -> int:
     check_markdown_links()
     check_adrs()
     check_migrations()
+    check_skills()
     if errors:
         print(f"\n✗ {len(errors)} problema(s):")
         for e in errors:
