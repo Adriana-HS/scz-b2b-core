@@ -665,7 +665,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0010 (este documento las referencia)
+│   ├── migrations/               # 0001…0013 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/
