@@ -4,9 +4,20 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+
+# Un solo run por rama: si llega un commit nuevo, se cancela el anterior (ahorra minutos).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
+
+env:
+  # Versiones fijas para que la CI sea reproducible. Actualizarlas a propósito, en su propio PR.
+  SUPABASE_CLI_VERSION: 2.120.0
+  GITLEAKS_VERSION: 8.21.2
 
 jobs:
   database:
@@ -15,21 +26,57 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # Levanta solo Postgres (imagen oficial de Supabase, con los esquemas auth y storage)
+      # y aplica supabase/migrations en orden. Si una migración falla, el job falla aquí.
       - name: Levantar Postgres de Supabase y aplicar migraciones
         run: supabase db start
+
       - name: Pruebas pgTAP
         run: supabase test db
 
-  secrets:
-    name: Búsqueda de secretos
+      # plpgsql_check sobre las funciones. Informativo hasta revisar el primer reporte;
+      # después se quita continue-on-error para que bloquee (ver docs/TESTING.md).
+      - name: Lint de funciones (plpgsql_check)
+        continue-on-error: true
+        run: supabase db lint --level error
+
+      - name: Logs de Postgres si algo falló
+        if: failure()
+        run: docker ps -a --format '{{.Names}}' | grep -E 'supabase_db' | xargs -r -I{} docker logs --tail 200 {}
+
+      - name: Detener
+        if: always()
+        run: supabase stop --no-backup
+
+  repo:
+    name: Consistencia del repo (backlog, enlaces, ADRs, migraciones)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/ci/check_repo.py
+
+  secrets:
+    name: Búsqueda de secretos (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Se usa el binario (licencia MIT) y no gitleaks-action, que pide una licencia
+      # de pago cuando el repo pertenece a una organización.
+      - name: Instalar gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+      - name: Revisar todo el historial
+        run: ./gitleaks git --redact --verbose --exit-code 1 .

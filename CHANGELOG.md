@@ -4,6 +4,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+### Seguridad
+- **SEC-01 (Alta):** una sesión de OWNER/ADMIN sin MFA podía apagar `config.require_mfa_for_payments` y aprobar pagos sin segundo factor. La revisión del fix encontró dos caminos más: dar de alta o ascender un ADMIN, y cargar un tipo de cambio, ambos sin MFA. Migración 09: `aal2` incondicional en la aprobación, en la edición de la organización, en membresías y en el TC; la clave queda prohibida por `CHECK`. Prueba `06_payment_mfa.test.sql` (11 casos; fallaba antes del fix). 90 pruebas pgTAP en total.
+
+### Agregado (CI)
+- CI con versiones fijas (Supabase CLI 2.120.0, gitleaks 8.21.2), cancelación de runs viejos, lint de funciones (informativo) y logs de Postgres si falla.
+- Job `repo` con `scripts/ci/check_repo.py`: backlog, enlaces de Markdown, ADRs y nombres de migraciones.
+- gitleaks como binario en lugar de `gitleaks-action` (esta pide licencia en repos de organizaciones).
+- `scripts/test-db.ps1`: la misma verificación en Windows.
+- Migración 08: índices para las 15 claves foráneas que no tenían (regla de supabase/agent-skills).
+- Prueba `05_schema_lint.test.sql` (5 guardas de regresión); 79 pruebas pgTAP en total.
+- EXT-17: desde el 30-oct-2026 Supabase no expone tablas nuevas a la Data API sin GRANT explícito (el esquema ya usa GRANT explícitos).
+- `docs/HERRAMIENTAS_IA.md`: skills oficiales de Supabase y nombres corregidos de trailofbits/skills.
+- `bootstrap.py` renombra issues y milestones con título anterior (campo `replaces`) en vez de duplicarlos.
+
 ### Cambiado (v2.2 — mínimo regulatorio)
 - ADR-0014: MVP con QR estático del negocio y aprobación humana; sin OpenBCB, sin facturación SIAT y sin comisiones por transacción; sin pedir CI/NIT por el chat; WhatsApp en modelo directo para el piloto; importadoras primero.
 - `docs/legal/marco-legal-y-modelo-de-negocio.md`: regulación aplicable, requisitos para constituir la empresa, modelo de ingresos y checklist legal.

@@ -125,7 +125,8 @@
     },
     {
       "title": "Fase 4 · Agenda",
-      "description": "Agenda por recurso con seña; el rubro clínicas se habilita en la fase de escala (ADR-0014)"
+      "description": "Agenda por recurso con seña; el rubro clínicas se habilita en la fase de escala (ADR-0014)",
+      "replaces": "Fase 4 · Agenda (clínica)"
     },
     {
       "title": "Fase 5 · Dashboard",
@@ -137,7 +138,8 @@
     },
     {
       "title": "Fase 7 · Escala y conectores",
-      "description": "Tech Provider de Meta, conector bancario del negocio, conector SIAT autorizado, rubro clínicas"
+      "description": "Tech Provider de Meta, conector bancario del negocio, conector SIAT autorizado, rubro clínicas",
+      "replaces": "Fase 7 · SIAT"
     }
   ],
   "issues": [
@@ -150,6 +152,29 @@
         "prio:M"
       ],
       "body": "**Requisitos / referencias:** docs/GESTION_DEL_PROYECTO.md §2, EXT-13\n\n### Objetivo\nDejar el repositorio privado con protección de `main` y secretos de Actions.\n\n### Criterios de aceptación\n- [ ] Repo privado\n- [ ] GitHub Pro (Student Developer Pack) activo o decisión documentada de no usarlo\n- [ ] Regla: PR + CI verde + 1 revisión para `main`\n- [ ] Dependabot habilitado\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
+      "title": "[SEC-01] Aprobar pagos sin MFA desactivando un interruptor de configuración",
+      "labels": [
+        "type:bug",
+        "area:security",
+        "area:pagos",
+        "area:db",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-33, RF-40, ADR-0002, ADR-0008, SYSTEM_DESIGN.md §8\n\n### Objetivo\nUna sesión de OWNER/ADMIN sin segundo factor (aal1) podía poner `config.require_mfa_for_payments=false` y aprobar evidencias de pago sin MFA. Reproducido en BD el 15-oct-2026.\n\n### Criterios de aceptación\n- [ ] `approve_payment_evidence` exige aal2 siempre, sin leer configuración\n- [ ] Editar la organización, cambiar membresías y cargar TC exigen aal2\n- [ ] La clave `require_mfa_for_payments` queda prohibida en `config`\n- [ ] Prueba de regresión que falla sin el fix (06_payment_mfa)\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 3 · Pagos",
+      "title": "[spike] Decidir si cambiar precios del catálogo exige MFA",
+      "labels": [
+        "type:spike",
+        "area:security",
+        "area:pagos",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** SEC-01 (riesgo residual), SYSTEM_DESIGN.md §8\n\n### Objetivo\nHoy STAFF (y OWNER/ADMIN) editan `catalog_items.list_price` sin MFA, por diseño. Un precio alterado se congela en las cotizaciones nuevas. Decidir si pedir aal2, auditar con alerta o limitar variaciones.\n\n### Criterios de aceptación\n- [ ] Decisión registrada (ADR o nota en el diseño)\n- [ ] Si se exige aal2: política + prueba pgTAP\n- [ ] Cambios de precio visibles en `audit_log` con alerta para el dueño\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
       "milestone": "Fase 0 · Fundaciones",
@@ -199,7 +224,7 @@
         "area:db",
         "prio:M"
       ],
-      "body": "**Requisitos / referencias:** docs/TESTING.md, ADR-0002\n\n### Objetivo\nConfirmar que las 7 migraciones y las 74 pruebas pgTAP pasan contra la imagen oficial de Supabase (no solo el shim local).\n\n### Criterios de aceptación\n- [ ] Workflow `CI / database` en verde\n- [ ] Diferencias con el shim corregidas y documentadas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+      "body": "**Requisitos / referencias:** docs/TESTING.md, ADR-0002\n\n### Objetivo\nConfirmar que las 8 migraciones y las 79 pruebas pgTAP pasan contra la imagen oficial de Supabase (no solo el shim local).\n\n### Criterios de aceptación\n- [ ] Workflow `CI / database` en verde\n- [ ] Diferencias con el shim corregidas y documentadas\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     },
     {
       "milestone": "Fase 0 · Fundaciones",
@@ -230,7 +255,8 @@
         "area:pagos",
         "prio:M"
       ],
-      "body": "**Requisitos / referencias:** RF-30, RF-32, ADR-0014\n\n### Objetivo\nConfirmar con el negocio piloto cómo cobra hoy por QR (banco, formato de comprobantes, volumen) para calibrar las reglas antifraude.\n\n### Criterios de aceptación\n- [ ] Muestras anonimizadas de comprobantes de los bancos que usan sus clientes\n- [ ] Volumen de pagos por día y tiempo actual de revisión\n- [ ] Cuenta receptora y titular registrados para la regla de beneficiario\n\n### Notas\nEl conector a la API del banco queda para la Fase 7 (ADR-0014).\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+      "body": "**Requisitos / referencias:** RF-30, RF-32, ADR-0014\n\n### Objetivo\nConfirmar con el negocio piloto cómo cobra hoy por QR (banco, formato de comprobantes, volumen) para calibrar las reglas antifraude.\n\n### Criterios de aceptación\n- [ ] Muestras anonimizadas de comprobantes de los bancos que usan sus clientes\n- [ ] Volumen de pagos por día y tiempo actual de revisión\n- [ ] Cuenta receptora y titular registrados para la regla de beneficiario\n\n### Notas\nEl conector a la API del banco queda para la Fase 7 (ADR-0014).\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._",
+      "replaces": "[spike] Banco piloto: convenio API QR + contacto OpenBCB"
     },
     {
       "milestone": "Fase 7 · Escala y conectores",
@@ -468,7 +494,8 @@
         "area:pagos",
         "prio:C"
       ],
-      "body": "**Requisitos / referencias:** RF-30, RF-31, ADR-0013\n\n### Objetivo\nConfirmación automática con el dinero en la cuenta del negocio.\n\n### Criterios de aceptación\n- [ ] QR dinámico con monto y referencia\n- [ ] Callback autenticado + consulta de estado\n- [ ] Suite de contrato de PaymentProvider en verde\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+      "body": "**Requisitos / referencias:** RF-30, RF-31, ADR-0013\n\n### Objetivo\nConfirmación automática con el dinero en la cuenta del negocio.\n\n### Criterios de aceptación\n- [ ] QR dinámico con monto y referencia\n- [ ] Callback autenticado + consulta de estado\n- [ ] Suite de contrato de PaymentProvider en verde\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._",
+      "replaces": "Adaptador de la API QR del banco piloto"
     },
     {
       "milestone": "Fase 3 · Pagos",
