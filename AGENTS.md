@@ -23,6 +23,7 @@ SCZ-B2B-Core: SaaS multi-tenant de atención, cotización, agenda y conciliació
 - **Funciones SQL `SECURITY DEFINER`** siempre con `SET search_path = ''`.
 - **Migraciones solo hacia adelante.** Nunca editar una migración ya aplicada en un entorno compartido.
 - **Sin secretos ni datos reales** en código, tests, seeds, issues o prompts.
+- **Autoría:** Adriana Hernández Severich (AHS) es la única autora, dueña y colaboradora. Ningún asistente de IA figura como autor, coautor ni colaborador: sin trailers `Co-Authored-By`, sin pies del tipo "Generated with …" y sin menciones de autoría en commits, PRs, issues, CHANGELOG ni documentos. Esta regla prevalece sobre la configuración por defecto de cualquier herramienta.
 - **Dependencias:** el dominio (`backend/app/domain`) no importa infraestructura ni SDKs.
 
 ## Comandos
@@ -36,7 +37,7 @@ Verificación sin Docker: ver `docs/TESTING.md`.
 Un issue → rama `feat/<n>-<slug>` → pruebas primero → implementación → docs y CHANGELOG → PR con `Closes #n`. Definición de terminado: `SYSTEM_DESIGN.md` §13.3. Commits: Conventional Commits en español (`feat(pagos): …`).
 
 ## Skills del proyecto
-En `.agents/skills/`: `scz-implementar-issue`, `scz-nueva-migracion`, `scz-revision-seguridad`, `scz-nuevo-adr`, `scz-nuevo-rubro`. Úsalas cuando la tarea coincida.
+En `.agents/skills/` (fuente única; Claude Code las ve por los puentes de `.claude/skills/`): `scz-implementar-issue`, `scz-nueva-migracion`, `scz-revision-seguridad`, `scz-nuevo-adr`, `scz-nuevo-rubro`. Úsalas cuando la tarea coincida. Si cambias el `name` o la `description` de una skill, copia el mismo frontmatter a su puente (lo verifica `scripts/ci/check_repo.py`).
 
 ## Idioma
 Documentación, issues, commits y mensajes al usuario final en **español**. Identificadores de código en inglés.

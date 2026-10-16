@@ -58,4 +58,5 @@ desktop.ini
 
 # Herramientas de IA locales (configuración personal; las skills del proyecto sí se suben en .agents/)
 .claude/settings.local.json
+.claude/worktrees/
 .codex/

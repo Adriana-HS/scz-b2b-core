@@ -12,7 +12,7 @@ Fuentes: [Codex — Build skills](https://learn.chatgpt.com/docs/build-skills) �
 
 ## 1. Skills propias del proyecto (ya incluidas)
 
-En `.agents/skills/` (las lee Codex; Claude Code las encuentra por `CLAUDE.md`):
+En `.agents/skills/` (fuente única; las lee Codex). Claude Code solo descubre skills en `.claude/skills/`, así que cada una tiene ahí un **puente** con el mismo frontmatter que remite a la fuente. `scripts/ci/check_repo.py` falla si falta un puente o si su `name`/`description` no coincide:
 
 | Skill | Cuándo se usa |
 | :--- | :--- |
