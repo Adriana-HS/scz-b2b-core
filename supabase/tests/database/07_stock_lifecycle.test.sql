@@ -117,7 +117,9 @@ SELECT * FROM public.create_quote('cc000000-0000-4000-8000-00000000000a', NULL,
     '[{"item_id":"ca000000-0000-4000-8000-000000000002","quantity":5}]');
 UPDATE public.orders SET status = 'AWAITING_PAYMENT' WHERE id = (SELECT order_id FROM q4);
 SELECT tests.reset();
-SELECT tests.as_backend('a0000000-0000-4000-8000-000000000000', 'SYSTEM');   -- confirmación bancaria
+-- Confirmación bancaria registrada por el sistema. Como postgres y no como app_backend:
+-- SEC-02 (#53) le quita a app_backend el INSERT en payments hasta la fase de escala.
+SELECT set_config('app.actor', 'SYSTEM', true);
 INSERT INTO public.payments (organization_id, order_id, channel, amount_bs, bank_code, txn_number, confirmed_via)
 SELECT 'a0000000-0000-4000-8000-000000000000', order_id, 'QR_DYNAMIC_BANK', deposit_required_bs, 'BNB', '707074',
        'BANK_API'
