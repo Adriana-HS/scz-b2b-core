@@ -4,6 +4,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+### Corregido
+- **Reservas de stock (Alta, H1):** una orden en `PAYMENT_REVIEW` con `valid_until` vencido dejaba de bloquear su stock; otro cliente podía reservarlo y, al aprobar el pago, `stock_on_hand` quedaba < 0 (la aprobación fallaba por `CHECK`) o había sobreventa. Ahora una reserva está activa mientras no se libere ni se comprometa; la termina el estado de la orden, no el reloj (ADR-0015).
+- **Reservas de stock (Alta, H2):** cancelar no liberaba la reserva hasta su vencimiento, y cancelar o reembolsar una orden `CONFIRMED` nunca devolvía el stock. Confirmar con seña 0 tampoco comprometía stock. Migración 10: trigger `trg_orders_stock_lifecycle` que compromete, libera o devuelve el stock en cada cambio de estado; columna `stock_reservations.returned_at`. Si al confirmar no hay stock físico, el error es `HINT = STOCK_CONFLICT`, sin efectos parciales.
+- Prueba `07_stock_lifecycle.test.sql` (19 casos; fallaba antes del fix). 109 pruebas pgTAP en total.
+
 ### Seguridad
 - **SEC-01 (Alta):** una sesión de OWNER/ADMIN sin MFA podía apagar `config.require_mfa_for_payments` y aprobar pagos sin segundo factor. La revisión del fix encontró dos caminos más: dar de alta o ascender un ADMIN, y cargar un tipo de cambio, ambos sin MFA. Migración 09: `aal2` incondicional en la aprobación, en la edición de la organización, en membresías y en el TC; la clave queda prohibida por `CHECK`. Prueba `06_payment_mfa.test.sql` (11 casos; fallaba antes del fix). 90 pruebas pgTAP en total.
 
