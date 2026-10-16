@@ -12,8 +12,8 @@
 | Decisiones | `docs/adr/` (ADR-0001 … ADR-0015) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (10 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 109 pruebas pgTAP en 7 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (11 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 149 pruebas pgTAP en 8 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -367,6 +367,10 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 | I-14 | Ningún tenant puede alterar el régimen tributario global | `tax_regimes` de solo lectura para los roles de runtime | 04-#11 |
 | I-15 | El stock sigue a la orden: `CONFIRMED` compromete (por cualquier camino, incluso con seña 0); `CANCELLED` y `EXPIRED` liberan en el acto; si no hay stock físico al confirmar, falla con `STOCK_CONFLICT` y no deja efectos | `trg_orders_stock_lifecycle` (AFTER UPDATE OF status) | 07-#5…#7, #12…#13, #16…#19 |
 | I-16 | Cancelar o reembolsar una orden `CONFIRMED` (aún no entregada) devuelve el stock una sola vez | `trg_orders_stock_lifecycle` + `stock_reservations.returned_at` | 07-#10, #11, #15 |
+| I-17 | Sin actor válido, el backend es `BOT` (falla cerrado); el backend nunca es `HUMAN` | `private.actor_kind()` (migración 11) | 08-#1…#7 |
+| I-18 | El MVP no registra pagos bancarios; un pago `BANK_API` exige `SYSTEM` explícito y uno `HUMAN`, OWNER/ADMIN con aal2 a su nombre | sin INSERT en `payments` para `app_backend` + `trg_payments_actor_guard` | 08-#8…#10 |
+| I-19 | Reembolsar, cancelar órdenes pagadas o en revisión y confirmar las requiere OWNER/ADMIN con aal2; STAFF solo cancela antes del pago | `trg_orders_human_guard` | 08-#12…#25 |
+| I-20 | Las evidencias siguen su FSM; `APPROVED` y los rechazos humanos solo desde las RPC de revisión; los datos verificados no cambian | `private.evidence_transitions` + `trg_payment_evidence_guard` + columnas acotadas | 08-#26…#40 |
 
 **Prueba de concurrencia (ejecutada):** 4 sesiones simultáneas pidieron 2 unidades de un ítem con stock 3; una obtuvo `COT-2026-000001` y tres recibieron `OUT_OF_STOCK`. Otras 4 sesiones pidieron el mismo horario; una obtuvo `CITA-2026-000001` y tres recibieron `SLOT_TAKEN`.
 
@@ -426,13 +430,17 @@ stateDiagram-v2
 
 | Actor | Cómo se identifica | Puede |
 | :--- | :--- | :--- |
-| `BOT` | `app_backend` con `SET LOCAL app.actor = 'BOT'` (en todo turno del agente) | Crear borradores, cotizar, retener horario, pasar a esperar pago o a revisión, cancelar antes del pago |
+| `BOT` | `app_backend` con `SET LOCAL app.actor = 'BOT'` (en todo turno del agente). También es el actor de **cualquier** sesión sin `app.actor` válido (falla cerrado) | Crear borradores, cotizar, retener horario, pasar a esperar pago o a revisión, cancelar antes del pago |
 | `SYSTEM` | `app_backend` con `app.actor = 'SYSTEM'` (callbacks bancarios, jobs) | Confirmar por pago bancario, expirar, completar |
-| `HUMAN` | JWT de usuario (`authenticated` o RPC con `auth.uid()`) | Todo lo anterior + aprobar/rechazar evidencias (OWNER/ADMIN con MFA), reembolsar, cancelar confirmadas |
+| `HUMAN` | JWT de usuario (`authenticated` o RPC con `auth.uid()`). El backend **no** puede declararse `HUMAN` (ni con `app.actor` ni con un JWT propio) | STAFF: cancelar antes del pago y rechazar evidencias. OWNER/ADMIN con MFA: además aprobar evidencias, reembolsar, cancelar órdenes pagadas o en revisión, confirmar y completar |
 
 **Efectos sobre el stock (ADR-0015).** `trg_orders_stock_lifecycle` aplica estos efectos en cada cambio de estado: → `CONFIRMED` compromete las reservas (o falla con `STOCK_CONFLICT`); → `CANCELLED`/`EXPIRED` las libera; `CONFIRMED` → `CANCELLED`/`REFUNDED` devuelve el stock comprometido. `COMPLETED` (entregado) no devuelve nada.
 
-> La separación BOT/SYSTEM protege contra **errores y manipulación del LLM** (defensa en profundidad), no contra un backend comprometido. Por eso el código que ejecuta los turnos del agente **nunca** cambia `app.actor`, y una prueba lo verifica.
+> La separación BOT/SYSTEM protege contra **errores y manipulación del LLM** (defensa en profundidad), no contra un backend comprometido. Por eso el código que ejecuta los turnos del agente **nunca** cambia `app.actor`, y una prueba lo verifica. Un `UnitOfWork` que olvide el actor queda como `BOT`, nunca con más privilegio (SEC-02, migración 11).
+>
+> **Qué persona** puede hacer una transición `HUMAN` lo decide `trg_orders_human_guard`: STAFF solo cancela órdenes sin pagos registrados (`DRAFT`, `QUOTED`, `HELD`, `AWAITING_PAYMENT`) y devuelve a `AWAITING_PAYMENT` una orden sin evidencias pendientes (el efecto de rechazar una evidencia); todo lo demás exige OWNER/ADMIN con `aal2`.
+>
+> **Evidencias** (`docs/architecture/uml.md` §7.1): las transiciones válidas por actor viven en `private.evidence_transitions`. El backend solo hace `RECEIVED → OCR_DONE → AUTO_CHECK_PASSED/NEEDS_REVIEW` y `→ REJECTED_DUPLICATE`; `APPROVED` y los demás rechazos solo los hacen las RPC de revisión. Desde `AUTO_CHECK_PASSED`/`NEEDS_REVIEW` los datos extraídos quedan congelados y los estados finales son inmutables.
 
 ---
 
@@ -504,12 +512,13 @@ Cada rubro es un paquete `app/verticals/<rubro>/` que implementa `VerticalPolicy
 | **D**oS | "Denial of wallet" contra el LLM | Cuotas y degradación (§7.4) |
 | **E**levation | STAFF/AUDITOR cambian TC o cuentas | Políticas por rol; MFA (`aal2`) para cuentas bancarias y aprobación de pagos (pruebas 01-#11, #12) |
 | **E**levation | Sesión de OWNER/ADMIN sin segundo factor (aal1) apaga controles, crea un aprobador o carga un TC falso (SEC-01) | `aal2` **incondicional** para aprobar pagos, editar la organización, cambiar membresías y cargar TC; ningún interruptor por tenant (migración 09, prueba 06) |
+| **E**levation | Un `UnitOfWork` sin `app.actor` (o que se declara `HUMAN`) registra un pago "bancario", aprueba una evidencia o reembolsa; STAFF sin MFA reembolsa o cancela órdenes pagadas (SEC-02) | Actor por defecto `BOT`; `app_backend` sin INSERT en `payments` (ADR-0014); FSM de evidencias en BD; transiciones humanas por rol con `aal2` (migración 11, prueba 08) |
 | **E**levation | Secuestro de `search_path` en funciones privilegiadas | `SET search_path = ''` en todas (prueba 01-#19) |
 
 ### 8.2 Identidad y acceso
 
-* **Dashboard:** Supabase Auth, MFA TOTP obligatorio para `OWNER`/`ADMIN`. Roles: `OWNER` (todo), `ADMIN` (todo excepto membresías), `STAFF` (catálogo, conversaciones, agenda, rechazar evidencias), `AUDITOR` (solo lectura).
-* **Backend:** rol `app_backend` (LOGIN, sin BYPASSRLS, sin `DELETE`). Cada unidad de trabajo abre una transacción y ejecuta `SET LOCAL app.current_org_id` y `SET LOCAL app.actor`. El *repository* no expone ninguna forma de consultar sin tenant.
+* **Dashboard:** Supabase Auth, MFA TOTP obligatorio para `OWNER`/`ADMIN`. Roles: `OWNER` (todo), `ADMIN` (todo excepto membresías), `STAFF` (catálogo, conversaciones, agenda, rechazar evidencias y cancelar órdenes antes del pago; sin reembolsos ni cancelaciones de órdenes pagadas o en revisión), `AUDITOR` (solo lectura).
+* **Backend:** rol `app_backend` (LOGIN, sin BYPASSRLS, sin `DELETE`). Cada unidad de trabajo abre una transacción y ejecuta `SET LOCAL app.current_org_id` y `SET LOCAL app.actor` (`BOT` o `SYSTEM`; si falta, la BD asume `BOT`). El *repository* no expone ninguna forma de consultar sin tenant. En el MVP no tiene INSERT en `payments` (ADR-0014) y en `payment_evidence` solo actualiza el estado y los resultados de OCR/reglas, nunca `reviewed_by`, `reviewed_at` ni `review_note`.
 * **Webhook → tenant:** `metadata.phone_number_id` → `private.resolve_whatsapp_channel()` (única función que lee antes de fijar el tenant). Si el número no se conoce, se responde 200 y se registra el evento. No se responde 4xx, porque Meta reintentaría.
 
 ### 8.3 Webhook y media
