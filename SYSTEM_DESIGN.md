@@ -9,11 +9,11 @@
 | Mercado inicial | Santa Cruz de la Sierra, Bolivia |
 | Versión | **2.2** (15-oct-2026) — reemplaza a la v1.0 |
 | Estado | Propuesta para revisión (ver `docs/reviews/2026-10-15-revision-system-design-v1.md`) |
-| Decisiones | `docs/adr/` (ADR-0001 … ADR-0014) |
+| Decisiones | `docs/adr/` (ADR-0001 … ADR-0015) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (9 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 90 pruebas pgTAP en 6 archivos, 90/90 OK en la CI sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (10 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 109 pruebas pgTAP en 7 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -113,6 +113,7 @@ El detalle (contexto, alternativas, consecuencias y verificación) está en `doc
 | [0012](docs/adr/0012-iva-por-regimen-vigente.md) | **IVA por régimen vigente** (incluido o adicional), congelado en cada orden | v1 no modelaba el IVA |
 | [0013](docs/adr/0013-la-plataforma-no-custodia-fondos.md) | **La plataforma no custodia fondos**: QR a nombre de la cuenta de cada negocio | Nuevo (riesgo regulatorio ASFI) |
 | [0014](docs/adr/0014-alcance-de-minimo-regulatorio-para-el-mvp.md) | **MVP de mínimo regulatorio**: QR estático + aprobación humana, suscripción fija, sin facturación ni datos de identidad por chat | Nuevo (viabilidad comercial) |
+| [0015](docs/adr/0015-ciclo-de-vida-de-reservas-de-stock.md) | La vigencia de una **reserva de stock** la decide el estado de la orden; un trigger compromete, libera o devuelve el stock en cada transición | Nuevo (revisión del 15-oct-2026: sobreventa) |
 
 ---
 
@@ -359,11 +360,13 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 | I-7 | Una misma imagen no respalda dos evidencias vigentes en el tenant | UNIQUE parcial `(organization_id, sha256)` | 02-#15, #16 |
 | I-8 | Una transacción bancaria respalda un solo pago **en toda la plataforma** | UNIQUE parcial global `(bank_code, txn_number_normalized)` | 02-#17, #18 |
 | I-9 | Un recurso no tiene dos citas activas solapadas | `EXCLUDE USING gist (organization_id =, resource_id =, slot &&)` | 03-#5 + concurrencia |
-| I-10 | No se reserva más stock del disponible | `create_quote` bloquea filas (`FOR UPDATE`) y descuenta reservas activas | 02-#7 + concurrencia |
+| I-10 | No se reserva más stock del disponible | `create_quote` bloquea filas (`FOR UPDATE`) y descuenta las reservas activas. Una reserva está activa mientras no se libera ni se compromete: la termina el estado de la orden, no `expires_at` (ADR-0015) | 02-#7, 07-#2, #3 + concurrencia |
 | I-11 | No se cotiza en USD con un TC ausente o vencido | `private.current_fx().is_stale` | 03-#15 |
 | I-12 | Toda función `SECURITY DEFINER` fija `search_path` | Revisión automática en pgTAP | 01-#19 |
 | I-13 | Una orden conserva el régimen de IVA vigente al crearse; subtotal, IVA y total se derivan de él | `tax_regime_id` congelado + `private.tax_breakdown` | 04-#4…#9 |
 | I-14 | Ningún tenant puede alterar el régimen tributario global | `tax_regimes` de solo lectura para los roles de runtime | 04-#11 |
+| I-15 | El stock sigue a la orden: `CONFIRMED` compromete (por cualquier camino, incluso con seña 0); `CANCELLED` y `EXPIRED` liberan en el acto; si no hay stock físico al confirmar, falla con `STOCK_CONFLICT` y no deja efectos | `trg_orders_stock_lifecycle` (AFTER UPDATE OF status) | 07-#5…#7, #12…#13, #16…#19 |
+| I-16 | Cancelar o reembolsar una orden `CONFIRMED` (aún no entregada) devuelve el stock una sola vez | `trg_orders_stock_lifecycle` + `stock_reservations.returned_at` | 07-#10, #11, #15 |
 
 **Prueba de concurrencia (ejecutada):** 4 sesiones simultáneas pidieron 2 unidades de un ítem con stock 3; una obtuvo `COT-2026-000001` y tres recibieron `OUT_OF_STOCK`. Otras 4 sesiones pidieron el mismo horario; una obtuvo `CITA-2026-000001` y tres recibieron `SLOT_TAKEN`.
 
@@ -375,7 +378,7 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 * **Precio unitario:** `private.unit_price_bs(currency, list_price, fx)` es la única función de cálculo. La usan la búsqueda y la cotización. Redondeo comercial a 2 decimales, mitad lejos de cero; Python solo **formatea** (con `Decimal`, nunca `float`).
 * **IVA (ADR-0012):** cada orden congela su `tax_regime_id` y guarda `subtotal_bs` (Σ líneas), `iva_bs` y `total_bs` (a pagar). Con `IVA_INCLUIDO` (vigente) el total es la suma de líneas y el IVA informado es el 13 % del total. Con `IVA_ADICIONAL` (Ley 1733) el IVA es el 13 % del subtotal y se suma. La búsqueda devuelve `tax_mode` para que el bot diga "IVA incluido" o "+ IVA".
 * **Seña:** promedio ponderado de `coalesce(deposit_percent_override, organizations.deposit_percent)` por línea, aplicado sobre el **total a pagar**, redondeado a 2 decimales y acotado al total.
-* **Vigencia:** cada cotización guarda `fx_rate_id`, `applied_fx_rate` y `valid_until` (por defecto 24 h). Al vencer pasa a `EXPIRED` y libera su reserva de stock. El PDF muestra el TC aplicado y la vigencia.
+* **Vigencia:** cada cotización guarda `fx_rate_id`, `applied_fx_rate` y `valid_until` (por defecto 24 h). Al vencer, el job `expire_stale_orders` (cada minuto) la pasa a `EXPIRED` y el trigger libera su reserva de stock. Una orden en `PAYMENT_REVIEW` no vence por tiempo: conserva su reserva hasta que un humano apruebe o rechace la evidencia (ADR-0015). El PDF muestra el TC aplicado y la vigencia.
 
 ### 5.5 Retención de datos
 
@@ -426,6 +429,8 @@ stateDiagram-v2
 | `BOT` | `app_backend` con `SET LOCAL app.actor = 'BOT'` (en todo turno del agente) | Crear borradores, cotizar, retener horario, pasar a esperar pago o a revisión, cancelar antes del pago |
 | `SYSTEM` | `app_backend` con `app.actor = 'SYSTEM'` (callbacks bancarios, jobs) | Confirmar por pago bancario, expirar, completar |
 | `HUMAN` | JWT de usuario (`authenticated` o RPC con `auth.uid()`) | Todo lo anterior + aprobar/rechazar evidencias (OWNER/ADMIN con MFA), reembolsar, cancelar confirmadas |
+
+**Efectos sobre el stock (ADR-0015).** `trg_orders_stock_lifecycle` aplica estos efectos en cada cambio de estado: → `CONFIRMED` compromete las reservas (o falla con `STOCK_CONFLICT`); → `CANCELLED`/`EXPIRED` las libera; `CONFIRMED` → `CANCELLED`/`REFUNDED` devuelve el stock comprometido. `COMPLETED` (entregado) no devuelve nada.
 
 > La separación BOT/SYSTEM protege contra **errores y manipulación del LLM** (defensa en profundidad), no contra un backend comprometido. Por eso el código que ejecuta los turnos del agente **nunca** cambia `app.actor`, y una prueba lo verifica.
 
@@ -629,7 +634,7 @@ scz-b2b-core/
 ├── .agents/skills/               # skills del proyecto (formato SKILL.md, fuente única)
 ├── .claude/skills/               # puentes para Claude Code (mismo frontmatter, remiten a .agents/)
 ├── docs/
-│   ├── adr/                      # ADR-0001 … ADR-0014 (formato MADR)
+│   ├── adr/                      # ADR-0001 … ADR-0015 (formato MADR)
 │   ├── architecture/             # estilo, SOLID, patrones, UML
 │   ├── legal/                    # marco legal y modelo de negocio (sin documentos firmados)
 │   ├── requirements/SRS.md       # requisitos RF-xx (ISO/IEC/IEEE 29148)
@@ -644,7 +649,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0009 (este documento las referencia)
+│   ├── migrations/               # 0001…0010 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/
