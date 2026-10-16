@@ -52,8 +52,9 @@ En `.agents/skills/` (las lee Codex; Claude Code las encuentra por `CLAUDE.md`):
 | :--- | :--- | :--- | :---: | :---: |
 | `threat-model`, `security-scan`, `security-diff-scan`, `attack-path-analysis`, `propose-security-hardening` | [openai/plugins → codex-security](https://github.com/openai/plugins) | Modelo de amenazas del repo, escaneo completo y revisión de diffs | — | ✓ |
 | `sharp-edges` | [trailofbits/skills](https://github.com/trailofbits/skills) | Detectar APIs y configuraciones peligrosas ("seguro por defecto") | ✓ | ✓ (vía compatibilidad de marketplace) |
+| `insecure-defaults` | trailofbits/skills | Controles que fallan abiertos, credenciales por defecto, interruptores de seguridad (el tipo de falla de SEC-01). En la v2 es un **comando** (`/insecure-defaults:audit`), no una skill: solo Claude Code | ✓ (plugin) | — |
 | `differential-review`, `review-pr` | trailofbits/skills | Revisión de seguridad de cada PR, con radio de impacto | ✓ | ✓ |
-| `semgrep`, `codeql`, `sarif-parsing` | trailofbits/skills | Análisis estático. En repos privados, CodeQL de GitHub es de pago; Semgrep local es la alternativa | ✓ | ✓ |
+| `semgrep`, `codeql`, `sarif-parsing` (plugin `static-analysis`) | trailofbits/skills | Análisis estático. En repos privados, CodeQL de GitHub es de pago; Semgrep local es la alternativa | ✓ | ✓ |
 | `supply-chain-risk-auditor` | trailofbits/skills | Auditar dependencias de Python y npm | ✓ | ✓ |
 | `agentic-actions-auditor` | trailofbits/skills | Revisar workflows de GitHub Actions que usen agentes de IA | ✓ | ✓ |
 

@@ -155,6 +155,29 @@
     },
     {
       "milestone": "Fase 0 · Fundaciones",
+      "title": "[SEC-01] Aprobar pagos sin MFA desactivando un interruptor de configuración",
+      "labels": [
+        "type:bug",
+        "area:security",
+        "area:pagos",
+        "area:db",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-33, RF-40, ADR-0002, ADR-0008, SYSTEM_DESIGN.md §8\n\n### Objetivo\nUna sesión de OWNER/ADMIN sin segundo factor (aal1) podía poner `config.require_mfa_for_payments=false` y aprobar evidencias de pago sin MFA. Reproducido en BD el 15-oct-2026.\n\n### Criterios de aceptación\n- [ ] `approve_payment_evidence` exige aal2 siempre, sin leer configuración\n- [ ] Editar la organización, cambiar membresías y cargar TC exigen aal2\n- [ ] La clave `require_mfa_for_payments` queda prohibida en `config`\n- [ ] Prueba de regresión que falla sin el fix (06_payment_mfa)\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 3 · Pagos",
+      "title": "[spike] Decidir si cambiar precios del catálogo exige MFA",
+      "labels": [
+        "type:spike",
+        "area:security",
+        "area:pagos",
+        "prio:S"
+      ],
+      "body": "**Requisitos / referencias:** SEC-01 (riesgo residual), SYSTEM_DESIGN.md §8\n\n### Objetivo\nHoy STAFF (y OWNER/ADMIN) editan `catalog_items.list_price` sin MFA, por diseño. Un precio alterado se congela en las cotizaciones nuevas. Decidir si pedir aal2, auditar con alerta o limitar variaciones.\n\n### Criterios de aceptación\n- [ ] Decisión registrada (ADR o nota en el diseño)\n- [ ] Si se exige aal2: política + prueba pgTAP\n- [ ] Cambios de precio visibles en `audit_log` con alerta para el dueño\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 0 · Fundaciones",
       "title": "Firmar acuerdo de socios y titularidad del software",
       "labels": [
         "type:chore",

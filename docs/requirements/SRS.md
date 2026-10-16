@@ -70,7 +70,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 | RF-30 | Enviar al cliente el **QR del propio negocio** con el monto y la referencia a pagar | M | ADR-0013/0014; ningún flujo usa cuentas de la plataforma |
 | RF-31 | (Fase de escala) Confirmar automáticamente con el conector a la API del banco del negocio | C | El callback autenticado + consulta de estado crea `payments(BANK_API)` |
 | RF-32 | Recibir comprobantes, aplicar reglas antifraude y priorizar la revisión | M | pgTAP 02 #15–#18; el cliente recibe "en verificación", nunca "confirmado" |
-| RF-33 | Aprobar o rechazar evidencias en el dashboard (OWNER/ADMIN con MFA) | M | pgTAP 02 #19–#24 |
+| RF-33 | Aprobar evidencias en el dashboard (OWNER/ADMIN, **siempre** con MFA); rechazarlas (OWNER/ADMIN/STAFF; rechazar no mueve dinero) | M | pgTAP 02 #19–#24, 06 |
 | RF-34 | Ninguna orden se confirma sin pago suficiente registrado | M | pgTAP 02 #12, #21 |
 
 ### 4.5 Dashboard, auditoría y facturación

@@ -13,7 +13,7 @@
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
 | Esquema ejecutable | `supabase/migrations/` (7 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 79 pruebas pgTAP en 5 archivos, 79/79 OK sobre PostgreSQL 16 + pgvector 0.8 |
+| Pruebas del esquema | `supabase/tests/database/` — 90 pruebas pgTAP en 6 archivos, 90/90 OK sobre PostgreSQL 16 + pgvector 0.8 |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-15) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -498,6 +498,7 @@ Cada rubro es un paquete `app/verticals/<rubro>/` que implementa `VerticalPolicy
 | **D**oS | Ráfaga de mensajes o imágenes | Debounce, límites por cliente/tenant, tamaño máximo de media, cola con concurrencia acotada |
 | **D**oS | "Denial of wallet" contra el LLM | Cuotas y degradación (§7.4) |
 | **E**levation | STAFF/AUDITOR cambian TC o cuentas | Políticas por rol; MFA (`aal2`) para cuentas bancarias y aprobación de pagos (pruebas 01-#11, #12) |
+| **E**levation | Sesión de OWNER/ADMIN sin segundo factor (aal1) apaga controles, crea un aprobador o carga un TC falso (SEC-01) | `aal2` **incondicional** para aprobar pagos, editar la organización, cambiar membresías y cargar TC; ningún interruptor por tenant (migración 09, prueba 06) |
 | **E**levation | Secuestro de `search_path` en funciones privilegiadas | `SET search_path = ''` en todas (prueba 01-#19) |
 
 ### 8.2 Identidad y acceso
