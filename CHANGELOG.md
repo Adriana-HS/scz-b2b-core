@@ -5,6 +5,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Sin publicar]
 
 ### Seguridad
+- **SEC-02 (Media, #53):** tres caminos de menor privilegio sin cerrar en la BD. (M1) Sin `app.actor`, `private.actor_kind()` devolvía `SYSTEM` y el backend podía registrar un pago `BANK_API`; además podía declararse `HUMAN`. (M2) STAFF sin MFA podía reembolsar, cancelar órdenes pagadas o en revisión y confirmar órdenes sin seña. (M3) `app_backend` podía marcar una evidencia `APPROVED` sin la RPC con MFA. Migración 11: actor por defecto `BOT`, `app_backend` sin INSERT en `payments` hasta la fase 7 (ADR-0014), guarda de actor en `payments`, trigger de roles en `orders` y FSM de evidencias en la BD (`private.evidence_transitions`) con columnas acotadas y datos congelados al pasar a revisión. Prueba `08_actor_roles.test.sql` (40 casos; fallaba antes del fix). 130 pruebas pgTAP en total.
 - **SEC-01 (Alta):** una sesión de OWNER/ADMIN sin MFA podía apagar `config.require_mfa_for_payments` y aprobar pagos sin segundo factor. La revisión del fix encontró dos caminos más: dar de alta o ascender un ADMIN, y cargar un tipo de cambio, ambos sin MFA. Migración 09: `aal2` incondicional en la aprobación, en la edición de la organización, en membresías y en el TC; la clave queda prohibida por `CHECK`. Prueba `06_payment_mfa.test.sql` (11 casos; fallaba antes del fix). 90 pruebas pgTAP en total.
 
 ### Agregado (CI)
