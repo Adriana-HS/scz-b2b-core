@@ -12,8 +12,8 @@
 | Decisiones | `docs/adr/` (ADR-0001 … ADR-0015) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (12 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 167 pruebas pgTAP en 9 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (13 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 176 pruebas pgTAP en 10 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -371,7 +371,7 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 | I-18 | El MVP no registra pagos bancarios; un pago `BANK_API` exige `SYSTEM` explícito y uno `HUMAN`, OWNER/ADMIN con aal2 a su nombre | sin INSERT en `payments` para `app_backend` + `trg_payments_actor_guard` | 08-#8…#10 |
 | I-19 | Reembolsar, cancelar órdenes pagadas o en revisión y confirmar las requiere OWNER/ADMIN con aal2; STAFF solo cancela antes del pago | `trg_orders_human_guard` | 08-#12…#25 |
 | I-20 | Las evidencias siguen su FSM; `APPROVED` y los rechazos humanos solo desde las RPC de revisión; los datos verificados no cambian | `private.evidence_transitions` + `trg_payment_evidence_guard` + columnas acotadas | 08-#26…#40 |
-| I-21 | Una orden con pagos registrados (`amount_paid_bs > 0`) no sale del flujo sin una persona: cancelarla exige OWNER/ADMIN con aal2 y el vencimiento automático la omite | `trg_orders_paid_exit_guard` (migración 12) | 09-#3…#18 |
+| I-21 | Una orden con pagos registrados (`amount_paid_bs > 0`) no sale del flujo sin una persona: cancelarla exige OWNER/ADMIN con aal2 y el vencimiento automático la omite | `trg_orders_paid_exit_guard` (migración 12) y el filtro `amount_paid_bs = 0` de `expire_stale_orders` (migración 13) | 09-#3…#18, 10-#2…#9 |
 
 **Prueba de concurrencia (ejecutada):** 4 sesiones simultáneas pidieron 2 unidades de un ítem con stock 3; una obtuvo `COT-2026-000001` y tres recibieron `OUT_OF_STOCK`. Otras 4 sesiones pidieron el mismo horario; una obtuvo `CITA-2026-000001` y tres recibieron `SLOT_TAKEN`.
 
@@ -383,7 +383,7 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 * **Precio unitario:** `private.unit_price_bs(currency, list_price, fx)` es la única función de cálculo. La usan la búsqueda y la cotización. Redondeo comercial a 2 decimales, mitad lejos de cero; Python solo **formatea** (con `Decimal`, nunca `float`).
 * **IVA (ADR-0012):** cada orden congela su `tax_regime_id` y guarda `subtotal_bs` (Σ líneas), `iva_bs` y `total_bs` (a pagar). Con `IVA_INCLUIDO` (vigente) el total es la suma de líneas y el IVA informado es el 13 % del total. Con `IVA_ADICIONAL` (Ley 1733) el IVA es el 13 % del subtotal y se suma. La búsqueda devuelve `tax_mode` para que el bot diga "IVA incluido" o "+ IVA".
 * **Seña:** promedio ponderado de `coalesce(deposit_percent_override, organizations.deposit_percent)` por línea, aplicado sobre el **total a pagar**, redondeado a 2 decimales y acotado al total.
-* **Vigencia:** cada cotización guarda `fx_rate_id`, `applied_fx_rate` y `valid_until` (por defecto 24 h). Al vencer, el job `expire_stale_orders` (cada minuto) la pasa a `EXPIRED` y el trigger libera su reserva de stock. Una orden en `PAYMENT_REVIEW` no vence por tiempo: conserva su reserva hasta que un humano apruebe o rechace la evidencia (ADR-0015). El PDF muestra el TC aplicado y la vigencia.
+* **Vigencia:** cada cotización guarda `fx_rate_id`, `applied_fx_rate` y `valid_until` (por defecto 24 h). Al vencer, el job `expire_stale_orders` (cada minuto) la pasa a `EXPIRED` y el trigger libera su reserva de stock. Una orden con pagos registrados (`amount_paid_bs > 0`) no vence: queda para que OWNER/ADMIN decida (§6). Una orden en `PAYMENT_REVIEW` no vence por tiempo: conserva su reserva hasta que un humano apruebe o rechace la evidencia (ADR-0015). El PDF muestra el TC aplicado y la vigencia.
 
 ### 5.5 Retención de datos
 
@@ -445,9 +445,9 @@ stateDiagram-v2
 >
 > **Orden con pagos registrados (issue #57, migración 12).** Si `amount_paid_bs > 0` (por ejemplo, un pago parcial aprobado), la orden ya no sale del flujo sin una persona, porque eso implica decidir un reembolso que en el MVP hace el negocio a mano (ADR-0013, ADR-0014). `trg_orders_paid_exit_guard` aplica dos reglas sobre `fsm_transitions`:
 > * **→ `CANCELLED`:** solo OWNER/ADMIN con aal2. `BOT` y `SYSTEM` reciben `42501` con HINT `HUMAN_REVIEW_REQUIRED`; ante ese HINT, la herramienta `cancel_order` llama a `handoff_to_human` y el bot no promete devolución. STAFF recibe `ROLE_REQUIRED` y una sesión sin MFA, `MFA_REQUIRED`.
-> * **→ `EXPIRED`:** el trigger omite la fila (devuelve `NULL`, 0 filas actualizadas) y no lanza error, para que una orden pagada no frene el vencimiento de las demás en el `UPDATE` del job. La orden sigue en su estado, con su reserva de stock o de horario, hasta que OWNER/ADMIN la cancele (y el negocio reembolse) o el cliente complete el pago. El dashboard lista estas órdenes con el filtro `status IN ('QUOTED','HELD','AWAITING_PAYMENT') AND valid_until < now() AND amount_paid_bs > 0`.
+> * **→ `EXPIRED`:** `expire_stale_orders` ya no las selecciona (`AND amount_paid_bs = 0` en su `WHERE`, migración 13), así que el job no ejecuta el trigger ni bloquea esas filas en cada pasada. Como defensa en profundidad, ante cualquier otro `UPDATE` a `EXPIRED` el trigger omite la fila (devuelve `NULL`, 0 filas actualizadas) y no lanza error, para que una orden pagada no frene el vencimiento de las demás en un `UPDATE` masivo. La orden sigue en su estado, con su reserva de stock o de horario, hasta que OWNER/ADMIN la cancele (y el negocio reembolse) o el cliente complete el pago. El dashboard lista estas órdenes con el filtro `status IN ('QUOTED','HELD','AWAITING_PAYMENT') AND valid_until < now() AND amount_paid_bs > 0`.
 >
-> Se descartó lanzar error también al vencer: una sola orden pagada haría fallar `expire_stale_orders` en todos los tenants cada minuto. Se descartó cambiar el filtro de `expire_stale_orders` en esta migración para no reemplazar la versión de la migración 10 (PR #55); el trigger cubre también cualquier otro `UPDATE` a `EXPIRED`.
+> Se descartó lanzar error también al vencer: una sola orden pagada haría fallar `expire_stale_orders` en todos los tenants cada minuto.
 
 ---
 
