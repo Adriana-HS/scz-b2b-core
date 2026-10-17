@@ -42,19 +42,19 @@ SELECT throws_like($$ INSERT INTO private.outbound_messages (organization_id, co
 
 -- --- Plantillas: consentimiento y baja ----------------------------------------------
 SELECT throws_like($$ INSERT INTO private.outbound_messages (organization_id, conversation_id, idempotency_key, kind, payload)
-    VALUES ('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 'k-5', 'TEMPLATE', '{"name":"recordatorio"}') $$,
+    VALUES ('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 'k-5', 'TEMPLATE', '{"name":"recordatorio","category":"UTILITY"}') $$,
     '%consentimiento%', 'plantilla sin opt-in: rechazada');
 SELECT tests.reset();
 UPDATE public.customers SET optin_utility_at = now() - interval '3 days' WHERE id = 'cc000000-0000-4000-8000-00000000000a';
 SELECT tests.as_backend('a0000000-0000-4000-8000-000000000000', 'SYSTEM');
 SELECT lives_ok($$ INSERT INTO private.outbound_messages (organization_id, conversation_id, idempotency_key, kind, payload)
-    VALUES ('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 'k-6', 'TEMPLATE', '{"name":"recordatorio"}') $$,
+    VALUES ('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 'k-6', 'TEMPLATE', '{"name":"recordatorio","category":"UTILITY"}') $$,
     'con opt-in, la plantilla sale aunque la ventana esté cerrada');
 SELECT tests.reset();
 UPDATE public.customers SET optout_at = now() WHERE id = 'cc000000-0000-4000-8000-00000000000a';
 SELECT tests.as_backend('a0000000-0000-4000-8000-000000000000', 'SYSTEM');
 SELECT throws_like($$ INSERT INTO private.outbound_messages (organization_id, conversation_id, idempotency_key, kind, payload)
-    VALUES ('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 'k-7', 'TEMPLATE', '{"name":"recordatorio"}') $$,
+    VALUES ('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 'k-7', 'TEMPLATE', '{"name":"recordatorio","category":"UTILITY"}') $$,
     '%consentimiento%', 'la baja prevalece sobre el opt-in');
 
 -- --- Estados y tenancy ----------------------------------------------------------------

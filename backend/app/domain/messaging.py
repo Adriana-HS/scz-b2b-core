@@ -52,3 +52,4 @@ class InboundResult:
     accepted: int = 0
     duplicates: int = 0
     unknown_channel: bool = False
+    consent_changes: int = 0  # BAJA / ALTA registradas en este lote

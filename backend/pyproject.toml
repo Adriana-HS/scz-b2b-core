@@ -24,6 +24,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
+    "pytest-timeout>=2.3",
     "ruff>=0.8",
 ]
 
@@ -66,6 +67,8 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Una prueba colgada falla a los 120 s con el traceback de dónde quedó, en vez de trabar la suite.
+timeout = 120
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 markers = [

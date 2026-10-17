@@ -12,8 +12,8 @@
 | Decisiones | `docs/adr/` (ADR-0001 … ADR-0017) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (16 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 230 pruebas pgTAP en 13 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (17 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 247 pruebas pgTAP en 14 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -621,8 +621,13 @@ El cuello de botella es el **LLM** (latencia, límites de tasa y costo), no Post
   * Apagado ordenado con SIGTERM: deja de reclamar y termina lo que tiene en curso.
 * **Salida (outbox, #18):**
   * **Encolar:** `outbound_messages` con `idempotency_key UNIQUE`. El mensaje y su trabajo `SEND_OUTBOUND` se crean en la misma transacción.
-  * **Ventana y consentimiento, al encolar:** un trigger rechaza un mensaje libre fuera de la ventana de 24 h (`WINDOW_CLOSED`) y una plantilla sin opt-in o con baja (`CONSENT_REQUIRED`). El #13 afina la categoría de la plantilla.
+  * **Ventana y consentimiento, al encolar:** un trigger rechaza un mensaje libre fuera de la ventana de 24 h (`WINDOW_CLOSED`) y una plantilla sin el consentimiento de su categoría (`CONSENT_REQUIRED`): `UTILITY` exige opt-in de utilidad y `MARKETING` el de marketing; sin categoría no sale y la baja prevalece. La regla vive en `private.template_consent_ok` (migración 17), que usan el trigger y el worker.
   * **Ventana y consentimiento, al enviar:** el worker los vuelve a verificar, porque la ventana puede cerrarse mientras el mensaje espera en la cola.
+  * **Consentimiento (#13, RF-08):**
+    * Si el mensaje completo del cliente, normalizado, es "BAJA", "STOP", "NO MÁS" (o equivalente), se registra la baja; "ALTA" o "START" registran el opt-in de utilidad. Un mensaje como "no más frenos, quiero cotizar" no cuenta.
+    * El cliente recibe una confirmación y ese mensaje no despierta al agente.
+    * Cada cambio queda en `consent_events` (append-only) con origen y el `wa_message_id` como evidencia. `private.record_consent` actualiza el estado y la evidencia en la misma transacción.
+    * El opt-in de marketing nunca se infiere de una palabra suelta: lo registran el agente o el dashboard con confirmación explícita.
   * **Número de salida:** la respuesta sale por el número por el que escribió el cliente (`conversations.whatsapp_channel_id`).
   * **Envío en tres pasos (ADR-0017):** `SENDING` confirmado → llamada a Meta fuera de toda transacción → `SENT`. Si el worker muere durante la llamada, el reintento no reenvía.
   * **Errores de Meta:** los transitorios (red, 429, 5xx, token) se reintentan; los permanentes (131047 ventana cerrada, destinatario inválido…) quedan en `FAILED`.
@@ -694,7 +699,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0016 (este documento las referencia)
+│   ├── migrations/               # 0001…0017 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/

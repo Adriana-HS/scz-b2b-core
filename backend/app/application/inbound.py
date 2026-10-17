@@ -4,11 +4,17 @@ Todo lo de un lote ocurre en UNA transacción: evento, cliente, conversación, m
 trabajo en la cola. Si algo falla, no queda nada y el webhook responde 500 para que Meta
 reintente; como el evento tampoco quedó, el reintento se procesa completo. Si el evento
 ya existía (Meta reenvió), ese mensaje se omite: es idempotente.
+
+BAJA / ALTA (#13, RF-08): si el mensaje completo es una palabra clave de consentimiento,
+se registra con su evidencia (el wa_message_id), se confirma al cliente por el outbox (está
+dentro de su ventana) y NO se despierta al agente: la respuesta ya es la confirmación.
 """
 
 from typing import Protocol
 
+from app.domain.consent import CONFIRMATION_TEXT, ConsentSource, classify_keyword
 from app.domain.messaging import InboundBatch, InboundResult
+from app.domain.outbound import OutboundRequest
 from app.domain.ports import ChannelResolver, UnitOfWorkFactory
 from app.domain.tenancy import Actor, TenantContext
 
@@ -30,7 +36,7 @@ class RecordInboundMessages:
             # Número que no es de ningún negocio activo: se responde 200 igual (§8.2)
             return InboundResult(unknown_channel=True)
 
-        accepted = duplicates = 0
+        accepted = duplicates = consent_changes = 0
         # El webhook no es el agente: actúa como SYSTEM. El turno del agente (BOT) lo corre el worker.
         async with self._unit_of_work(TenantContext(channel.organization_id, Actor.SYSTEM)) as uow:
             for message in batch.messages:
@@ -44,6 +50,18 @@ class RecordInboundMessages:
                     customer_id, message.sent_at, channel.channel_id
                 )
                 await uow.inbound.add_message(conversation_id, message)
-                await uow.inbound.enqueue_conversation(conversation_id)
                 accepted += 1
-        return InboundResult(accepted=accepted, duplicates=duplicates)
+                consent = classify_keyword(message.text) if message.msg_type in ("text", "button") else None
+                if consent is None:
+                    await uow.inbound.enqueue_conversation(conversation_id)
+                    continue
+                await uow.consent.record(
+                    customer_id, consent, ConsentSource.WHATSAPP_KEYWORD, message.wa_message_id
+                )
+                await uow.outbound.enqueue(
+                    OutboundRequest.text(
+                        conversation_id, f"consent:{message.wa_message_id}", CONFIRMATION_TEXT[consent]
+                    )
+                )
+                consent_changes += 1
+        return InboundResult(accepted=accepted, duplicates=duplicates, consent_changes=consent_changes)

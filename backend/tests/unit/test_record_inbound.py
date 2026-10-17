@@ -6,15 +6,17 @@ from typing import Self
 from uuid import UUID, uuid4
 
 from app.application.inbound import RecordInboundMessages
+from app.domain.consent import CONFIRMATION_TEXT, ConsentKind, ConsentSource
 from app.domain.messaging import InboundBatch, InboundMessage, WhatsAppChannel
+from app.domain.outbound import OutboundKind, OutboundRequest
 from app.domain.tenancy import Actor, TenantContext
 
 ORG = uuid4()
 NOW = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
 
 
-def _msg(wamid: str, sender: str = "59170000001") -> InboundMessage:
-    return InboundMessage(wamid, sender, "Cliente", "text", "hola", NOW)
+def _msg(wamid: str, sender: str = "59170000001", text: str = "hola") -> InboundMessage:
+    return InboundMessage(wamid, sender, "Cliente", "text", text, NOW)
 
 
 class FakeInbound:
@@ -45,10 +47,34 @@ class FakeInbound:
         self.calls.append(("enqueue", conversation_id))
 
 
+class FakeConsent:
+    def __init__(self, calls: list[tuple[str, object]]) -> None:
+        self.calls = calls
+
+    async def record(
+        self, customer_id: UUID, kind: ConsentKind, source: ConsentSource, evidence: str | None
+    ) -> None:
+        self.calls.append(("consent", (kind, source, evidence)))
+
+
+class FakeOutbound:
+    def __init__(self, calls: list[tuple[str, object]]) -> None:
+        self.calls = calls
+        self.requests: list[OutboundRequest] = []
+
+    async def enqueue(self, request: OutboundRequest) -> int | None:
+        self.calls.append(("reply", request.idempotency_key))
+        self.requests.append(request)
+        return 1
+
+
 class FakeUnitOfWork:
     def __init__(self, context: TenantContext, inbound: FakeInbound) -> None:
         self.context = context
         self.inbound = inbound
+        self.consent = FakeConsent(inbound.calls)
+        self.outbound = FakeOutbound(inbound.calls)
+        inbound.outbound = self.outbound  # type: ignore[attr-defined]
 
     async def __aenter__(self) -> Self:
         return self
@@ -117,3 +143,42 @@ async def test_un_lote_usa_una_sola_unidad_de_trabajo() -> None:
 
     assert result.accepted == 3
     assert len(contexts) == 1
+
+
+async def test_baja_registra_la_evidencia_confirma_y_no_despierta_al_agente() -> None:
+    inbound = FakeInbound(set())
+    contexts: list[TenantContext] = []
+
+    result = await _use_case(CHANNEL, inbound, contexts)(
+        InboundBatch("PNID-1", (_msg("wamid.b", text="BAJA"),))
+    )
+
+    kinds = [kind for kind, _ in inbound.calls]
+    assert kinds == ["event", "customer", "conversation", "message", "consent", "reply"]  # sin "enqueue"
+    assert ("consent", (ConsentKind.OPTOUT, ConsentSource.WHATSAPP_KEYWORD, "wamid.b")) in inbound.calls
+    [reply] = inbound.outbound.requests  # type: ignore[attr-defined]
+    assert reply.kind is OutboundKind.TEXT and reply.idempotency_key == "consent:wamid.b"
+    assert reply.payload["body"] == CONFIRMATION_TEXT[ConsentKind.OPTOUT]
+    assert (result.accepted, result.consent_changes) == (1, 1)
+
+
+async def test_alta_registra_opt_in_de_utilidad() -> None:
+    inbound = FakeInbound(set())
+
+    await _use_case(CHANNEL, inbound, [])(InboundBatch("PNID-1", (_msg("wamid.a", text="Alta"),)))
+
+    assert (
+        "consent",
+        (ConsentKind.OPTIN_UTILITY, ConsentSource.WHATSAPP_KEYWORD, "wamid.a"),
+    ) in inbound.calls
+
+
+async def test_un_pedido_que_menciona_no_mas_sigue_al_agente() -> None:
+    inbound = FakeInbound(set())
+
+    await _use_case(CHANNEL, inbound, [])(
+        InboundBatch("PNID-1", (_msg("wamid.p", text="no más frenos, quiero cotizar pastillas"),))
+    )
+
+    kinds = [kind for kind, _ in inbound.calls]
+    assert "consent" not in kinds and kinds[-1] == "enqueue"
