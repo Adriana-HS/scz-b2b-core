@@ -100,7 +100,7 @@ jobs:
         run: uv run ruff check . && uv run ruff format --check .
 
       - name: Tipos (mypy --strict)
-        run: uv run mypy app tests
+        run: uv run mypy app tests loadtest
 
       - name: Regla de dependencias entre capas (import-linter)
         run: uv run lint-imports

@@ -14,6 +14,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (backend)
+- **Pruebas de carga y de caos del webhook (#21, #16, Q-PERF-1, Q-REL-1):** detalle en `docs/load-testing.md`.
+  - `backend/loadtest`: k6 1.3.0 (imagen oficial por digest) simula a Meta: mensajes firmados con HMAC, reintentos con backoff y reenvíos del mismo mensaje. `run.py` prepara un negocio sintético, levanta la api real y verifica la BD al final: 0 perdidos, 0 duplicados, eventos atómicos y todo mensaje con su trabajo.
+  - Tres escenarios: `load` (50 rps, p99 ≤ 250 ms), `chaos-db` (Postgres reiniciado en medio de la carga) y `chaos-api` (api muerta con SIGKILL). Un caos que no llegó a producir fallas sale en rojo.
+  - Workflow **Carga y caos** (`resiliencia.yml`): cada noche, a mano y en los PRs que tocan el camino del webhook.
+  - El reporte mide la latencia ida y vuelta a la BD: el webhook hace ~9 viajes por request, así que con Docker Desktop (~49 ms por viaje) el SLO no se puede medir en local; se mide en Linux (CI).
+  - Pruebas: 16 del veredicto (284 de backend en total); mutaciones contra el sistema real (responder 200 sin persistir → 8 perdidos detectados; no encolar el trabajo → 100 conversaciones detectadas).
 - **Observabilidad (#19, §10.2):** detalle en `docs/observability.md`.
   - **Logs JSON** por stdout con `trace_id`, `span_id` y el contexto del trabajo (`job_id`, `job_kind`, `organization_id`). El mensaje, el traceback y el contexto pasan por `redact`: teléfonos, correos, `Bearer`, tokens de Meta y parámetros `*token`/`*key`/`*secret` (incluido `hub.verify_token`).
   - **Trazas de punta a punta:** span de servidor nativo de FastAPI → la UnitOfWork fija `app.traceparent` → **migración 18:** `jobs.trace_context` lo toma por defecto (uno mal formado se descarta) → el worker continúa la traza. `RedactingSpanProcessor` deja `url.query` sin valores y redacta `url.path` antes de exportar.
