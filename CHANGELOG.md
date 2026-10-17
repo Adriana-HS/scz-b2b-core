@@ -14,6 +14,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (backend)
+- **Outbox y envío por la WhatsApp Cloud API (#18, RF-06, ADR-0017):**
+  - Encolar es idempotente por `idempotency_key` y crea el mensaje y su trabajo `SEND_OUTBOUND` en una transacción.
+  - **Migración 16:** trigger de ventana de 24 h y de consentimiento para plantillas; estado `SENDING`; la conversación guarda su número (FK compuesta); el backend solo actualiza las columnas del envío.
+  - **Handler del worker:** vuelve a verificar la ventana al enviar; marca `SENDING` antes de llamar a Meta y no reenvía si el resultado es incierto (`OUTCOME_UNKNOWN` con alerta); reintenta los errores transitorios; deja `FAILED` los permanentes.
+  - Adaptador de la Cloud API con `httpx` y versión fijada (`META_GRAPH_API_VERSION`). El token sale de `WA_TOKEN_*` y nunca aparece en logs.
+  - **Webhook de estados:** solo avanzan y no cruzan negocios.
+  - Pruebas: 230 pgTAP y 163 de backend; doble de Meta con `httpx.MockTransport`; tres mutaciones comprobadas.
 - **Worker (#17, ADR-0005):**
   - `JobRunner` con reclamo continuo y concurrencia acotada, timeout por trabajo y reintento con backoff; `PermanentJobError` va directo a DEAD.
   - En `last_error` se guarda solo el tipo de error. Un DEAD emite el log `ALERTA job_dead`.

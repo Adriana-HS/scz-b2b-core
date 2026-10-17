@@ -23,6 +23,7 @@ def test_los_secretos_no_aparecen_al_imprimir_la_configuracion() -> None:
         database_url="postgresql://app_backend:clave-de-prueba@localhost/postgres",
         meta_app_secret="secreto-de-prueba",
         meta_webhook_verify_token="token-de-prueba",
+        meta_graph_api_version="v23.0",
     )
 
     assert "clave-de-prueba" not in repr(settings)
@@ -32,3 +33,9 @@ def test_los_secretos_no_aparecen_al_imprimir_la_configuracion() -> None:
 def test_valores_desconocidos_de_entorno_se_rechazan() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, environment="prod")
+
+
+@pytest.mark.parametrize("version", ["23.0", "latest", "v23", "v23.0/../me"])
+def test_la_version_de_la_graph_api_se_valida(version: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, environment="local", meta_graph_api_version=version)

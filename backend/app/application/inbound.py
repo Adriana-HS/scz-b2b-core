@@ -40,7 +40,9 @@ class RecordInboundMessages:
                 customer_id = await uow.inbound.upsert_customer(
                     message.from_wa_id, message.profile_name, message.sent_at
                 )
-                conversation_id = await uow.inbound.open_conversation(customer_id, message.sent_at)
+                conversation_id = await uow.inbound.open_conversation(
+                    customer_id, message.sent_at, channel.channel_id
+                )
                 await uow.inbound.add_message(conversation_id, message)
                 await uow.inbound.enqueue_conversation(conversation_id)
                 accepted += 1

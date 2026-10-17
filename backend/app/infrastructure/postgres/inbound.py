@@ -34,11 +34,13 @@ _UPSERT_CUSTOMER = """
 """
 
 # Una sola conversación abierta por cliente (índice único parcial uq_open_conversation).
+# Guarda el número por el que escribió el cliente: la respuesta sale por ese número (migración 16).
 _OPEN_CONVERSATION = """
-    INSERT INTO public.conversations (organization_id, customer_id, last_inbound_at)
-    VALUES (private.backend_org_id(), $1, $2)
+    INSERT INTO public.conversations (organization_id, customer_id, last_inbound_at, whatsapp_channel_id)
+    VALUES (private.backend_org_id(), $1, $2, $3)
     ON CONFLICT (organization_id, customer_id) WHERE mode <> 'CLOSED' DO UPDATE SET
-        last_inbound_at = greatest(public.conversations.last_inbound_at, EXCLUDED.last_inbound_at)
+        last_inbound_at     = greatest(public.conversations.last_inbound_at, EXCLUDED.last_inbound_at),
+        whatsapp_channel_id = EXCLUDED.whatsapp_channel_id
     RETURNING id
 """
 
@@ -71,10 +73,12 @@ class PostgresInboundRepository:
             customer_id: UUID = await connection.fetchval(_UPSERT_CUSTOMER, wa_id, profile_name, seen_at)
         return customer_id
 
-    async def open_conversation(self, customer_id: UUID, seen_at: datetime) -> UUID:
+    async def open_conversation(self, customer_id: UUID, seen_at: datetime, channel_id: UUID) -> UUID:
         connection = self._session.connection()
         with translate_errors():
-            conversation_id: UUID = await connection.fetchval(_OPEN_CONVERSATION, customer_id, seen_at)
+            conversation_id: UUID = await connection.fetchval(
+                _OPEN_CONVERSATION, customer_id, seen_at, channel_id
+            )
         return conversation_id
 
     async def add_message(self, conversation_id: UUID, message: InboundMessage) -> None:

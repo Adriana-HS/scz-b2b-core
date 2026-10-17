@@ -9,11 +9,11 @@
 | Mercado inicial | Santa Cruz de la Sierra, Bolivia |
 | Versión | **2.2** (15-oct-2026) — reemplaza a la v1.0 |
 | Estado | Propuesta para revisión (ver `docs/reviews/2026-10-15-revision-system-design-v1.md`) |
-| Decisiones | `docs/adr/` (ADR-0001 … ADR-0016) |
+| Decisiones | `docs/adr/` (ADR-0001 … ADR-0017) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (15 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 216 pruebas pgTAP en 12 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (16 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 230 pruebas pgTAP en 13 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -114,6 +114,7 @@ El detalle (contexto, alternativas, consecuencias y verificación) está en `doc
 | [0013](docs/adr/0013-la-plataforma-no-custodia-fondos.md) | **La plataforma no custodia fondos**: QR a nombre de la cuenta de cada negocio | Nuevo (riesgo regulatorio ASFI) |
 | [0014](docs/adr/0014-alcance-de-minimo-regulatorio-para-el-mvp.md) | **MVP de mínimo regulatorio**: QR estático + aprobación humana, suscripción fija, sin facturación ni datos de identidad por chat | Nuevo (viabilidad comercial) |
 | [0015](docs/adr/0015-ciclo-de-vida-de-reservas-de-stock.md) | La vigencia de una **reserva de stock** la decide el estado de la orden; un trigger compromete, libera o devuelve el stock en cada transición | Nuevo (revisión del 15-oct-2026: sobreventa) |
+| [0017](docs/adr/0017-envio-a-lo-sumo-una-vez-ante-resultado-incierto.md) | **Envío a lo sumo una vez ante un resultado incierto:** el mensaje se marca `SENDING` antes de llamar a Meta; si el worker muere durante la llamada, el reintento no reenvía: `FAILED (OUTCOME_UNKNOWN)` con alerta | Nuevo (#18) |
 | [0016](docs/adr/0016-mfa-mixto-para-precios-del-catalogo.md) | **Regla mixta de MFA para precios:** cambios dentro del umbral sin MFA; precio 0, cambio de moneda o variación mayor al umbral del negocio, solo OWNER/ADMIN con aal2; el backend no cambia precios | Nuevo (riesgo residual de SEC-01, #50) |
 
 ---
@@ -618,7 +619,15 @@ El cuello de botella es el **LLM** (latencia, límites de tasa y costo), no Post
   * Un `DEAD` produce el log `ALERTA job_dead`, que conecta con la alerta de §10.2 (#19).
   * Como Supabase no trae `pg_cron` activo, el worker también corre el mantenimiento: *reaper* y vencimientos cada minuto, retención una vez al día.
   * Apagado ordenado con SIGTERM: deja de reclamar y termina lo que tiene en curso.
-* **Salida:** `outbound_messages` con `idempotency_key UNIQUE`. Los webhooks de estado de Meta actualizan `SENT/DELIVERED/READ/FAILED` (outbox, #18; hasta entonces el webhook los acepta con 200 y solo los cuenta).
+* **Salida (outbox, #18):**
+  * **Encolar:** `outbound_messages` con `idempotency_key UNIQUE`. El mensaje y su trabajo `SEND_OUTBOUND` se crean en la misma transacción.
+  * **Ventana y consentimiento, al encolar:** un trigger rechaza un mensaje libre fuera de la ventana de 24 h (`WINDOW_CLOSED`) y una plantilla sin opt-in o con baja (`CONSENT_REQUIRED`). El #13 afina la categoría de la plantilla.
+  * **Ventana y consentimiento, al enviar:** el worker los vuelve a verificar, porque la ventana puede cerrarse mientras el mensaje espera en la cola.
+  * **Número de salida:** la respuesta sale por el número por el que escribió el cliente (`conversations.whatsapp_channel_id`).
+  * **Envío en tres pasos (ADR-0017):** `SENDING` confirmado → llamada a Meta fuera de toda transacción → `SENT`. Si el worker muere durante la llamada, el reintento no reenvía.
+  * **Errores de Meta:** los transitorios (red, 429, 5xx, token) se reintentan; los permanentes (131047 ventana cerrada, destinatario inválido…) quedan en `FAILED`.
+  * **Estados por webhook:** solo avanzan (`sent` < `delivered` < `read`); un `failed` no pisa un mensaje ya entregado; se ignoran los estados de mensajes desconocidos o de otro negocio.
+  * **Token:** sale de `access_token_ref` (por ahora una variable de entorno `WA_TOKEN_*`; Vault más adelante) y nunca aparece en logs ni en errores.
 * **Implementación del webhook** (`backend/app/api/v1/whatsapp/`): límite de 1 MB → 413; firma HMAC sobre los bytes crudos antes de parsear → 401; un número desconocido o inactivo → 200 sin escribir nada; un fallo de BD → 500 para que Meta reintente. Los mensajes de un mismo `phone_number_id` se registran en una transacción como actor `SYSTEM`: evento, cliente (`last_inbound_at`), conversación abierta, mensaje y trabajo con *debounce*. Un mensaje con formato inválido (por ejemplo, un `wa_id` que no cumple el `CHECK`) se descarta y se cuenta, sin tumbar el lote. Los logs llevan solo conteos.
 * **Ventana de 24 h:** si se cerró, solo se envían **plantillas aprobadas** (recordatorio de cita, cotización por vencer, pago confirmado). Las notificaciones al dueño van por el dashboard o por plantilla de utilidad, nunca por mensaje libre fuera de ventana.
 
@@ -670,7 +679,7 @@ scz-b2b-core/
 ├── .agents/skills/               # skills del proyecto (formato SKILL.md, fuente única)
 ├── .claude/skills/               # puentes para Claude Code (mismo frontmatter, remiten a .agents/)
 ├── docs/
-│   ├── adr/                      # ADR-0001 … ADR-0016 (formato MADR)
+│   ├── adr/                      # ADR-0001 … ADR-0017 (formato MADR)
 │   ├── architecture/             # estilo, SOLID, patrones, UML
 │   ├── legal/                    # marco legal y modelo de negocio (sin documentos firmados)
 │   ├── requirements/SRS.md       # requisitos RF-xx (ISO/IEC/IEEE 29148)
@@ -685,7 +694,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0015 (este documento las referencia)
+│   ├── migrations/               # 0001…0016 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/

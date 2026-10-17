@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from app.api.v1.whatsapp.payload import parse_webhook
 from app.api.v1.whatsapp.signature import is_valid_signature
 from app.application.inbound import InboundHandler
+from app.application.outbound import StatusHandler
 from app.core.config import Settings
 
 MAX_BODY_BYTES = 1024 * 1024
@@ -85,7 +86,8 @@ async def receive_events(request: Request) -> JSONResponse:
 
     parsed = parse_webhook(payload)
     handler: InboundHandler | None = request.app.state.inbound_handler
-    if parsed.batches and handler is None:
+    status_handler: StatusHandler | None = request.app.state.status_handler
+    if (parsed.batches and handler is None) or (parsed.status_batches and status_handler is None):
         logger.error("webhook: no hay persistencia configurada (DATABASE_URL)")
         raise HTTPException(status_code=503, detail="no disponible")
 
@@ -102,8 +104,20 @@ async def receive_events(request: Request) -> JSONResponse:
         duplicates += result.duplicates
         unknown += int(result.unknown_channel)
 
+    applied = 0
+    for status_batch in parsed.status_batches:
+        assert status_handler is not None  # noqa: S101 - garantizado por el chequeo de arriba
+        try:
+            status_result = await status_handler(status_batch)
+        except Exception as exc:
+            logger.error(
+                "webhook: no se pudo registrar un lote de estados (%s); Meta reintentará", type(exc).__name__
+            )
+            return JSONResponse({"status": "error"}, status_code=500)
+        applied += status_result.applied
+
     logger.info(
-        "webhook: accepted=%d duplicates=%d unknown_channels=%d statuses=%d invalid=%d ignored=%d",
-        accepted, duplicates, unknown, parsed.statuses, parsed.invalid, parsed.ignored,
+        "webhook: accepted=%d duplicates=%d unknown_channels=%d statuses=%d applied=%d invalid=%d ignored=%d",
+        accepted, duplicates, unknown, parsed.statuses, applied, parsed.invalid, parsed.ignored,
     )  # fmt: skip
     return JSONResponse({"status": "ok"})

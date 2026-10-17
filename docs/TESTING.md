@@ -13,7 +13,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones sobre la imagen oficial de Supabase y las 216 pruebas pgTAP | Sí |
+| `database` | Migraciones sobre la imagen oficial de Supabase y las 230 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs, nombres de migraciones, puentes de skills y **actions fijadas por SHA** | Sí |
@@ -35,7 +35,8 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `10_expire_skips_paid.test.sql` | Seguimiento de #57: el `WHERE` de `expire_stale_orders` excluye `amount_paid_bs > 0`; con el trigger desactivado el job igual deja viva la orden pagada (y su reserva); el trigger sigue omitiendo un `UPDATE` directo a `EXPIRED` | 9 |
 | `11_catalog_price_mfa.test.sql` | #50 (ADR-0016): STAFF cambia precios dentro del umbral sin MFA; precio 0, cambio de moneda o variación mayor al umbral exigen OWNER/ADMIN con aal2; umbral por negocio; el backend no cambia precios; aviso al dueño y bitácora | 20 |
 | `12_worker_queue.test.sql` | #17: reclamo solo de los tipos pedidos y uno por conversación; *fencing* en `finish_job` (otro worker no cierra el trabajo; el cierre tardío del que perdió el *lease* se ignora); backoff, error truncado y DEAD informado; *reaper* con conteos; firmas viejas eliminadas; privilegios | 20 |
-| **Total** | | **216** |
+| `13_outbox.test.sql` | #18: `idempotency_key` única; fuera de la ventana de 24 h solo plantillas, y estas con opt-in y sin baja; estado `SENDING`; FK compuesta del número de la conversación; aislamiento | 14 |
+| **Total** | | **230** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 
@@ -89,6 +90,16 @@ Se comprobó con mutaciones temporales que las pruebas de los dos primeros crite
 Mutaciones comprobadas:
 * Sin *fencing* en `finish_job`, fallan 4 pruebas pgTAP.
 * Si se guarda el mensaje del error en vez de su tipo, fallan 5 pruebas unitarias.
+
+### Outbox y envío por la Cloud API (#18)
+
+* **Doble de Meta:** `tests/unit/test_cloud_api.py` usa `httpx.MockTransport`. Verifica la URL, el token en el encabezado, el cuerpo de texto, documento y plantilla, y la clasificación de cada respuesta (429/5xx/token → reintento; 131047 y otros 4xx → permanente). Comprueba que el token no aparezca en los errores.
+* **Handler:** `tests/unit/test_send_outbound.py` cubre el orden de commits (`SENDING` antes de Meta), la ventana al enviar, el consentimiento, la falta de token y el caso de resultado incierto (no reenvía).
+* **Contra la BD real:** `tests/integration/test_outbox_db.py` cubre que encolar es atómico y no duplica, el rechazo de la ventana, el envío completo por el número de la conversación y los estados que solo avanzan, también entre negocios.
+* **Mutaciones comprobadas:**
+  * reenviar un mensaje en `SENDING` → falla la prueba de duplicados;
+  * estados sin orden → falla "solo avanzan";
+  * trigger sin ventana → fallan 3 pruebas pgTAP.
 
 ### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
 

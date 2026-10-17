@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # WhatsApp Cloud API: App Secret (firma HMAC de cada webhook) y token de verificación de la suscripción
     meta_app_secret: SecretStr | None = Field(default=None)
     meta_webhook_verify_token: SecretStr | None = Field(default=None)
+    # Versión fijada de la Graph API (p. ej. v23.0). Sin ella el worker no envía: no se adivina.
+    meta_graph_api_version: str | None = Field(default=None, pattern=r"^v\d{1,3}\.\d{1,2}$")
 
     # Worker (ADR-0005, SYSTEM_DESIGN.md §9.2): concurrencia de asyncio, sondeo de la cola y lease.
     worker_concurrency: int = Field(default=16, ge=1, le=256)
@@ -41,7 +43,12 @@ class Settings(BaseSettings):
     def _secrets_required_outside_local(self) -> "Settings":
         """Falla cerrado: en staging y producción el proceso no arranca sin sus secretos."""
         if self.environment in ("staging", "production"):
-            required = ("database_url", "meta_app_secret", "meta_webhook_verify_token")
+            required = (
+                "database_url",
+                "meta_app_secret",
+                "meta_webhook_verify_token",
+                "meta_graph_api_version",
+            )
             missing = [name for name in required if getattr(self, name) is None]
             if missing:
                 raise ValueError(f"faltan variables obligatorias en {self.environment}: {', '.join(missing)}")

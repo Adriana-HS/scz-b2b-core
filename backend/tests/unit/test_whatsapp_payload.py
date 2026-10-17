@@ -105,13 +105,31 @@ def test_numeros_distintos_van_en_lotes_distintos() -> None:
     assert sorted(b.phone_number_id for b in parsed.batches) == ["PNID-1", "PNID-2"]
 
 
-def test_estados_de_mensajes_salientes_se_cuentan_pero_no_se_procesan_aqui() -> None:
-    statuses = [{"id": "wamid.out", "status": "delivered", "timestamp": TS, "recipient_id": "59170000001"}]
+def test_estados_de_mensajes_salientes_se_agrupan_por_numero() -> None:
+    statuses = [
+        {"id": "wamid.out1", "status": "delivered", "timestamp": TS, "recipient_id": "59170000001"},
+        {
+            "id": "wamid.out2",
+            "status": "failed",
+            "timestamp": TS,
+            "recipient_id": "59170000001",
+            "errors": [{"code": 131026, "title": "Message undeliverable", "message": "detalle"}],
+        },
+        {"id": "wamid.out3", "status": "deleted", "timestamp": TS},  # estado que no manejamos
+        {"status": "read", "timestamp": TS},  # sin id
+    ]
 
     parsed = parse_webhook(_envelope(_value("PNID-1", [], statuses=statuses)))
 
     assert parsed.batches == ()
-    assert parsed.statuses == 1  # los procesa el outbox (#18)
+    [batch] = parsed.status_batches
+    assert batch.phone_number_id == "PNID-1"
+    assert [(u.wa_message_id, u.status.value, u.error_code) for u in batch.updates] == [
+        ("wamid.out1", "delivered", None),
+        ("wamid.out2", "failed", "131026"),  # solo el código: el título y el detalle no se guardan
+    ]
+    assert batch.updates[0].at == datetime.fromtimestamp(int(TS), UTC)
+    assert parsed.statuses == 4 and parsed.invalid == 2
 
 
 def test_mensajes_invalidos_se_descartan_sin_tumbar_el_lote() -> None:
