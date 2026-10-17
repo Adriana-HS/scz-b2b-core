@@ -602,7 +602,8 @@ El cuello de botella es el **LLM** (latencia, límites de tasa y costo), no Post
 * **Entrada:** el evento se persiste (`inbound_events` + `messages` + `jobs`) en **una sola transacción** antes del `200 OK`. Si la BD no responde, se devuelve 500 y Meta reintenta. Ningún mensaje queda aceptado y sin procesar.
 * **Procesamiento:** semántica *at-least-once*. Los handlers son idempotentes: la clave de idempotencia de la respuesta es `conversation_id + último wa_message_id consumido`. Si un worker muere, su trabajo vuelve a la cola cuando vence el *lease* (`requeue_stale_jobs`, 5 min).
 * **Reintentos:** backoff exponencial con tope de 10 min; tras 8 intentos el trabajo pasa a `DEAD` (DLQ) y genera una alerta.
-* **Salida:** `outbound_messages` con `idempotency_key UNIQUE`. Los webhooks de estado de Meta actualizan `SENT/DELIVERED/READ/FAILED`.
+* **Salida:** `outbound_messages` con `idempotency_key UNIQUE`. Los webhooks de estado de Meta actualizan `SENT/DELIVERED/READ/FAILED` (outbox, #18; hasta entonces el webhook los acepta con 200 y solo los cuenta).
+* **Implementación del webhook** (`backend/app/api/v1/whatsapp/`): límite de 1 MB → 413; firma HMAC sobre los bytes crudos antes de parsear → 401; un número desconocido o inactivo → 200 sin escribir nada; un fallo de BD → 500 para que Meta reintente. Los mensajes de un mismo `phone_number_id` se registran en una transacción como actor `SYSTEM`: evento, cliente (`last_inbound_at`), conversación abierta, mensaje y trabajo con *debounce*. Un mensaje con formato inválido (por ejemplo, un `wa_id` que no cumple el `CHECK`) se descarta y se cuenta, sin tumbar el lote. Los logs llevan solo conteos.
 * **Ventana de 24 h:** si se cerró, solo se envían **plantillas aprobadas** (recordatorio de cita, cotización por vencer, pago confirmado). Las notificaciones al dueño van por el dashboard o por plantilla de utilidad, nunca por mensaje libre fuera de ventana.
 
 ### 10.2 Observabilidad

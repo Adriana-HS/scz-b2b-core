@@ -65,6 +65,19 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy ap
 | `pytest` | Pruebas unitarias y de integración con cobertura mínima de 85 % y avisos tratados como errores | Sí |
 | `pip-audit` | Vulnerabilidades conocidas en las dependencias de `uv.lock` | Sí |
 
+### Webhook de WhatsApp (RF-01)
+
+| Criterio | Prueba |
+| :--- | :--- |
+| Firma inválida → 401 sin parsear el JSON | `test_webhook_api.py` (JSON roto sin firma da 401, no 400) y `test_whatsapp_signature.py` (formatos, otro secreto, cuerpo alterado, sin secreto configurado) |
+| Cuerpo > 1 MB → 413 | `test_webhook_api.py::test_cuerpo_de_mas_de_1_mb_es_413` |
+| Un duplicado no crea filas nuevas | `test_inbound_db.py::test_un_reenvio_de_meta_no_crea_filas_nuevas` (BD real) |
+| Atomicidad del lote | `test_inbound_db.py::test_si_falla_un_mensaje_no_queda_nada_del_lote` |
+| Sin PII en logs ni en respuestas de error | `test_webhook_api.py` (`caplog`) |
+| Ack p99 ≤ 250 ms | Pendiente: prueba de carga con k6 (#21) |
+
+Se comprobó con mutaciones temporales que las pruebas de los dos primeros criterios de la BD fallan si el código se rompe a propósito: parsear el JSON antes de verificar la firma, y quitar el `ON CONFLICT DO NOTHING` del evento.
+
 ### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
 
 Corren contra el Postgres local de Supabase (`supabase db start`) **como `app_backend`**, igual que el backend real: RLS, FSM y triggers se aplican de verdad. El *fixture* se conecta como administrador local solo para crear datos sintéticos y habilitar el login de `app_backend` con una contraseña aleatoria de esa corrida; al terminar lo deja otra vez sin login.
