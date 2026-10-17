@@ -13,7 +13,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones y seeds sobre la imagen oficial de Supabase y las 272 pruebas pgTAP | Sí |
+| `database` | Migraciones y seeds sobre la imagen oficial de Supabase y las 281 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `alerts` | `promtool check rules` y `promtool test rules` sobre `ops/alerts/` (imagen oficial de Prometheus fijada por digest): sintaxis y disparo de cada alerta con series sintéticas | Sí |
@@ -40,10 +40,9 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `13_outbox.test.sql` | #18: `idempotency_key` única; fuera de la ventana de 24 h solo plantillas, y estas con opt-in y sin baja; estado `SENDING`; FK compuesta del número de la conversación; aislamiento | 14 |
 | `14_consent.test.sql` | #13: `record_consent` deja estado y evidencia; las plantillas por categoría (el opt-in de utilidad no habilita marketing; sin categoría no sale); la baja prevalece y un opt-in explícito la levanta; evidencia append-only y aislada | 17 |
 | `15_observability.test.sql` | #19: `jobs.trace_context` hereda el traceparent de la transacción (uno mal formado se descarta sin romper el INSERT); `queue_stats` por tipo, solo de los tipos pedidos y sin contar el backoff; `fx_stale_tenants`; solo `app_backend` | 12 |
+| `16_llm_calls.test.sql` | #22: el backend registra el costo de IA en su tenant y no en otro; la conversación debe ser del mismo negocio (FK compuesta, migración 19); tokens, costo y latencia no negativos; aislamiento | 9 |
 | `17_seeds.test.sql` | #27: la importadora y la clínica de ejemplo existen; ≥ 25 repuestos en USD y Bs de ≥ 5 categorías, con uno sin stock; TC inicial explícito y todo repuesto cotizable; búsqueda de texto; ≥ 15 servicios con duración y profesionales con horario; sin marcas, sin clientes y con números sintéticos | 13 |
-| **Total** | | **272** |
-
-**Seeds y pruebas.** La base de pruebas ya trae los seeds (`supabase/seed/`, #27), y estos dejan trabajos `EMBED_ITEM` en cola. Una prueba que reclame trabajos o cuente datos de toda la plataforma debe filtrar por tipo o por tenant, o comparar contra una línea de base (ver las pruebas 03 y 15). Mutaciones comprobadas: con una marca real en un ítem, o sin el TC inicial, falla la prueba 17.
+| **Total** | | **281** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 
@@ -133,6 +132,15 @@ Mutaciones comprobadas:
   * log sin redactar, worker que ignora `trace_context`, cola que no lo lee, UoW sin `app.traceparent`, sin el procesador que redacta la URL, Sentry con encabezados, categoría sin conjunto cerrado → fallan pruebas de backend;
   * `queue_stats` contando el backoff → falla pgTAP;
   * umbral de latencia a 80 s → falla `promtool test rules`.
+
+### Puertos de IA (#22)
+
+* **Dominio** (`test_ai_domain.py`): costo exacto en `Decimal` y redondeado a 6 decimales como la columna; modelo fijado (se rechaza `-latest`); mensajes y herramientas válidos.
+* **Adaptador de Anthropic** (`test_anthropic_chat.py`, con `httpx.MockTransport`): formato del request (clave, versión, modelo, sistema cacheado, herramientas e historial), parseo de texto y de herramientas, clasificación de cada error (429/5xx/529 transitorios con `retry-after`; 4xx permanentes) y ni la clave ni el contenido en los errores.
+* **Decoradores** (`test_ai_resilience.py`): reintento con presupuesto y jitter; circuit breaker (abre, deja pasar una prueba, no se abre por errores permanentes); traza sin contenido; costo en `llm_calls` también para las llamadas fallidas, y si la BD falla el turno sigue; la composición cuenta una llamada reintentada como una.
+* **Contrato** (`tests/contract/test_ai_ports_contract.py`): la misma suite contra el fake y contra el adaptador real.
+* **Contra la BD** (`test_llm_calls_db.py`): costo exacto en el tenant; una conversación de otro negocio se rechaza.
+* **Mutaciones comprobadas** (12 de 12 detectadas): reintentar errores permanentes; abrir el circuito con ellos; varias pruebas a la vez en media apertura; grabar la excepción en la traza; perder la respuesta si falla el registro; no registrar las fallidas; mandar un alias como modelo; tratar 529 como permanente; truncar el costo; aceptar un modelo sin precios; aceptar `-latest`; quitar la FK compuesta (pgTAP).
 
 ### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
 

@@ -72,6 +72,29 @@ class PermanentSendError(SendError):
     """No se arregla reintentando: ventana cerrada en Meta, destinatario inválido, plantilla rechazada."""
 
 
+class AiError(DomainError):
+    """El proveedor de IA no respondió bien. `code` es estable (HTTP_529, RATE_LIMITED, TIMEOUT...);
+    nunca lleva la clave, el prompt ni la respuesta: ahí van mensajes de clientes."""
+
+    def __init__(self, code: str, *, retry_after_s: float | None = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.retry_after_s = retry_after_s
+
+
+class TransientAiError(AiError):
+    """Vale la pena reintentar: red, timeout, 429, 5xx, sobrecarga del proveedor."""
+
+
+class PermanentAiError(AiError):
+    """No se arregla reintentando: request inválido, clave rechazada, modelo inexistente."""
+
+
+class AiUnavailableError(AiError):
+    """El circuito está abierto: el proveedor viene fallando y no se lo llama. El agente degrada
+    al instante a una respuesta plantilla y pasa la conversación a una persona (§10.3)."""
+
+
 class UnitOfWorkNotActiveError(DomainError):
     """Se usó un repositorio fuera de su unidad de trabajo (ADR-0011). Siempre es un bug."""
 

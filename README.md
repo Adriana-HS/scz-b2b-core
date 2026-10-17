@@ -2,7 +2,7 @@
 
 **Motor transaccional multi-tenant de atención, cotización, agendamiento y conciliación de pagos QR por WhatsApp**, para PyMEs de Santa Cruz de la Sierra (importadoras de repuestos, ferreterías industriales, clínicas y consultorios).
 
-> Estado: **diseño v2.2 + esquema de base de datos probado (272 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
+> Estado: **diseño v2.2 + esquema de base de datos probado (281 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
 
 ## Qué resuelve
 
@@ -31,6 +31,7 @@ Monolito modular hexagonal en **Python/FastAPI** (procesos `api` + `worker`) · 
 | [`AGENTS.md`](AGENTS.md) · [`docs/HERRAMIENTAS_IA.md`](docs/HERRAMIENTAS_IA.md) | Instrucciones y skills para Codex/ChatGPT y Claude |
 | [`docs/reviews/`](docs/reviews/) | Revisión de la v1 con evidencia reproducible |
 | [`docs/TESTING.md`](docs/TESTING.md) | Cómo correr las pruebas |
+| [`docs/ai-ports.md`](docs/ai-ports.md) | Puertos de IA, decoradores (reintento, circuit breaker, trazas, costo) y modelo fijado |
 | [`docs/observability.md`](docs/observability.md) · [`docs/runbooks/`](docs/runbooks/) | Logs, trazas, métricas, Sentry, alertas SLO y runbooks |
 | [`docs/load-testing.md`](docs/load-testing.md) | Pruebas de carga (k6) y de caos del webhook |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Fases de implementación y criterios de salida |

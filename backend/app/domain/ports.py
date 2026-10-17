@@ -1,7 +1,10 @@
-"""Puertos de persistencia (docs/architecture/principios-y-patrones.md §2.1, ADR-0011).
+"""Puertos del dominio (docs/architecture/principios-y-patrones.md §2.1, ADR-0011).
 
 Todo acceso a datos ocurre dentro de una UnitOfWork: una transacción con el tenant y el
 actor ya fijados en la BD. Los repositorios no existen fuera de ella.
+
+Los puertos de IA son pequeños y por capacidad (segregación de interfaces): el agente
+depende de ChatModel, no de un proveedor. Sus errores son AiError con código estable.
 """
 
 from collections.abc import Sequence
@@ -10,6 +13,7 @@ from types import TracebackType
 from typing import Any, Protocol, Self
 from uuid import UUID
 
+from app.domain.ai import ChatMessage, LlmCall, ModelResponse, ReceiptExtraction, ToolSpec
 from app.domain.catalog import CatalogMatch, CatalogSearch
 from app.domain.consent import ConsentKind, ConsentSource
 from app.domain.jobs import Job, QueueStats
@@ -81,6 +85,42 @@ class ConsentRepository(Protocol):
     ) -> None: ...
 
 
+class LlmCallRepository(Protocol):
+    """private.llm_calls: costo y resultado de cada llamada a la IA, en el tenant de la transacción."""
+
+    async def add(self, call: LlmCall) -> None: ...
+
+
+class ChatModel(Protocol):
+    """Un turno del modelo de chat. Lanza TransientAiError, PermanentAiError o AiUnavailableError."""
+
+    async def run_turn(
+        self, system: str, history: Sequence[ChatMessage], tools: Sequence[ToolSpec], *, timeout_s: float
+    ) -> ModelResponse: ...
+
+
+class VisionExtractor(Protocol):
+    """Lee los campos de un comprobante QR. El resultado es evidencia, nunca confirma un pago."""
+
+    async def extract_receipt(self, image: bytes, *, timeout_s: float) -> ReceiptExtraction: ...
+
+
+class Embedder(Protocol):
+    """Un vector por texto, con la dimensión de catalog_items.embedding (ADR-0003)."""
+
+    async def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]: ...
+
+
+class SpeechToText(Protocol):
+    async def transcribe(self, audio: bytes, mime: str) -> str: ...
+
+
+class LlmCallRecorder(Protocol):
+    """Deja el registro de una llamada a la IA (lo usa el decorador de costo)."""
+
+    async def record(self, call: LlmCall) -> None: ...
+
+
 class MessageSender(Protocol):
     """Envío a la WhatsApp Cloud API. Lanza TransientSendError o PermanentSendError."""
 
@@ -150,6 +190,9 @@ class UnitOfWork(Protocol):
 
     @property
     def consent(self) -> ConsentRepository: ...
+
+    @property
+    def llm_calls(self) -> LlmCallRepository: ...
 
     async def __aenter__(self) -> Self: ...
 
