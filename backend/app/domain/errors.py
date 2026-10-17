@@ -28,6 +28,8 @@ class ErrorCode(StrEnum):
     EVIDENCE_FROZEN = "EVIDENCE_FROZEN"
     EVIDENCE_FINAL = "EVIDENCE_FINAL"
     EVIDENCE_IMMUTABLE = "EVIDENCE_IMMUTABLE"
+    WINDOW_CLOSED = "WINDOW_CLOSED"  # fuera de la ventana de 24 h de WhatsApp: solo plantillas
+    CONSENT_REQUIRED = "CONSENT_REQUIRED"  # plantilla sin opt-in o con baja
     # Acceso y actor (SQLSTATE 42501)
     TENANT_REQUIRED = "TENANT_REQUIRED"
     AUTH_REQUIRED = "AUTH_REQUIRED"
@@ -51,6 +53,23 @@ class PermanentJobError(DomainError):
 
     Va directo a DEAD, sin gastar reintentos. Cualquier otra excepción se reintenta con backoff.
     """
+
+
+class SendError(DomainError):
+    """Meta no aceptó un mensaje. `code` es estable (HTTP_429, META_131047, NETWORK...);
+    el mensaje nunca incluye el token ni el contenido."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class TransientSendError(SendError):
+    """Vale la pena reintentar: red, 429, 5xx, credencial vencida que operación puede renovar."""
+
+
+class PermanentSendError(SendError):
+    """No se arregla reintentando: ventana cerrada en Meta, destinatario inválido, plantilla rechazada."""
 
 
 class UnitOfWorkNotActiveError(DomainError):

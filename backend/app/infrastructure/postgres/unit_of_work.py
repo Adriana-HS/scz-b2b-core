@@ -19,6 +19,7 @@ from app.domain.errors import UnitOfWorkNotActiveError
 from app.domain.ports import UnitOfWorkFactory
 from app.domain.tenancy import TenantContext
 from app.infrastructure.postgres.inbound import PostgresInboundRepository
+from app.infrastructure.postgres.outbound import PostgresOutboundRepository
 from app.infrastructure.postgres.repositories import PostgresCatalogRepository, PostgresOrderRepository
 
 _SET_CONTEXT = "SELECT set_config('app.current_org_id', $1, true), set_config('app.actor', $2, true)"
@@ -59,6 +60,7 @@ class PostgresUnitOfWork:
         self._catalog = PostgresCatalogRepository(self._session)
         self._orders = PostgresOrderRepository(self._session)
         self._inbound = PostgresInboundRepository(self._session)
+        self._outbound = PostgresOutboundRepository(self._session)
 
     @property
     def context(self) -> TenantContext:
@@ -78,6 +80,11 @@ class PostgresUnitOfWork:
     def inbound(self) -> PostgresInboundRepository:
         self._require_active()
         return self._inbound
+
+    @property
+    def outbound(self) -> PostgresOutboundRepository:
+        self._require_active()
+        return self._outbound
 
     async def __aenter__(self) -> Self:
         if self._state != "new":

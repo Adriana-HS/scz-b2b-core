@@ -49,10 +49,25 @@ async with uow_factory(TenantContext(organization_id, Actor.BOT)) as uow:
 * `POST /v1/webhooks/whatsapp`: 413 si el cuerpo pasa de 1 MB; 401 si la firma `X-Hub-Signature-256` no corresponde a `META_APP_SECRET` (se verifica antes de parsear); 200 si se registró, si era un duplicado o si el número no es de ningún negocio activo; 500 si la BD falla, para que Meta reintente.
 * Traducción del formato de Meta: `app/api/v1/whatsapp/payload.py`. Caso de uso: `app/application/inbound.py`. Persistencia: `app/infrastructure/postgres/inbound.py` y `channels.py`.
 
+## Outbox: envío de mensajes (#18, ADR-0017)
+
+Nada se envía directo a Meta. Cualquier parte del sistema encola, y el worker envía:
+
+```python
+async with uow_factory(TenantContext(org_id, Actor.BOT)) as uow:
+    await uow.outbound.enqueue(
+        OutboundRequest.text(conversation_id, f"turno:{conversation_id}:{wamid}", texto)
+    )
+```
+
+* **`idempotency_key`:** la misma clave no encola dos veces. Para una respuesta del agente: `conversación + último wa_message_id consumido` (§10.1).
+* **Fuera de la ventana de 24 h solo `OutboundRequest.template(...)`,** con consentimiento. Si no, la BD rechaza con `WINDOW_CLOSED` o `CONSENT_REQUIRED`.
+* **Configuración:** el worker envía solo si hay `META_GRAPH_API_VERSION` (por ejemplo `v23.0`). El token de cada número es la variable de entorno que nombra `whatsapp_channels.access_token_ref` (`WA_TOKEN_*`).
+
 ## Worker (ADR-0005)
 
 `uv run python -m app.worker` (requiere `DATABASE_URL`).
-* **Handlers:** se registran en `build_handlers()` de `app/worker.py`. Todavía no hay ninguno: `EMBED_ITEM` llega con el #25 y `PROCESS_CONVERSATION` con el #26. Sin handler, el worker no reclama ese tipo; el trabajo espera en la cola sin gastar intentos.
+* **Handlers:** se registran en `build_handlers()` de `app/worker.py`. `SEND_OUTBOUND` (outbox, #18) se registra si hay `META_GRAPH_API_VERSION`; `EMBED_ITEM` llega con el #25 y `PROCESS_CONVERSATION` con el #26. Sin handler, el worker no reclama ese tipo; el trabajo espera en la cola sin gastar intentos.
 * **Contrato de un handler (*at-least-once*):** puede ejecutarse más de una vez, así que debe ser idempotente. Trabaja dentro de una `UnitOfWork` (si el worker muere, se revierte) y envía mensajes por el outbox con clave de idempotencia (#18). `PermanentJobError` = no reintentar.
 * **Variables:** `WORKER_CONCURRENCY` (16), `WORKER_POLL_INTERVAL_S` (0,25), `JOB_TIMEOUT_S` (60) y `JOB_LEASE_S` (300; debe ser mayor que el timeout).
 

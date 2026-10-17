@@ -12,13 +12,19 @@ from app import __version__
 from app.api.v1 import health
 from app.api.v1.whatsapp import router as whatsapp
 from app.application.inbound import InboundHandler, RecordInboundMessages
+from app.application.outbound import RecordDeliveryStatuses, StatusHandler
 from app.core.config import Settings, get_settings
 from app.infrastructure.postgres.channels import PostgresChannelResolver
 from app.infrastructure.postgres.pool import create_pool
 from app.infrastructure.postgres.unit_of_work import unit_of_work_factory
 
 
-def create_app(settings: Settings | None = None, *, inbound_handler: InboundHandler | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    inbound_handler: InboundHandler | None = None,
+    status_handler: StatusHandler | None = None,
+) -> FastAPI:
     """Construye la aplicación. Aquí, y solo aquí, se conectan adaptadores con casos de uso.
 
     `inbound_handler` permite inyectar el caso de uso en pruebas. Si no se pasa y hay
@@ -32,9 +38,9 @@ def create_app(settings: Settings | None = None, *, inbound_handler: InboundHand
             yield
             return
         pool = await create_pool(settings.database_url.get_secret_value())
-        app.state.inbound_handler = RecordInboundMessages(
-            resolver=PostgresChannelResolver(pool), unit_of_work=unit_of_work_factory(pool)
-        )
+        resolver, uow = PostgresChannelResolver(pool), unit_of_work_factory(pool)
+        app.state.inbound_handler = RecordInboundMessages(resolver=resolver, unit_of_work=uow)
+        app.state.status_handler = RecordDeliveryStatuses(resolver=resolver, unit_of_work=uow)
         try:
             yield
         finally:
@@ -51,6 +57,7 @@ def create_app(settings: Settings | None = None, *, inbound_handler: InboundHand
     )
     app.state.settings = settings
     app.state.inbound_handler = inbound_handler
+    app.state.status_handler = status_handler
     app.include_router(health.router, prefix="/v1")
     app.include_router(whatsapp.router, prefix="/v1")
     return app

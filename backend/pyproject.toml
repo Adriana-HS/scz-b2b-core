@@ -9,6 +9,7 @@ authors = [{ name = "Adriana Hernández Severich" }]
 dependencies = [
     "asyncpg>=0.30",
     "fastapi>=0.115",
+    "httpx>=0.27",          # cliente de la WhatsApp Cloud API
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "uvicorn[standard]>=0.32",
@@ -17,7 +18,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "asyncpg-stubs>=0.30",
-    "httpx>=0.27",          # TestClient de FastAPI
     "import-linter>=2.1",
     "mypy>=1.13",
     "pip-audit>=2.7",

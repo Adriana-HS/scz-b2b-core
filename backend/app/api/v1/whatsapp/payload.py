@@ -14,6 +14,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.domain.messaging import InboundBatch, InboundMessage
+from app.domain.outbound import DeliveryStatus, StatusBatch, StatusUpdate
 
 _MAX_TEXT = 4096  # límite de Meta para un mensaje de texto
 
@@ -27,10 +28,26 @@ class _MetaMessage(BaseModel):
     type: str = Field(min_length=1, max_length=32)
 
 
+class _MetaStatus(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(min_length=1, max_length=256)
+    status: DeliveryStatus  # sent | delivered | read | failed; otros (deleted, ...) se descartan
+    timestamp: int = Field(ge=0)
+
+
+def _status_error_code(raw: dict[str, Any]) -> str | None:
+    """Solo el código numérico del primer error: el título y el detalle de Meta no se guardan."""
+    errors = _as_list(raw.get("errors"))
+    code = _as_dict(errors[0]).get("code") if errors else None
+    return str(code) if isinstance(code, int) else None
+
+
 @dataclass(frozen=True, slots=True)
 class ParsedWebhook:
     batches: tuple[InboundBatch, ...] = ()
-    statuses: int = 0  # estados de mensajes salientes: los procesa el outbox (#18)
+    status_batches: tuple[StatusBatch, ...] = ()  # estados de mensajes salientes (outbox, #18)
+    statuses: int = 0  # cantidad de estados recibidos, válidos o no
     invalid: int = 0  # mensajes descartados por no cumplir el formato
     ignored: int = 0  # cambios de otros campos (plantillas, cuenta, ...)
 
@@ -79,6 +96,7 @@ def parse_webhook(payload: Any) -> ParsedWebhook:
         return ParsedWebhook()
 
     by_phone: dict[str, list[InboundMessage]] = defaultdict(list)
+    statuses_by_phone: dict[str, list[StatusUpdate]] = defaultdict(list)
     statuses = invalid = ignored = 0
     for entry in _as_list(payload.get("entry")):
         for change in _as_list(_as_dict(entry).get("changes")):
@@ -88,11 +106,26 @@ def parse_webhook(payload: Any) -> ParsedWebhook:
                 continue
             value = _as_dict(change.get("value"))
             phone_number_id = _as_dict(value.get("metadata")).get("phone_number_id")
-            statuses += len(_as_list(value.get("statuses")))
+            raw_statuses = _as_list(value.get("statuses"))
+            statuses += len(raw_statuses)
             messages = _as_list(value.get("messages"))
             if not isinstance(phone_number_id, str) or not phone_number_id:
-                invalid += len(messages)
+                invalid += len(messages) + len(raw_statuses)
                 continue
+            for raw_status in raw_statuses:
+                try:
+                    meta_status = _MetaStatus.model_validate(raw_status)
+                except ValidationError:
+                    invalid += 1
+                    continue
+                statuses_by_phone[phone_number_id].append(
+                    StatusUpdate(
+                        wa_message_id=meta_status.id,
+                        status=meta_status.status,
+                        at=datetime.fromtimestamp(meta_status.timestamp, UTC),
+                        error_code=_status_error_code(_as_dict(raw_status)),
+                    )
+                )
             names = _profile_names(value)
             for raw in messages:
                 try:
@@ -113,4 +146,7 @@ def parse_webhook(payload: Any) -> ParsedWebhook:
                     )
                 )
     batches = tuple(InboundBatch(phone, tuple(msgs)) for phone, msgs in by_phone.items())
-    return ParsedWebhook(batches=batches, statuses=statuses, invalid=invalid, ignored=ignored)
+    status_batches = tuple(StatusBatch(phone, tuple(ups)) for phone, ups in statuses_by_phone.items())
+    return ParsedWebhook(
+        batches=batches, status_batches=status_batches, statuses=statuses, invalid=invalid, ignored=ignored
+    )
