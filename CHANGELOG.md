@@ -14,6 +14,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (backend)
+- **Puertos de IA (#22):** detalle en `docs/ai-ports.md`.
+  - Puertos segregados `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText`, con tipos propios (mensajes, herramientas, uso de tokens, extracción de comprobantes) y errores con código estable (`TransientAiError`, `PermanentAiError`, `AiUnavailableError`).
+  - Adaptador de Anthropic (Messages API con httpx, sin SDK): modelo fijado por identificador exacto, prompt de sistema cacheado y clasificación de errores con `retry-after`; la clave y el contenido nunca van en un error.
+  - Decoradores en orden fijo (`resilient_chat_model`): trazas `gen_ai` sin contenido → costo por llamada en `private.llm_calls` y `llm_cost_usd` → circuit breaker → reintento con presupuesto.
+  - `LLM_MODEL` rechaza alias como `-latest`; con modelo y sin los cuatro precios el proceso no arranca.
+  - **Migración 19:** FK compuesta de `llm_calls` con `conversations` y `CHECK` de tokens, costo y latencia.
+  - Suite de contrato compartida entre fakes y adaptadores.
+  - Pruebas: 268 pgTAP y 361 de backend; 12 mutaciones comprobadas.
 - **Observabilidad (#19, §10.2):** detalle en `docs/observability.md`.
   - **Logs JSON** por stdout con `trace_id`, `span_id` y el contexto del trabajo (`job_id`, `job_kind`, `organization_id`). El mensaje, el traceback y el contexto pasan por `redact`: teléfonos, correos, `Bearer`, tokens de Meta y parámetros `*token`/`*key`/`*secret` (incluido `hub.verify_token`).
   - **Trazas de punta a punta:** span de servidor nativo de FastAPI → la UnitOfWork fija `app.traceparent` → **migración 18:** `jobs.trace_context` lo toma por defecto (uno mal formado se descarta) → el worker continúa la traza. `RedactingSpanProcessor` deja `url.query` sin valores y redacta `url.path` antes de exportar.

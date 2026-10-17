@@ -12,8 +12,8 @@
 | Decisiones | `docs/adr/` (ADR-0001 … ADR-0017) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (18 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 259 pruebas pgTAP en 15 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (19 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 268 pruebas pgTAP en 16 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -704,7 +704,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0018 (este documento las referencia)
+│   ├── migrations/               # 0001…0019 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/
@@ -735,7 +735,7 @@ scz-b2b-core/
 | BD | RLS, invariantes, RPCs, concurrencia | pgTAP (`supabase test db`) |
 | Unitarias | Dominio, reglas antifraude, guardrails, FSM (paridad con BD) | pytest |
 | Propiedades | Dinero (redondeo, sumas), FSM (ninguna secuencia llega a un estado inválido) | Hypothesis |
-| Contrato | Cada adaptador cumple su puerto; *fakes* para Meta, LLM, banco y SIAT | pytest + fixtures grabadas |
+| Contrato | Cada adaptador cumple su puerto; *fakes* para Meta, LLM, banco y SIAT. La de IA corre la misma suite contra el fake y el adaptador de Anthropic (`tests/contract/`, `docs/ai-ports.md`) | pytest + fixtures grabadas |
 | Integración | API + worker + Postgres real (Supabase local) | pytest + `supabase start` |
 | Seguridad | Firma HMAC, tamaño y tipo de media, inyección en herramientas, rutas de Storage | pytest `tests/security` |
 | Carga | Webhook a 50 rps sostenidos con p99 ≤ 250 ms | k6 |
