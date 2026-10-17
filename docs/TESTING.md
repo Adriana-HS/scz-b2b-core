@@ -13,7 +13,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones sobre la imagen oficial de Supabase y las 196 pruebas pgTAP | Sí |
+| `database` | Migraciones sobre la imagen oficial de Supabase y las 216 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs, nombres de migraciones, puentes de skills y **actions fijadas por SHA** | Sí |
@@ -34,7 +34,8 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `09_paid_order_exit.test.sql` | Orden con pagos registrados (#57): `BOT`, `SYSTEM`, STAFF y OWNER sin MFA no la cancelan; el vencimiento la omite sin frenar al resto; OWNER/ADMIN con MFA la cancela y queda auditado | 18 |
 | `10_expire_skips_paid.test.sql` | Seguimiento de #57: el `WHERE` de `expire_stale_orders` excluye `amount_paid_bs > 0`; con el trigger desactivado el job igual deja viva la orden pagada (y su reserva); el trigger sigue omitiendo un `UPDATE` directo a `EXPIRED` | 9 |
 | `11_catalog_price_mfa.test.sql` | #50 (ADR-0016): STAFF cambia precios dentro del umbral sin MFA; precio 0, cambio de moneda o variación mayor al umbral exigen OWNER/ADMIN con aal2; umbral por negocio; el backend no cambia precios; aviso al dueño y bitácora | 20 |
-| **Total** | | **196** |
+| `12_worker_queue.test.sql` | #17: reclamo solo de los tipos pedidos y uno por conversación; *fencing* en `finish_job` (otro worker no cierra el trabajo; el cierre tardío del que perdió el *lease* se ignora); backoff, error truncado y DEAD informado; *reaper* con conteos; firmas viejas eliminadas; privilegios | 20 |
+| **Total** | | **216** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 
@@ -77,6 +78,17 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy ap
 | Ack p99 ≤ 250 ms | Pendiente: prueba de carga con k6 (#21) |
 
 Se comprobó con mutaciones temporales que las pruebas de los dos primeros criterios de la BD fallan si el código se rompe a propósito: parsear el JSON antes de verificar la firma, y quitar el `ON CONFLICT DO NOTHING` del evento.
+
+### Worker y prueba de caos (#17, Q-REL-1)
+
+`backend/tests/integration/test_worker_db.py::test_matar_el_worker_a_mitad_de_un_trabajo_no_pierde_ni_duplica`:
+1. Lanza un proceso worker aparte (`chaos_worker.py`) que reclama un trabajo, abre una transacción, escribe un mensaje y se queda colgado.
+2. La prueba **mata el proceso**. Lo escrito se revierte (0 filas) y el trabajo queda `RUNNING` con el *lease* del muerto.
+3. El *reaper* lo libera y otro worker lo termina: queda `DONE`, con `attempts = 2` y el mensaje **una sola vez**.
+
+Mutaciones comprobadas:
+* Sin *fencing* en `finish_job`, fallan 4 pruebas pgTAP.
+* Si se guarda el mensaje del error en vez de su tipo, fallan 5 pruebas unitarias.
 
 ### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
 

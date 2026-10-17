@@ -5,7 +5,7 @@ Procedimientos operativos paso a paso (se redactan en la fase 6 del roadmap; ver
 | Runbook | Disparador | Estado |
 | :--- | :--- | :--- |
 | Rotación del token de Meta | Trimestral o ante sospecha de filtración | Pendiente |
-| Trabajos en DLQ (`DEAD`) | Alerta `jobs_dead > 0` | Pendiente |
+| Trabajos en DLQ (`DEAD`) | Alerta `jobs_dead > 0` (log `ALERTA job_dead` del worker; consulta: `SELECT id, kind, attempts, last_error FROM private.jobs WHERE status = 'DEAD'`) | Pendiente |
 | TC vencido | Alerta `fx_stale_tenants > 0` | Pendiente |
 | Revisión masiva de evidencias | Cola de `NEEDS_REVIEW` > umbral | Pendiente |
 | Restauración de backup | Incidente o simulacro trimestral | Pendiente |
