@@ -18,6 +18,7 @@ env:
   # Versiones fijas para que la CI sea reproducible. Actualizarlas a propósito, en su propio PR.
   SUPABASE_CLI_VERSION: 2.120.0
   GITLEAKS_VERSION: 8.21.2
+  UV_VERSION: 0.13.1
 
 jobs:
   database:
@@ -51,6 +52,41 @@ jobs:
       - name: Detener
         if: always()
         run: supabase stop --no-backup
+
+  backend:
+    name: Backend (ruff, mypy, import-linter, pytest, pip-audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      # Python 3.12 desde backend/.python-version; --locked falla si uv.lock no coincide con pyproject.toml
+      - name: Instalar dependencias exactas
+        run: uv sync --locked
+
+      - name: Lint y formato (ruff)
+        run: uv run ruff check . && uv run ruff format --check .
+
+      - name: Tipos (mypy --strict)
+        run: uv run mypy app tests
+
+      - name: Regla de dependencias entre capas (import-linter)
+        run: uv run lint-imports
+
+      - name: Pruebas y cobertura (pytest, mínimo 85 %)
+        run: uv run pytest
+
+      - name: Vulnerabilidades conocidas en dependencias (pip-audit)
+        run: uv run pip-audit --skip-editable --progress-spinner off
 
   repo:
     name: Consistencia del repo (backlog, enlaces, ADRs, migraciones)

@@ -4,6 +4,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+### Agregado (backend)
+- **Scaffold del backend hexagonal (#14):** `backend/` con Python 3.12, FastAPI y uv (`uv.lock`). Capas `domain`, `application`, `infrastructure`, `api`, `workers`, `verticals` y `core`; *composition root* en `app/main.py` (proceso api, `GET /v1/health`) y `app/worker.py`. La configuración falla cerrado: en staging y producción no arranca sin `DATABASE_URL` y `META_APP_SECRET`, y la documentación de la API no se publica en producción.
+- 5 contratos de `import-linter` para la regla de dependencias (el dominio solo usa stdlib y pydantic). Se comprobó que detectan una violación real.
+- Job de CI `backend`: ruff, `mypy --strict`, `lint-imports`, pytest (cobertura ≥ 85 %, avisos como errores) y pip-audit. Dependabot para `uv` y GitHub Actions.
+
 ### Corregido
 - **Reservas de stock (Alta, H1):** una orden en `PAYMENT_REVIEW` con `valid_until` vencido dejaba de bloquear su stock; otro cliente podía reservarlo y, al aprobar el pago, `stock_on_hand` quedaba < 0 (la aprobación fallaba por `CHECK`) o había sobreventa. Ahora una reserva está activa mientras no se libere ni se comprometa; la termina el estado de la orden, no el reloj (ADR-0015).
 - **Reservas de stock (Alta, H2):** cancelar no liberaba la reserva hasta su vencimiento, y cancelar o reembolsar una orden `CONFIRMED` nunca devolvía el stock. Confirmar con seña 0 tampoco comprometía stock. Migración 10: trigger `trg_orders_stock_lifecycle` que compromete, libera o devuelve el stock en cada cambio de estado; columna `stock_reservations.returned_at`. Si al confirmar no hay stock físico, el error es `HINT = STOCK_CONFLICT`, sin efectos parciales.

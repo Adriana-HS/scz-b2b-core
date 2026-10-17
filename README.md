@@ -50,7 +50,8 @@ supabase test db      # corre las pruebas pgTAP de supabase/tests/database
 supabase/migrations/   esquema, RLS, triggers y RPCs (fuente única de verdad del modelo de datos)
 supabase/tests/        pruebas pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA, MFA, stock
 docs/                  ADRs, revisiones, guías
-backend/  frontend/    (fase 1 y siguientes del roadmap)
+backend/               Python 3.12 + FastAPI, arquitectura hexagonal (ver backend/README.md)
+frontend/              (fase 5 del roadmap)
 ```
 
 ## Autoría
