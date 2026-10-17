@@ -5,6 +5,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Sin publicar]
 
 ### Agregado (backend)
+- **Webhook de WhatsApp (#16, RF-01):** `GET` y `POST /v1/webhooks/whatsapp`.
+  - Orden de chequeos: límite de 1 MB (413), firma HMAC-SHA256 sobre los bytes crudos en tiempo constante y antes de parsear (401), traducción del formato de Meta con validación por mensaje.
+  - Los mensajes de un número se registran en una sola transacción como `SYSTEM`: evento idempotente por `wa_message_id`, cliente, conversación abierta, mensaje y trabajo con *debounce*.
+  - Un número desconocido o inactivo responde 200 sin escribir nada; un fallo de BD, 500 para que Meta reintente.
+  - Los logs llevan solo conteos y tipos de error.
+  - `META_WEBHOOK_VERIFY_TOKEN` pasa a ser obligatorio en staging y producción.
+  - 49 pruebas nuevas (93 en total), con integración contra la BD; mutaciones comprobadas para la firma y la idempotencia. El ack p99 con k6 queda para el #21.
 - **UnitOfWork y repositorios asyncpg (#15, ADR-0011):** `PostgresUnitOfWork` abre una transacción como `app_backend` y fija el tenant y el actor con `SET LOCAL` parametrizado; los repositorios de catálogo (`search_catalog`) y órdenes (`create_quote`) no funcionan fuera de ella. Los `HINT` de la BD se traducen a `BusinessRuleError` y `AccessDeniedError` con códigos estables, y una prueba falla si una migración agrega un `HINT` sin código. El pool no cachea *prepared statements* (Supavisor en modo transacción).
 - Pruebas de integración contra Postgres real como `app_backend` (12), incluida la de no filtrar el contexto entre transacciones con un doble del pooler en modo transacción. Se comprobó que falla con un `SET` de sesión. La CI levanta Postgres en el job `backend` y no permite omitirlas (`SCZ_REQUIRE_DB=1`). 44 pruebas en total; cobertura 98,5 %.
 - **Scaffold del backend hexagonal (#14):** `backend/` con Python 3.12, FastAPI y uv (`uv.lock`). Capas `domain`, `application`, `infrastructure`, `api`, `workers`, `verticals` y `core`; *composition root* en `app/main.py` (proceso api, `GET /v1/health`) y `app/worker.py`. La configuración falla cerrado: en staging y producción no arranca sin `DATABASE_URL` y `META_APP_SECRET`, y la documentación de la API no se publica en producción.

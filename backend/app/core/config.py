@@ -19,13 +19,16 @@ class Settings(BaseSettings):
 
     # Rol app_backend vía Supavisor en modo transacción (ADR-0002, ADR-0011). Nunca la service role.
     database_url: SecretStr | None = Field(default=None)
+    # WhatsApp Cloud API: App Secret (firma HMAC de cada webhook) y token de verificación de la suscripción
     meta_app_secret: SecretStr | None = Field(default=None)
+    meta_webhook_verify_token: SecretStr | None = Field(default=None)
 
     @model_validator(mode="after")
     def _secrets_required_outside_local(self) -> "Settings":
         """Falla cerrado: en staging y producción el proceso no arranca sin sus secretos."""
         if self.environment in ("staging", "production"):
-            missing = [name for name in ("database_url", "meta_app_secret") if getattr(self, name) is None]
+            required = ("database_url", "meta_app_secret", "meta_webhook_verify_token")
+            missing = [name for name in required if getattr(self, name) is None]
             if missing:
                 raise ValueError(f"faltan variables obligatorias en {self.environment}: {', '.join(missing)}")
         return self

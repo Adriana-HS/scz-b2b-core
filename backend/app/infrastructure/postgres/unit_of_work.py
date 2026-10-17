@@ -18,6 +18,7 @@ from asyncpg.transaction import Transaction
 from app.domain.errors import UnitOfWorkNotActiveError
 from app.domain.ports import UnitOfWorkFactory
 from app.domain.tenancy import TenantContext
+from app.infrastructure.postgres.inbound import PostgresInboundRepository
 from app.infrastructure.postgres.repositories import PostgresCatalogRepository, PostgresOrderRepository
 
 _SET_CONTEXT = "SELECT set_config('app.current_org_id', $1, true), set_config('app.actor', $2, true)"
@@ -57,6 +58,7 @@ class PostgresUnitOfWork:
         self._transaction: Transaction | None = None
         self._catalog = PostgresCatalogRepository(self._session)
         self._orders = PostgresOrderRepository(self._session)
+        self._inbound = PostgresInboundRepository(self._session)
 
     @property
     def context(self) -> TenantContext:
@@ -71,6 +73,11 @@ class PostgresUnitOfWork:
     def orders(self) -> PostgresOrderRepository:
         self._require_active()
         return self._orders
+
+    @property
+    def inbound(self) -> PostgresInboundRepository:
+        self._require_active()
+        return self._inbound
 
     async def __aenter__(self) -> Self:
         if self._state != "new":
