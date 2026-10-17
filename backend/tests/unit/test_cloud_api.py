@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from app.domain.errors import PermanentSendError, TransientSendError
-from app.domain.outbound import OutboundKind, OutboundRequest
+from app.domain.outbound import OutboundKind, OutboundRequest, TemplateCategory
 from app.infrastructure.whatsapp.cloud_api import CloudApiSender
 
 TOKEN = "EAAG-token-de-prueba"
@@ -72,7 +72,12 @@ async def test_plantilla_con_idioma_y_componentes() -> None:
     meta = FakeMeta()
     components = [{"type": "body", "parameters": [{"type": "text", "text": "mañana 09:00"}]}]
 
-    await _send(meta, OutboundRequest.template(uuid4(), "k", "recordatorio_cita", "es", components))
+    await _send(
+        meta,
+        OutboundRequest.template(
+            uuid4(), "k", "recordatorio_cita", "es", TemplateCategory.UTILITY, components
+        ),
+    )
 
     body = json.loads(meta.requests[0].content)
     assert body["type"] == "template"
