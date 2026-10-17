@@ -1,0 +1,118 @@
+[project]
+name = "scz-b2b-core-backend"
+version = "0.1.0"
+description = "Backend de SCZ-B2B-Core: procesos api (FastAPI) y worker sobre un monolito modular hexagonal"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Propietario. Todos los derechos reservados (ver LICENSE en la raíz)" }
+authors = [{ name = "Adriana Hernández Severich" }]
+dependencies = [
+    "fastapi>=0.115",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27",          # TestClient de FastAPI
+    "import-linter>=2.1",
+    "mypy>=1.13",
+    "pip-audit>=2.7",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+# ---------------------------------------------------------------------------
+# Calidad (SYSTEM_DESIGN.md §13.2, Q-MAINT-2)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",   # pycodestyle + pyflakes
+    "I",             # orden de imports
+    "B",             # bugbear
+    "UP",            # pyupgrade
+    "S",             # bandit (seguridad)
+    "N",             # nombres
+    "SIM", "RUF",
+    "DTZ",           # datetime sin zona horaria (todo es timestamptz)
+    "ASYNC",
+    "T20",           # sin print(): logs estructurados
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]   # assert y secretos ficticios en pruebas
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --cov=app --cov-report=term-missing --cov-fail-under=85"
+# Los avisos son errores, salvo el de Starlette sobre httpx en TestClient: sugiere otro paquete
+# (httpx2) que aún no se evaluó como dependencia. Revisar al actualizar FastAPI/Starlette.
+filterwarnings = [
+    "error",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
+
+[tool.coverage.run]
+branch = true
+
+# ---------------------------------------------------------------------------
+# Regla de dependencias (docs/architecture/principios-y-patrones.md §1.1, ADR-0001)
+# Las flechas solo apuntan hacia el dominio. `lint-imports` falla si alguien la rompe.
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "El dominio no depende de ninguna otra capa ni de SDKs (solo stdlib y pydantic)"
+type = "forbidden"
+source_modules = ["app.domain"]
+forbidden_modules = [
+    "app.application", "app.infrastructure", "app.api", "app.workers", "app.verticals", "app.core",
+    "app.main", "app.worker",
+    "fastapi", "starlette", "uvicorn", "pydantic_settings", "httpx",
+]
+
+[[tool.importlinter.contracts]]
+name = "La aplicación depende del dominio, no de adaptadores ni de la interfaz"
+type = "forbidden"
+source_modules = ["app.application"]
+forbidden_modules = [
+    "app.infrastructure", "app.api", "app.workers", "app.main", "app.worker",
+    "fastapi", "starlette", "uvicorn", "httpx",
+]
+
+[[tool.importlinter.contracts]]
+name = "Los adaptadores de salida no dependen de la interfaz ni de la aplicación"
+type = "forbidden"
+source_modules = ["app.infrastructure"]
+forbidden_modules = ["app.api", "app.workers", "app.application", "app.main", "app.worker"]
+
+[[tool.importlinter.contracts]]
+name = "Los rubros (VerticalPolicy) no dependen de adaptadores ni de la interfaz"
+type = "forbidden"
+source_modules = ["app.verticals"]
+forbidden_modules = ["app.infrastructure", "app.api", "app.workers", "app.main", "app.worker"]
+
+[[tool.importlinter.contracts]]
+name = "Las entradas (api y workers) no se importan entre sí; se componen en main.py y worker.py"
+type = "independence"
+modules = ["app.api", "app.workers"]

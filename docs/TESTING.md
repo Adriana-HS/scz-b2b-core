@@ -15,6 +15,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 | :--- | :--- | :---: |
 | `database` | Migraciones sobre la imagen oficial de Supabase y las 196 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
+| `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs y nombres de migraciones | Sí |
 | `secrets` | gitleaks sobre todo el historial | Sí |
 
@@ -48,6 +49,24 @@ for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 -d scz_test -f "$
 for f in supabase/tests/database/0*.test.sql; do psql -d scz_test -f "$f"; done
 ```
 
-## Backend y frontend
+## Backend (Python)
+
+Desde `backend/` (requiere [uv](https://docs.astral.sh/uv/)):
+
+```bash
+uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy app tests && uv run lint-imports && uv run pytest
+```
+
+| Verificación | Qué asegura | Bloquea el PR |
+| :--- | :--- | :---: |
+| `ruff` | Estilo, errores comunes y reglas de seguridad (bandit) | Sí |
+| `mypy --strict` | Tipos en `app/` y `tests/` | Sí |
+| `lint-imports` | Regla de dependencias de la arquitectura hexagonal: el dominio no importa otras capas ni SDKs (5 contratos en `pyproject.toml`). También corre como prueba (`tests/architecture`) | Sí |
+| `pytest` | Pruebas con cobertura mínima de 85 % y avisos tratados como errores | Sí |
+| `pip-audit` | Vulnerabilidades conocidas en las dependencias de `uv.lock` | Sí |
+
+Dependabot propone actualizaciones semanales de `backend/uv.lock` y de las GitHub Actions.
+
+## Frontend
 
 Ver la estrategia en `SYSTEM_DESIGN.md` §13.1 (unitarias, propiedades, contrato, integración, seguridad, carga, caos, evals).
