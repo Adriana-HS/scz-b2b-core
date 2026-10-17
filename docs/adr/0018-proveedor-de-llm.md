@@ -73,7 +73,7 @@
 ## Decisión (propuesta, a confirmar por AHS)
 
 1. **No elegir proveedor por marca.** Correr las evaluaciones *golden* de #28 (≥ 30 conversaciones del rubro importadora) contra una lista corta y elegir con datos: exactitud (Q-ACC-5), violaciones de grounding, errores al pedir herramientas, latencia p95 y costo real medido en `llm_calls`.
-2. **Lista corta**, un modelo chico y uno mediano por proveedor:
+2. **Lista corta** (AHS confirmó el 17-oct-2026 mantener solo estos 3 proveedores), un modelo chico y uno mediano por proveedor:
    * chicos: Claude Haiku 5.5, gpt-6-luna y Gemini 3.1 Flash-Lite;
    * medianos, como respaldo si los chicos no llegan al 90 %: Claude Sonnet 5.5, gpt-6.1-sol y Gemini 3.8 Flash.
    * Se excluyen los modelos *preview* (pueden cambiar o retirarse) y los grandes (Opus, gpt-6-astra), que cuestan de 2 a 4 veces más sin una necesidad demostrada.
@@ -89,6 +89,9 @@
 | El mediano de una marca "por las dudas" | Calidad alta probable | ≈ 20 veces el costo del chico, sin dato que lo justifique |
 | **Evaluar una lista corta (propuesta)** | Decisión medible; deja el respaldo listo | Hay que escribir 2 adaptadores más (OpenAI y Google) y abrir 3 cuentas |
 | Modelo abierto en servidor propio | Datos bajo control propio | GPU always-on de cientos de USD al mes; operación compleja; fuera del alcance del MVP |
+| Modelo abierto en una computadora local (sin GPU) | Sin costo de API | Sin GPU, leer el contexto de un turno toma de decenas de segundos a minutos (el turno debe durar menos de 20 s, §7); solo entran modelos chicos, que fallan más con herramientas; sin respaldo ante cortes de luz o internet; mensajes de clientes en un equipo doméstico. **Descartado por AHS (17-oct-2026)** |
+| DeepSeek (API oficial) | Barato: ~US$ 6–11 al mes por negocio mediano ([precios][d-precios]); tarifa baja en horario comercial de Bolivia | Su política dice que procesa y guarda los datos en China ([política][d-privacidad]) y no aclara el uso de los datos de la API para entrenar. **Descartado por AHS (17-oct-2026)** |
+| Modelo chino abierto (DeepSeek, Qwen) alojado fuera de China | Precio bajo sin mandar datos a China | Precios y condiciones de los anfitriones sin verificar en fuentes oficiales. **No se evalúa por ahora (AHS, 17-oct-2026)**; se puede reabrir con un ADR nuevo |
 
 ## Consecuencias
 
@@ -112,3 +115,5 @@
 [g-precios]: https://ai.google.dev/gemini-api/docs/pricing
 [g-terminos]: https://ai.google.dev/gemini-api/terms
 [g-paises]: https://ai.google.dev/gemini-api/docs/available-regions
+[d-precios]: https://api-docs.deepseek.com/quick_start/pricing
+[d-privacidad]: https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html
