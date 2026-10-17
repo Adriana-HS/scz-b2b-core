@@ -12,6 +12,13 @@ credentials*.json
 service-account*.json
 supabase/.env
 *.local.toml
+# Notas locales con contraseñas o tokens (lo correcto es el gestor de contraseñas)
+*password*
+*contrasena*
+*contraseña*
+contra*.txt
+*.secret
+*.secret.*
 
 # Datos reales y documentos confidenciales (van al almacenamiento seguro del equipo, no al repo)
 private/
