@@ -4,6 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+### Seguridad (CI)
+- **Actions fijadas por SHA:**
+  - `actions/checkout` v7.0.1, `actions/setup-python` v7.0.0, `supabase/setup-cli` v3.0.1 y `astral-sh/setup-uv` v10.2.0, con la versión en un comentario.
+  - Los PRs de Dependabot #66-#69 subieron estas actions **por etiqueta** (`@v7`, `@v3`). Este cambio las fija por SHA, con los mismos commits que esas etiquetas para checkout, setup-python y setup-cli.
+  - `setup-uv` pasa de `@v7` (lo que trajo #68) a v10.2.0: desde la v8 ya no publica etiquetas mayores, justamente para obligar a fijar por SHA, y por eso Dependabot no podía proponer más que `@v7`.
+- `check_repo.py` rechaza cualquier `uses:` sin SHA de 40 caracteres o sin la versión en un comentario.
+- `persist-credentials: false` en todos los `checkout`; `prune-cache: true` en `setup-uv` (desde v9 el default es `false`).
+- El binario de gitleaks se verifica por sha256 antes de extraerlo.
+
 ### Agregado (backend)
 - **Webhook de WhatsApp (#16, RF-01):** `GET` y `POST /v1/webhooks/whatsapp`.
   - Orden de chequeos: límite de 1 MB (413), firma HMAC-SHA256 sobre los bytes crudos en tiempo constante y antes de parsear (401), traducción del formato de Meta con validación por mensaje.

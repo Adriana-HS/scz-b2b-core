@@ -11,6 +11,8 @@ Verifica, sin dependencias externas:
   4. Migraciones: nombre AAAAMMDDhhmmss_nombre.sql, orden estricto, sin duplicados.
   5. Skills: cada skill de .agents/skills/ tiene su puente en .claude/skills/ con el mismo
      frontmatter (Claude Code solo descubre skills ahí) y el puente apunta a la fuente.
+  6. Workflows: toda action externa (`uses:`) se fija por el SHA completo del commit y lleva
+     la versión en un comentario (`owner/repo@<40 hex> # vX.Y.Z`). Una etiqueta se puede mover.
 
 Sale con código 1 si encuentra errores.
 """
@@ -136,6 +138,31 @@ def check_skills() -> None:
     print(f"  skills: {len(sources)}")
 
 
+USES = re.compile(r"^\s*-?\s*uses:\s*(\S+)(.*)$")
+PINNED = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
+VERSION_COMMENT = re.compile(r"#\s*v\d+(\.\d+){0,2}\b")
+
+
+def check_workflows() -> None:
+    files = sorted((ROOT / ".github/workflows").glob("*.y*ml"))
+    count = 0
+    for wf in files:
+        for n, line in enumerate(wf.read_text(encoding="utf-8").splitlines(), 1):
+            m = USES.match(line)
+            if not m:
+                continue
+            ref, rest = m.group(1).strip("'\""), m.group(2)
+            if ref.startswith("./"):
+                continue  # action local del repo
+            count += 1
+            where = f"{wf.relative_to(ROOT)}:{n}"
+            if not PINNED.match(ref):
+                err(f"workflow: {where} usa `{ref}` sin fijar por SHA de 40 caracteres")
+            elif not VERSION_COMMENT.search(rest):
+                err(f"workflow: {where} fija `{ref}` sin la versión en un comentario (# vX.Y.Z)")
+    print(f"  workflows: {len(files)} archivos, {count} actions fijadas por SHA")
+
+
 def main() -> int:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -146,6 +173,7 @@ def main() -> int:
     check_adrs()
     check_migrations()
     check_skills()
+    check_workflows()
     if errors:
         print(f"\n✗ {len(errors)} problema(s):")
         for e in errors:
