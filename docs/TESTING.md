@@ -62,8 +62,16 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy ap
 | `ruff` | Estilo, errores comunes y reglas de seguridad (bandit) | Sí |
 | `mypy --strict` | Tipos en `app/` y `tests/` | Sí |
 | `lint-imports` | Regla de dependencias de la arquitectura hexagonal: el dominio no importa otras capas ni SDKs (5 contratos en `pyproject.toml`). También corre como prueba (`tests/architecture`) | Sí |
-| `pytest` | Pruebas con cobertura mínima de 85 % y avisos tratados como errores | Sí |
+| `pytest` | Pruebas unitarias y de integración con cobertura mínima de 85 % y avisos tratados como errores | Sí |
 | `pip-audit` | Vulnerabilidades conocidas en las dependencias de `uv.lock` | Sí |
+
+### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
+
+Corren contra el Postgres local de Supabase (`supabase db start`) **como `app_backend`**, igual que el backend real: RLS, FSM y triggers se aplican de verdad. El *fixture* se conecta como administrador local solo para crear datos sintéticos y habilitar el login de `app_backend` con una contraseña aleatoria de esa corrida; al terminar lo deja otra vez sin login.
+
+* `SCZ_TEST_DATABASE_ADMIN_URL`: por defecto, el Postgres local de la CLI (`127.0.0.1:54322`). La prueba se niega a correr contra un host que no sea local.
+* Sin BD, las pruebas se **omiten** con un aviso. En la CI, `SCZ_REQUIRE_DB=1` hace que **fallen**, para que una BD caída no dé un falso verde.
+* **Filtración de contexto entre transacciones (ADR-0011):** el pool de asyncpg ejecuta `RESET ALL` al devolver una conexión y ocultaría una filtración, pero Supavisor en modo transacción no lo hace. La prueba usa un doble del pooler que entrega la misma conexión física sin *reset*. Se verificó que falla si `SET LOCAL` se cambia por un `SET` de sesión.
 
 Dependabot propone actualizaciones semanales de `backend/uv.lock` y de las GitHub Actions.
 
