@@ -9,11 +9,11 @@
 | Mercado inicial | Santa Cruz de la Sierra, Bolivia |
 | Versión | **2.2** (15-oct-2026) — reemplaza a la v1.0 |
 | Estado | Propuesta para revisión (ver `docs/reviews/2026-10-15-revision-system-design-v1.md`) |
-| Decisiones | `docs/adr/` (ADR-0001 … ADR-0015) |
+| Decisiones | `docs/adr/` (ADR-0001 … ADR-0016) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (13 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 176 pruebas pgTAP en 10 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (14 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 196 pruebas pgTAP en 11 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -114,6 +114,7 @@ El detalle (contexto, alternativas, consecuencias y verificación) está en `doc
 | [0013](docs/adr/0013-la-plataforma-no-custodia-fondos.md) | **La plataforma no custodia fondos**: QR a nombre de la cuenta de cada negocio | Nuevo (riesgo regulatorio ASFI) |
 | [0014](docs/adr/0014-alcance-de-minimo-regulatorio-para-el-mvp.md) | **MVP de mínimo regulatorio**: QR estático + aprobación humana, suscripción fija, sin facturación ni datos de identidad por chat | Nuevo (viabilidad comercial) |
 | [0015](docs/adr/0015-ciclo-de-vida-de-reservas-de-stock.md) | La vigencia de una **reserva de stock** la decide el estado de la orden; un trigger compromete, libera o devuelve el stock en cada transición | Nuevo (revisión del 15-oct-2026: sobreventa) |
+| [0016](docs/adr/0016-mfa-mixto-para-precios-del-catalogo.md) | **Regla mixta de MFA para precios:** cambios dentro del umbral sin MFA; precio 0, cambio de moneda o variación mayor al umbral del negocio, solo OWNER/ADMIN con aal2; el backend no cambia precios | Nuevo (riesgo residual de SEC-01, #50) |
 
 ---
 
@@ -372,6 +373,7 @@ Tablas internas (esquema `private`, **no expuesto** por la API REST): `inbound_e
 | I-19 | Reembolsar, cancelar órdenes pagadas o en revisión y confirmar las requiere OWNER/ADMIN con aal2; STAFF solo cancela antes del pago | `trg_orders_human_guard` | 08-#12…#25 |
 | I-20 | Las evidencias siguen su FSM; `APPROVED` y los rechazos humanos solo desde las RPC de revisión; los datos verificados no cambian | `private.evidence_transitions` + `trg_payment_evidence_guard` + columnas acotadas | 08-#26…#40 |
 | I-21 | Una orden con pagos registrados (`amount_paid_bs > 0`) no sale del flujo sin una persona: cancelarla exige OWNER/ADMIN con aal2 y el vencimiento automático la omite | `trg_orders_paid_exit_guard` (migración 12) y el filtro `amount_paid_bs = 0` de `expire_stale_orders` (migración 13) | 09-#3…#18, 10-#2…#9 |
+| I-22 | Un cambio de precio sensible (precio 0, cambio de moneda o variación mayor a `price_change_mfa_threshold_pct`, 30 % por defecto) requiere OWNER/ADMIN con aal2; el backend nunca cambia precios; cada cambio aplicado avisa al dueño | `trg_catalog_price_guard` + `trg_catalog_price_alert` (ADR-0016) | 11-#1…#20 |
 
 **Prueba de concurrencia (ejecutada):** 4 sesiones simultáneas pidieron 2 unidades de un ítem con stock 3; una obtuvo `COT-2026-000001` y tres recibieron `OUT_OF_STOCK`. Otras 4 sesiones pidieron el mismo horario; una obtuvo `CITA-2026-000001` y tres recibieron `SLOT_TAKEN`.
 
@@ -520,11 +522,12 @@ Cada rubro es un paquete `app/verticals/<rubro>/` que implementa `VerticalPolicy
 | **E**levation | STAFF/AUDITOR cambian TC o cuentas | Políticas por rol; MFA (`aal2`) para cuentas bancarias y aprobación de pagos (pruebas 01-#11, #12) |
 | **E**levation | Sesión de OWNER/ADMIN sin segundo factor (aal1) apaga controles, crea un aprobador o carga un TC falso (SEC-01) | `aal2` **incondicional** para aprobar pagos, editar la organización, cambiar membresías y cargar TC; ningún interruptor por tenant (migración 09, prueba 06) |
 | **E**levation | Un `UnitOfWork` sin `app.actor` (o que se declara `HUMAN`) registra un pago "bancario", aprueba una evidencia o reembolsa; STAFF sin MFA reembolsa o cancela órdenes pagadas (SEC-02) | Actor por defecto `BOT`; `app_backend` sin INSERT en `payments` (ADR-0014); FSM de evidencias en BD; transiciones humanas por rol con `aal2` (migración 11, prueba 08) |
+| **E**levation | Sesión robada de STAFF deja un precio en 0, cambia la moneda o lo altera mucho; el precio se congela en cotizaciones y la oferta obliga (Ley 453, art. 18.1) | Regla mixta (ADR-0016): cambios sensibles solo OWNER/ADMIN con aal2, el backend no cambia precios, aviso al dueño y `audit_log` (prueba 11) |
 | **E**levation | Secuestro de `search_path` en funciones privilegiadas | `SET search_path = ''` en todas (prueba 01-#19) |
 
 ### 8.2 Identidad y acceso
 
-* **Dashboard:** Supabase Auth, MFA TOTP obligatorio para `OWNER`/`ADMIN`. Roles: `OWNER` (todo), `ADMIN` (todo excepto membresías), `STAFF` (catálogo, conversaciones, agenda, rechazar evidencias y cancelar órdenes antes del pago; sin reembolsos ni cancelaciones de órdenes pagadas o en revisión), `AUDITOR` (solo lectura).
+* **Dashboard:** Supabase Auth, MFA TOTP obligatorio para `OWNER`/`ADMIN`. Roles: `OWNER` (todo), `ADMIN` (todo excepto membresías), `STAFF` (catálogo, con cambios de precio dentro del umbral del negocio, conversaciones, agenda, rechazar evidencias y cancelar órdenes antes del pago; sin reembolsos ni cancelaciones de órdenes pagadas o en revisión), `AUDITOR` (solo lectura).
 * **Backend:** rol `app_backend` (LOGIN, sin BYPASSRLS, sin `DELETE`). Cada unidad de trabajo abre una transacción y ejecuta `SET LOCAL app.current_org_id` y `SET LOCAL app.actor` (`BOT` o `SYSTEM`; si falta, la BD asume `BOT`). El *repository* no expone ninguna forma de consultar sin tenant. En el MVP no tiene INSERT en `payments` (ADR-0014) y en `payment_evidence` solo actualiza el estado y los resultados de OCR/reglas, nunca `reviewed_by`, `reviewed_at` ni `review_note`.
 * **Webhook → tenant:** `metadata.phone_number_id` → `private.resolve_whatsapp_channel()` (única función que lee antes de fijar el tenant). Si el número no se conoce, se responde 200 y se registra el evento. No se responde 4xx, porque Meta reintentaría.
 
@@ -650,7 +653,7 @@ scz-b2b-core/
 ├── .agents/skills/               # skills del proyecto (formato SKILL.md, fuente única)
 ├── .claude/skills/               # puentes para Claude Code (mismo frontmatter, remiten a .agents/)
 ├── docs/
-│   ├── adr/                      # ADR-0001 … ADR-0015 (formato MADR)
+│   ├── adr/                      # ADR-0001 … ADR-0016 (formato MADR)
 │   ├── architecture/             # estilo, SOLID, patrones, UML
 │   ├── legal/                    # marco legal y modelo de negocio (sin documentos firmados)
 │   ├── requirements/SRS.md       # requisitos RF-xx (ISO/IEC/IEEE 29148)
@@ -665,7 +668,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0013 (este documento las referencia)
+│   ├── migrations/               # 0001…0014 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/

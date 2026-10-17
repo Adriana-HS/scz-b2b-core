@@ -46,7 +46,7 @@ Cliente/Paciente, Dueño/Admin (OWNER, ADMIN), Personal (STAFF), Auditor (AUDITO
 
 | ID | Requisito | Prior. | Criterio de aceptación |
 | :--- | :--- | :--- | :--- |
-| RF-10 | El negocio gestiona su catálogo (alta, edición, baja lógica, importación CSV) con moneda de lista BOB o USD | M | Validación de forma (producto con stock, servicio con duración); el CSV reporta errores por fila |
+| RF-10 | El negocio gestiona su catálogo (alta, edición, baja lógica, importación CSV) con moneda de lista BOB o USD | M | Validación de forma (producto con stock, servicio con duración); el CSV reporta errores por fila; un precio en 0, un cambio de moneda o una variación mayor al umbral del negocio exigen OWNER/ADMIN con MFA (pgTAP 11, ADR-0016) |
 | RF-11 | Búsqueda por código exacto, texto con errores y significado | M | pgTAP 03 #10–#13; MRR@5 ≥ 0,8 en `evals/search` |
 | RF-12 | Registro del tipo de cambio con historial, fuente y autor; referencia diaria del BCB | M | Inserción append-only; alerta si el TC supera `fx_max_age_hours` |
 | RF-13 | El IVA se calcula según el régimen vigente (incluido o adicional) y se congela en cada orden | M | pgTAP 04 (11 pruebas) |
@@ -107,7 +107,7 @@ Ver `SYSTEM_DESIGN.md` §1.3 y `docs/research/2026-10-15-restricciones-externas.
 | RF-03, RF-04 | §7.1 | — | Unit + E2E | 2 |
 | RF-05 | §4.4 | — | Integración | 2 |
 | RF-06 | §10.1 | 0006 | Unit | 1 |
-| RF-10 … RF-12 | §5.4 | 0003, 0007 | pgTAP 02, 03 | 2 / 5 |
+| RF-10 … RF-12 | §5.4, §8.1 | 0003, 0007, 0016 | pgTAP 02, 03, 11 | 2 / 5 |
 | RF-13, RF-14 | §5.4 | 0012, 0009 | pgTAP 04 | 2 / 7 |
 | RF-20, RF-21 | §5, §6 | 0004, 0007 | pgTAP 02, 03 | 2 |
 | RF-22 … RF-25 | §6, §7.2 | 0004 | pgTAP 03 | 4 |
