@@ -67,7 +67,7 @@ Los gauges de la cola se miden **solo para los tipos que el worker procesa**: un
 
 `METRIC_NAMES` en `telemetry.py` es el catálogo: una prueba verifica que coincida con los instrumentos creados y que las alertas solo usen esos nombres.
 
-**Pendientes de §10.2**, con la funcionalidad que los produce: `evidence_latency_ms` y `needs_review_rate` (comprobantes), `handoff_rate` y `grounding_violations` (agente, #26), y la alerta de costo de IA por tenant (necesita el tope por plan como métrica, #26). El p99 del ack bajo carga se mide con k6 (#21).
+**Pendientes de §10.2**, con la funcionalidad que los produce: `evidence_latency_ms` y `needs_review_rate` (comprobantes), `handoff_rate` y `grounding_violations` (agente, #26), y la alerta de costo de IA por tenant (necesita el tope por plan como métrica, #26). El p99 del ack bajo carga se mide con k6 en el workflow *Carga y caos* (`docs/load-testing.md`).
 
 ## Sentry
 

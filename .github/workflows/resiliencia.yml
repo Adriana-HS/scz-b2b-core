@@ -1,0 +1,90 @@
+name: Carga y caos
+
+# Q-PERF-1 (p99 del ack ≤ 250 ms a 50 rps) y Q-REL-1 (ningún mensaje aceptado se pierde) — #21.
+# Corre cada noche, a mano y en los PRs que tocan el camino del webhook: así un cambio que
+# vuelve lento el ack o pierde mensajes se ve antes de fusionarse. Detalle: docs/load-testing.md.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 03:00 en Bolivia (UTC-4)
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "backend/app/api/v1/whatsapp/**"
+      - "backend/app/application/inbound.py"
+      - "backend/app/infrastructure/postgres/**"
+      - "backend/app/main.py"
+      - "backend/app/core/**"
+      - "backend/loadtest/**"
+      - "backend/uv.lock"
+      - "supabase/migrations/**"
+      - ".github/workflows/resiliencia.yml"
+
+concurrency:
+  group: resiliencia-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Mismas versiones fijas que ci.yml; las actions van por SHA (scripts/ci/check_repo.py lo exige).
+env:
+  SUPABASE_CLI_VERSION: 2.120.0
+  UV_VERSION: 0.13.1
+
+jobs:
+  webhook:
+    name: Webhook a 50 rps (carga, caos de BD y caos de api)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Levantar Postgres de Supabase y aplicar migraciones
+        working-directory: .
+        run: supabase db start
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+          prune-cache: true
+      - name: Instalar dependencias exactas
+        run: uv sync --locked
+
+      # Cada escenario corre aunque el anterior falle, para ver el cuadro completo.
+      - name: Carga · 50 rps durante 3 min (p99 ≤ 250 ms, sin pérdidas)
+        id: load
+        run: uv run python -m loadtest.run load --rate 50 --duration 3m --out ../load-out/load
+
+      - name: Caos · Postgres se reinicia en medio de la carga
+        id: chaos_db
+        if: ${{ !cancelled() }}
+        run: uv run python -m loadtest.run chaos-db --rate 50 --duration 3m --out ../load-out/chaos-db
+
+      - name: Caos · la api muere (SIGKILL) en medio de la carga
+        id: chaos_api
+        if: ${{ !cancelled() }}
+        run: uv run python -m loadtest.run chaos-api --rate 50 --duration 3m --out ../load-out/chaos-api
+
+      - name: Logs de la api y de k6 si algo falló
+        if: failure()
+        working-directory: .
+        run: |
+          for f in load-out/*/api.log load-out/*/k6.log; do
+            echo "::group::$f"; tail -n 80 "$f"; echo "::endgroup::"
+          done
+
+      - name: Detener
+        if: always()
+        working-directory: .
+        run: supabase stop --no-backup

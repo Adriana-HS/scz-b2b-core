@@ -738,8 +738,8 @@ scz-b2b-core/
 | Contrato | Cada adaptador cumple su puerto; *fakes* para Meta, LLM, banco y SIAT. La de IA corre la misma suite contra el fake y el adaptador de Anthropic (`tests/contract/`, `docs/ai-ports.md`) | pytest + fixtures grabadas |
 | Integración | API + worker + Postgres real (Supabase local) | pytest + `supabase start` |
 | Seguridad | Firma HMAC, tamaño y tipo de media, inyección en herramientas, rutas de Storage | pytest `tests/security` |
-| Carga | Webhook a 50 rps sostenidos con p99 ≤ 250 ms | k6 |
-| Caos | Matar el worker a mitad de un trabajo: se reintenta sin duplicar la respuesta | Script de CI nocturno |
+| Carga | Webhook a 50 rps sostenidos con p99 ≤ 250 ms y sin pérdidas (verificado en la BD) | k6 + `backend/loadtest` (workflow *Carga y caos*, `docs/load-testing.md`) |
+| Caos | Matar el worker a mitad de un trabajo: se reintenta sin duplicar la respuesta (cada PR). Reiniciar Postgres y matar la api en medio de la carga: ningún mensaje aceptado se pierde ni se duplica (cada noche) | pytest (`test_worker_db.py`) y `loadtest.run chaos-db` / `chaos-api` |
 | IA | Conversaciones *golden* y OCR | `evals/` |
 
 ### 13.2 CI/CD

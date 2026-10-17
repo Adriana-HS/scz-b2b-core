@@ -18,6 +18,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `alerts` | `promtool check rules` y `promtool test rules` sobre `ops/alerts/` (imagen oficial de Prometheus fijada por digest): sintaxis y disparo de cada alerta con series sintéticas | Sí |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs, nombres de migraciones, puentes de skills y **actions fijadas por SHA** | Sí |
+| **Carga y caos** (`resiliencia.yml`, cada noche y en PRs que tocan el webhook) | `loadtest.run` con k6: 50 rps con p99 ≤ 250 ms; Postgres reiniciado y api muerta a mitad de la carga sin perder ni duplicar mensajes (`docs/load-testing.md`) | Sí, en los PRs donde corre |
 | `secrets` | gitleaks sobre todo el historial (binario verificado por sha256). `.gitleaksignore` guarda solo las huellas de falsos positivos revisados uno por uno (commit:archivo:regla:línea), nunca reglas ni carpetas enteras | Sí |
 
 La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza en un PR propio, para que un cambio de la CLI no se mezcle con un cambio del esquema.
@@ -60,13 +61,13 @@ for f in supabase/tests/database/0*.test.sql; do psql -d scz_test -f "$f"; done
 Desde `backend/` (requiere [uv](https://docs.astral.sh/uv/)):
 
 ```bash
-uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy app tests && uv run lint-imports && uv run pytest
+uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy app tests loadtest && uv run lint-imports && uv run pytest
 ```
 
 | Verificación | Qué asegura | Bloquea el PR |
 | :--- | :--- | :---: |
 | `ruff` | Estilo, errores comunes y reglas de seguridad (bandit) | Sí |
-| `mypy --strict` | Tipos en `app/` y `tests/` | Sí |
+| `mypy --strict` | Tipos en `app/`, `tests/` y `loadtest/` | Sí |
 | `lint-imports` | Regla de dependencias de la arquitectura hexagonal: el dominio no importa otras capas ni SDKs (5 contratos en `pyproject.toml`). También corre como prueba (`tests/architecture`) | Sí |
 | `pytest` | Pruebas unitarias y de integración con cobertura mínima de 85 %, avisos tratados como errores y un máximo de 120 s por prueba (`pytest-timeout`: una prueba colgada falla con su traceback) | Sí |
 | `pip-audit` | Vulnerabilidades conocidas en las dependencias de `uv.lock` | Sí |
@@ -80,7 +81,7 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy ap
 | Un duplicado no crea filas nuevas | `test_inbound_db.py::test_un_reenvio_de_meta_no_crea_filas_nuevas` (BD real) |
 | Atomicidad del lote | `test_inbound_db.py::test_si_falla_un_mensaje_no_queda_nada_del_lote` |
 | Sin PII en logs ni en respuestas de error | `test_webhook_api.py` (`caplog`) |
-| Ack p99 ≤ 250 ms | Pendiente: prueba de carga con k6 (#21) |
+| Ack p99 ≤ 250 ms a 50 rps | `loadtest.run load` en el workflow **Carga y caos** (ver `docs/load-testing.md`) |
 
 Se comprobó con mutaciones temporales que las pruebas de los dos primeros criterios de la BD fallan si el código se rompe a propósito: parsear el JSON antes de verificar la firma, y quitar el `ON CONFLICT DO NOTHING` del evento.
 

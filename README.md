@@ -33,6 +33,7 @@ Monolito modular hexagonal en **Python/FastAPI** (procesos `api` + `worker`) · 
 | [`docs/TESTING.md`](docs/TESTING.md) | Cómo correr las pruebas |
 | [`docs/ai-ports.md`](docs/ai-ports.md) | Puertos de IA, decoradores (reintento, circuit breaker, trazas, costo) y modelo fijado |
 | [`docs/observability.md`](docs/observability.md) · [`docs/runbooks/`](docs/runbooks/) | Logs, trazas, métricas, Sentry, alertas SLO y runbooks |
+| [`docs/load-testing.md`](docs/load-testing.md) | Pruebas de carga (k6) y de caos del webhook |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Fases de implementación y criterios de salida |
 | [`SECURITY.md`](SECURITY.md) | Política de seguridad y reporte de vulnerabilidades |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Flujo de trabajo, convenciones y definición de terminado |

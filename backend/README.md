@@ -23,11 +23,12 @@ Requisitos: [uv](https://docs.astral.sh/uv/). Desde esta carpeta:
 ```bash
 uv sync                                  # entorno con las versiones exactas de uv.lock
 uv run ruff check . && uv run ruff format --check .
-uv run mypy app tests
+uv run mypy app tests loadtest
 uv run lint-imports
 uv run pytest                            # unitarias + integración (requiere `supabase db start`; sin BD se omiten)
 uv run uvicorn app.main:app --reload     # proceso api en http://127.0.0.1:8000/v1/health
 uv run python -m app.worker              # proceso worker
+uv run python -m loadtest.run load       # carga y caos del webhook (requiere Docker; ver docs/load-testing.md)
 ```
 
 ## Acceso a datos (ADR-0011)
