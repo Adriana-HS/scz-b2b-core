@@ -14,6 +14,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (backend)
+- **Observabilidad (#19, §10.2):** detalle en `docs/observability.md`.
+  - **Logs JSON** por stdout con `trace_id`, `span_id` y el contexto del trabajo (`job_id`, `job_kind`, `organization_id`). El mensaje, el traceback y el contexto pasan por `redact`: teléfonos, correos, `Bearer`, tokens de Meta y parámetros `*token`/`*key`/`*secret` (incluido `hub.verify_token`).
+  - **Trazas de punta a punta:** span de servidor nativo de FastAPI → la UnitOfWork fija `app.traceparent` → **migración 18:** `jobs.trace_context` lo toma por defecto (uno mal formado se descarta) → el worker continúa la traza. `RedactingSpanProcessor` deja `url.query` sin valores y redacta `url.path` antes de exportar.
+  - **Métricas OTLP** de los SLO: ack del webhook, latencia de respuesta, firmas inválidas, mensajes cobrables por categoría, envíos inciertos, resultado y duración de cada trabajo, DEAD, y gauges de la cola por tipo y de TC vencido. **Migración 18:** `private.queue_stats(kinds)` (por tipo, solo los que tienen handler, espera desde `run_after`) y `private.fx_stale_tenants()`, solo para `app_backend`. Atributos de conjuntos cerrados; histogramas con límites en los umbrales de los SLO.
+  - **Sentry** solo con `SENTRY_DSN`: `data_collection` cerrado y `scrub_event` en `before_send`. Los logs `ALERTA …` llegan como eventos.
+  - **Alertas como código** (`ops/alerts/slo-rules.yaml`, 9 reglas) con pruebas de `promtool` (dispara y no dispara) en el job de CI `alerts`; **6 runbooks** en `docs/runbooks/`.
+  - `OTEL_EXPORTER_OTLP_ENDPOINT` debe ser https en staging y producción.
+  - Pruebas: 259 pgTAP y 268 de backend; 9 mutaciones comprobadas.
 - **Consentimiento con evidencia (#13, RF-08, EXT-16):**
   - **Migración 17:** tabla `consent_events` (append-only, con RLS y FK compuesta); `private.record_consent` actualiza el estado y la evidencia en una transacción; `private.template_consent_ok` es la única regla de plantillas por categoría (UTILITY y MARKETING; la baja prevalece; sin categoría no sale), y la usan el trigger y el worker.
   - BAJA, STOP y NO MÁS (y ALTA o START) por WhatsApp se reconocen solo si son el mensaje completo; se confirman al cliente y no despiertan al agente.

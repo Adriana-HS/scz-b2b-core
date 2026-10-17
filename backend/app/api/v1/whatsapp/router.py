@@ -23,6 +23,7 @@ from app.api.v1.whatsapp.payload import parse_webhook
 from app.api.v1.whatsapp.signature import is_valid_signature
 from app.application.inbound import InboundHandler
 from app.application.outbound import StatusHandler
+from app.core import telemetry
 from app.core.config import Settings
 
 MAX_BODY_BYTES = 1024 * 1024
@@ -71,11 +72,13 @@ async def _read_body(request: Request) -> bytes:
 
 @router.post("")
 async def receive_events(request: Request) -> JSONResponse:
+    telemetry.webhook_requests.add(1)
     body = await _read_body(request)
 
     secret = _settings(request).meta_app_secret
     app_secret = secret.get_secret_value().encode() if secret is not None else b""
     if not is_valid_signature(body, request.headers.get("x-hub-signature-256"), app_secret):
+        telemetry.webhook_signature_failures.add(1)
         logger.warning("webhook: firma inválida o ausente (%d bytes)", len(body))
         raise HTTPException(status_code=401, detail="firma inválida")
 

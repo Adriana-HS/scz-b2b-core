@@ -12,11 +12,11 @@ from typing import Any
 
 import asyncpg
 
-from app.domain.jobs import Job
+from app.domain.jobs import Job, QueueStats
 from app.infrastructure.postgres.errors import translate_errors
 
 _CLAIM = """
-    SELECT id, kind, organization_id, conversation_key, payload, attempts, max_attempts
+    SELECT id, kind, organization_id, conversation_key, payload, attempts, max_attempts, trace_context
     FROM private.claim_jobs($1, $2, $3::text[])
 """
 _FINISH = "SELECT private.finish_job($1, $2, $3, $4, $5)"
@@ -43,6 +43,7 @@ class PostgresJobQueue:
                 payload=_payload(row["payload"]),
                 attempts=row["attempts"],
                 max_attempts=row["max_attempts"],
+                trace_context=row["trace_context"],
             )
             for row in rows
         ]
@@ -73,6 +74,21 @@ class PostgresMaintenance:
         with translate_errors():
             expired: int = await self._pool.fetchval("SELECT private.expire_stale_orders()")
         return expired
+
+    async def queue_stats(self, kinds: Sequence[str]) -> list[QueueStats]:
+        with translate_errors():
+            rows = await self._pool.fetch(
+                "SELECT kind, queued, running, dead, oldest_ready_s FROM private.queue_stats($1)", list(kinds)
+            )
+        return [
+            QueueStats(r["kind"], r["queued"], r["running"], r["dead"], float(r["oldest_ready_s"]))
+            for r in rows
+        ]
+
+    async def fx_stale_tenants(self) -> int:
+        with translate_errors():
+            stale: int = await self._pool.fetchval("SELECT private.fx_stale_tenants()")
+        return stale
 
     async def purge_retention(self) -> None:
         with translate_errors():

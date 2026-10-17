@@ -123,6 +123,7 @@ class PendingSend:
     access_token_ref: str | None
     window_open: bool
     consent_ok: bool
+    last_inbound_at: datetime | None = None  # para reply_latency_ms
 
 
 class DeliveryStatus(StrEnum):

@@ -23,6 +23,7 @@ import httpx
 from app.application.outbound import SEND_OUTBOUND, SendOutbound
 from app.application.worker import JobHandler, JobRunner, default_maintenance
 from app.core.config import Settings, get_settings
+from app.core.observability import setup_observability
 from app.infrastructure.postgres.jobs import PostgresJobQueue, PostgresMaintenance
 from app.infrastructure.postgres.pool import create_pool
 from app.infrastructure.postgres.unit_of_work import unit_of_work_factory
@@ -70,15 +71,16 @@ async def run_worker(settings: Settings, stop: asyncio.Event | None = None) -> N
     )
     http = httpx.AsyncClient(limits=httpx.Limits(max_connections=settings.worker_concurrency))
     try:
+        handlers = build_handlers(settings, pool, http)
         runner = JobRunner(
             PostgresJobQueue(pool),
-            build_handlers(settings, pool, http),
+            handlers,
             worker_id=worker_id,
             concurrency=settings.worker_concurrency,
             job_timeout_s=settings.job_timeout_s,
             poll_interval_s=settings.worker_poll_interval_s,
             maintenance=default_maintenance(
-                PostgresMaintenance(pool), lease=timedelta(seconds=settings.job_lease_s)
+                PostgresMaintenance(pool), lease=timedelta(seconds=settings.job_lease_s), kinds=list(handlers)
             ),
         )
         if stop is None:
@@ -93,7 +95,7 @@ async def run_worker(settings: Settings, stop: asyncio.Event | None = None) -> N
 def main(settings: Settings | None = None) -> int:
     """Arranca el worker y devuelve el código de salida del proceso."""
     settings = settings or get_settings()
-    logging.basicConfig(level=settings.log_level)
+    setup_observability(settings, service_name="scz-b2b-core-worker")
     if settings.database_url is None:
         logger.error("worker: falta DATABASE_URL; no hay cola que procesar")
         return 2

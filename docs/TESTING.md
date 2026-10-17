@@ -13,11 +13,12 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones sobre la imagen oficial de Supabase y las 247 pruebas pgTAP | Sí |
+| `database` | Migraciones sobre la imagen oficial de Supabase y las 259 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
+| `alerts` | `promtool check rules` y `promtool test rules` sobre `ops/alerts/` (imagen oficial de Prometheus fijada por digest): sintaxis y disparo de cada alerta con series sintéticas | Sí |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs, nombres de migraciones, puentes de skills y **actions fijadas por SHA** | Sí |
-| `secrets` | gitleaks sobre todo el historial (binario verificado por sha256) | Sí |
+| `secrets` | gitleaks sobre todo el historial (binario verificado por sha256). `.gitleaksignore` guarda solo las huellas de falsos positivos revisados uno por uno (commit:archivo:regla:línea), nunca reglas ni carpetas enteras | Sí |
 
 La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza en un PR propio, para que un cambio de la CLI no se mezcle con un cambio del esquema.
 
@@ -37,7 +38,8 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `12_worker_queue.test.sql` | #17: reclamo solo de los tipos pedidos y uno por conversación; *fencing* en `finish_job` (otro worker no cierra el trabajo; el cierre tardío del que perdió el *lease* se ignora); backoff, error truncado y DEAD informado; *reaper* con conteos; firmas viejas eliminadas; privilegios | 20 |
 | `13_outbox.test.sql` | #18: `idempotency_key` única; fuera de la ventana de 24 h solo plantillas, y estas con opt-in y sin baja; estado `SENDING`; FK compuesta del número de la conversación; aislamiento | 14 |
 | `14_consent.test.sql` | #13: `record_consent` deja estado y evidencia; las plantillas por categoría (el opt-in de utilidad no habilita marketing; sin categoría no sale); la baja prevalece y un opt-in explícito la levanta; evidencia append-only y aislada | 17 |
-| **Total** | | **247** |
+| `15_observability.test.sql` | #19: `jobs.trace_context` hereda el traceparent de la transacción (uno mal formado se descarta sin romper el INSERT); `queue_stats` por tipo, solo de los tipos pedidos y sin contar el backoff; `fx_stale_tenants`; solo `app_backend` | 12 |
+| **Total** | | **259** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 
@@ -114,6 +116,19 @@ Mutaciones comprobadas:
   * baja por subcadena → fallan 3 pruebas;
   * la BAJA despierta al agente → falla 1;
   * consentimiento sin categoría → fallan 2 pgTAP.
+
+### Observabilidad (#19)
+
+* **Telemetría en memoria:** `tests/conftest.py` configura OpenTelemetry una vez con `InMemorySpanExporter` e `InMemoryMetricReader`; los fixtures `spans` y `metric` leen lo emitido. Cada prueba compara el valor de una métrica antes y después.
+* **Logs** (`test_observability.py`): JSON de una línea, redacción del mensaje, traceback y contexto, `trace_id` del span activo, `job_id` del worker.
+* **Trazas:** el traceparent viaja webhook → UoW (`test_unit_of_work.py`) → `jobs.trace_context` (`test_observability_db.py`, BD real) → span del worker con el mismo `trace_id`; el `verify_token` de la query no llega al span.
+* **Métricas:** resultado de cada trabajo, DEAD, gauges de la cola por tipo, mensajes cobrables por categoría (conjunto cerrado), latencia de respuesta solo para mensajes libres, límites de los histogramas en los umbrales de los SLO.
+* **Sentry:** `scrub_event` y un envío real con un transporte de prueba: el evento no lleva el teléfono.
+* **Alertas:** `test_alert_rules.py` verifica que cada alerta use métricas del catálogo (`METRIC_NAMES`), tenga severidad, SLO y runbook existente, y tenga un caso que dispara y otro que no en `slo-rules.test.yaml` (que corre `promtool`).
+* **Mutaciones comprobadas** (9 de 9 detectadas):
+  * log sin redactar, worker que ignora `trace_context`, cola que no lo lee, UoW sin `app.traceparent`, sin el procesador que redacta la URL, Sentry con encabezados, categoría sin conjunto cerrado → fallan pruebas de backend;
+  * `queue_stats` contando el backoff → falla pgTAP;
+  * umbral de latencia a 80 s → falla `promtool test rules`.
 
 ### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
 

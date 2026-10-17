@@ -25,6 +25,8 @@ env:
   # sha256 de gitleaks_<versión>_linux_x64.tar.gz según el checksums.txt de la release oficial
   GITLEAKS_SHA256: 5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba
   UV_VERSION: 0.13.1
+  # prom/prometheus:v3.5.0 (LTS), por digest: promtool valida y prueba ops/alerts/
+  PROMETHEUS_IMAGE_DIGEST: sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996
 
 jobs:
   database:
@@ -113,6 +115,23 @@ jobs:
         if: always()
         working-directory: .
         run: supabase stop --no-backup
+
+  alerts:
+    name: Alertas SLO (promtool check + test rules)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false   # la CI nunca hace push: el token no queda en disco
+      # Imagen oficial de Prometheus fijada por digest (no por etiqueta), igual que las actions.
+      # Sintaxis PromQL y prueba de disparo de cada alerta con series sintéticas.
+      - name: Validar y probar las reglas
+        run: |
+          docker run --rm -v "$PWD/ops/alerts:/rules:ro" -w /rules --entrypoint promtool \
+            "prom/prometheus@${PROMETHEUS_IMAGE_DIGEST}" check rules slo-rules.yaml
+          docker run --rm -v "$PWD/ops/alerts:/rules:ro" -w /rules --entrypoint promtool \
+            "prom/prometheus@${PROMETHEUS_IMAGE_DIGEST}" test rules slo-rules.test.yaml
 
   repo:
     name: Consistencia del repo (backlog, enlaces, ADRs, migraciones)

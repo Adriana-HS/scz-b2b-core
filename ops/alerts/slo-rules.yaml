@@ -1,0 +1,106 @@
+# Alertas de los SLO como código (SYSTEM_DESIGN.md §2 y §10.2, #19).
+#
+# Formato: reglas de Prometheus (las cargan Prometheus, Grafana Cloud o Mimir). Las métricas
+# llegan por OTLP: los contadores se exportan con el sufijo _total y los histogramas con
+# _bucket/_sum/_count. Cada nombre debe estar en app/core/telemetry.py:METRIC_NAMES y cada
+# regla debe enlazar un runbook existente: lo verifica backend/tests/unit/test_alert_rules.py.
+#
+# severity: page = atender ya (afecta a clientes finales o pierde mensajes);
+#           ticket = atender en horario hábil (degradación o riesgo).
+# La alerta de costo de IA por tenant (> 80 % del tope, Q-COST-1) llega con el agente (#26):
+# necesita el tope por plan como métrica, que todavía no existe.
+groups:
+  - name: scz-b2b-core-slo
+    rules:
+      - alert: ReplyLatencyP95High
+        expr: >
+          histogram_quantile(0.95, sum by (le) (rate(reply_latency_ms_bucket[15m]))) > 8000
+        for: 15m
+        labels:
+          severity: page
+          slo: Q-PERF-2
+        annotations:
+          summary: "p95 de la respuesta al cliente > 8 s durante 15 min"
+          runbook: docs/runbooks/latencia.md
+
+      - alert: WebhookAckP99High
+        expr: >
+          histogram_quantile(0.99, sum by (le) (rate(webhook_ack_ms_bucket{status="200"}[10m]))) > 250
+        for: 10m
+        labels:
+          severity: ticket
+          slo: Q-PERF-1
+        annotations:
+          summary: "p99 del ack del webhook > 250 ms: Meta reintenta y duplica carga"
+          runbook: docs/runbooks/latencia.md
+
+      - alert: JobDead
+        expr: sum by (kind) (increase(jobs_dead_total[5m])) > 0
+        labels:
+          severity: page
+          slo: Q-REL-1
+        annotations:
+          summary: "Un trabajo pasó a DEAD (DLQ): {{ $labels.kind }}"
+          runbook: docs/runbooks/trabajos-dead.md
+
+      - alert: JobsDeadPending
+        expr: sum(jobs_dead_pending) > 0
+        for: 24h
+        labels:
+          severity: ticket
+          slo: Q-REL-1
+        annotations:
+          summary: "Hay trabajos DEAD sin resolver desde hace más de un día"
+          runbook: docs/runbooks/trabajos-dead.md
+
+      - alert: QueueBacklog
+        expr: sum(jobs_queued) > 50
+        for: 5m
+        labels:
+          severity: page
+          slo: Q-PERF-2
+        annotations:
+          summary: "Más de 50 trabajos en cola durante 5 min"
+          runbook: docs/runbooks/cola-atrasada.md
+
+      - alert: QueueWaitHigh
+        expr: max by (kind) (jobs_oldest_ready_s) > 120
+        for: 5m
+        labels:
+          severity: ticket
+          slo: Q-PERF-2
+        annotations:
+          summary: "Un trabajo listo de {{ $labels.kind }} espera más de 2 min"
+          runbook: docs/runbooks/cola-atrasada.md
+
+      - alert: FxRateStale
+        expr: max(fx_stale_tenants) > 0
+        for: 10m
+        labels:
+          severity: ticket
+          slo: Q-ACC
+        annotations:
+          summary: "Hay negocios con ítems en USD y el tipo de cambio vencido: no pueden cotizar"
+          runbook: docs/runbooks/tc-vencido.md
+
+      - alert: WebhookSignatureFailuresHigh
+        expr: >
+          sum(rate(webhook_signature_failures_total[15m]))
+            / clamp_min(sum(rate(webhook_requests_total[15m])), 1e-9) > 0.01
+          and sum(increase(webhook_requests_total[15m])) >= 20
+        for: 15m
+        labels:
+          severity: ticket
+          slo: Q-SEC
+        annotations:
+          summary: "Más del 1 % de los POST del webhook con firma inválida"
+          runbook: docs/runbooks/firma-webhook.md
+
+      - alert: OutboundOutcomeUnknown
+        expr: sum(increase(outbound_outcome_unknown_total[15m])) > 0
+        labels:
+          severity: ticket
+          slo: Q-REL-1
+        annotations:
+          summary: "Envíos con resultado incierto (ADR-0017): revisar si el cliente recibió el mensaje"
+          runbook: docs/runbooks/envio-incierto.md

@@ -12,7 +12,7 @@ from uuid import UUID
 
 from app.domain.catalog import CatalogMatch, CatalogSearch
 from app.domain.consent import ConsentKind, ConsentSource
-from app.domain.jobs import Job
+from app.domain.jobs import Job, QueueStats
 from app.domain.messaging import InboundMessage, WhatsAppChannel
 from app.domain.orders import Quote, QuoteRequest
 from app.domain.outbound import OutboundKind, OutboundRequest, PendingSend, StatusUpdate
@@ -122,6 +122,12 @@ class QueueMaintenance(Protocol):
     async def expire_stale_orders(self) -> int: ...
 
     async def purge_retention(self) -> None: ...
+
+    async def queue_stats(self, kinds: Sequence[str]) -> list[QueueStats]:
+        """Estado de la cola por tipo, solo de los tipos pedidos (los que el worker procesa)."""
+        ...
+
+    async def fx_stale_tenants(self) -> int: ...
 
 
 class UnitOfWork(Protocol):

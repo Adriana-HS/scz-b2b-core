@@ -1,0 +1,224 @@
+# Pruebas unitarias de las alertas con series sintéticas (promtool test rules).
+# Correr: ver docs/observability.md («Probar las alertas»). La CI las corre en el job `alerts`.
+# Cada alerta tiene al menos un caso que dispara y uno que no (lo verifica test_alert_rules.py).
+rule_files:
+  - slo-rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- Latencia de respuesta (Q-PERF-2) -------------------------------------------------
+  - interval: 1m
+    input_series:
+      # Todas las respuestas tardan entre 8 y 10 s
+      - series: 'reply_latency_ms_bucket{le="3000"}'
+        values: '0+0x40'
+      - series: 'reply_latency_ms_bucket{le="8000"}'
+        values: '0+0x40'
+      - series: 'reply_latency_ms_bucket{le="10000"}'
+        values: '0+10x40'
+      - series: 'reply_latency_ms_bucket{le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ReplyLatencyP95High
+        exp_alerts: []  # todavía en pending: exige 15 min sostenidos
+      - eval_time: 35m
+        alertname: ReplyLatencyP95High
+        exp_alerts:
+          - exp_labels: {severity: page, slo: Q-PERF-2}
+            exp_annotations:
+              summary: "p95 de la respuesta al cliente > 8 s durante 15 min"
+              runbook: docs/runbooks/latencia.md
+
+  - interval: 1m
+    input_series:
+      # Respuestas sanas: todas por debajo de 3 s
+      - series: 'reply_latency_ms_bucket{le="3000"}'
+        values: '0+10x40'
+      - series: 'reply_latency_ms_bucket{le="8000"}'
+        values: '0+10x40'
+      - series: 'reply_latency_ms_bucket{le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: ReplyLatencyP95High
+        exp_alerts: []
+
+  # --- Ack del webhook (Q-PERF-1) ---------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'webhook_ack_ms_bucket{status="200", le="250"}'
+        values: '0+0x30'
+      - series: 'webhook_ack_ms_bucket{status="200", le="500"}'
+        values: '0+20x30'
+      - series: 'webhook_ack_ms_bucket{status="200", le="+Inf"}'
+        values: '0+20x30'
+      # Las respuestas 401 lentas no cuentan: son de quien no firma
+      - series: 'webhook_ack_ms_bucket{status="401", le="250"}'
+        values: '0+0x30'
+      - series: 'webhook_ack_ms_bucket{status="401", le="+Inf"}'
+        values: '0+50x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: WebhookAckP99High
+        exp_alerts:
+          - exp_labels: {severity: ticket, slo: Q-PERF-1}
+            exp_annotations:
+              summary: "p99 del ack del webhook > 250 ms: Meta reintenta y duplica carga"
+              runbook: docs/runbooks/latencia.md
+
+  - interval: 1m
+    input_series:
+      - series: 'webhook_ack_ms_bucket{status="200", le="250"}'
+        values: '0+20x30'
+      - series: 'webhook_ack_ms_bucket{status="200", le="+Inf"}'
+        values: '0+20x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: WebhookAckP99High
+        exp_alerts: []
+
+  # --- Trabajos DEAD (Q-REL-1) -------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'jobs_dead_total{kind="SEND_OUTBOUND"}'
+        values: '0 0 0 1 1 1 1 1 1 1 1 1 1 1 1'
+      - series: 'jobs_dead_total{kind="EMBED_ITEM"}'
+        values: '0+0x15'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: JobDead
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: JobDead
+        exp_alerts:
+          - exp_labels: {severity: page, slo: Q-REL-1, kind: SEND_OUTBOUND}
+            exp_annotations:
+              summary: "Un trabajo pasó a DEAD (DLQ): SEND_OUTBOUND"
+              runbook: docs/runbooks/trabajos-dead.md
+      - eval_time: 14m
+        alertname: JobDead
+        exp_alerts: []  # se apaga sola; JobsDeadPending recuerda los no resueltos
+
+  - interval: 1m  # el worker lo publica cada minuto: con muestras más espaciadas la serie queda vieja
+    input_series:
+      - series: 'jobs_dead_pending{kind="SEND_OUTBOUND"}'
+        values: '1x1600'
+      - series: 'jobs_dead_pending{kind="EMBED_ITEM"}'
+        values: '0x1600'
+    alert_rule_test:
+      - eval_time: 12h
+        alertname: JobsDeadPending
+        exp_alerts: []
+      - eval_time: 26h
+        alertname: JobsDeadPending
+        exp_alerts:
+          - exp_labels: {severity: ticket, slo: Q-REL-1}
+            exp_annotations:
+              summary: "Hay trabajos DEAD sin resolver desde hace más de un día"
+              runbook: docs/runbooks/trabajos-dead.md
+
+  # --- Cola (Q-PERF-2) -----------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'jobs_queued{kind="SEND_OUTBOUND"}'
+        values: '30x15'
+      - series: 'jobs_queued{kind="PROCESS_CONVERSATION"}'
+        values: '30x15'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: QueueBacklog
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: QueueBacklog
+        exp_alerts:
+          - exp_labels: {severity: page, slo: Q-PERF-2}
+            exp_annotations:
+              summary: "Más de 50 trabajos en cola durante 5 min"
+              runbook: docs/runbooks/cola-atrasada.md
+
+  - interval: 1m
+    input_series:
+      - series: 'jobs_queued{kind="SEND_OUTBOUND"}'
+        values: '50x15'
+      - series: 'jobs_oldest_ready_s{kind="SEND_OUTBOUND"}'
+        values: '300x15'
+      - series: 'jobs_oldest_ready_s{kind="EMBED_ITEM"}'
+        values: '10x15'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: QueueBacklog
+        exp_alerts: []  # 50 no es "más de 50"
+      - eval_time: 3m
+        alertname: QueueWaitHigh
+        exp_alerts: []  # todavía en pending: exige 5 min sostenidos
+      - eval_time: 10m
+        alertname: QueueWaitHigh
+        exp_alerts:
+          - exp_labels: {severity: ticket, slo: Q-PERF-2, kind: SEND_OUTBOUND}
+            exp_annotations:
+              summary: "Un trabajo listo de SEND_OUTBOUND espera más de 2 min"
+              runbook: docs/runbooks/cola-atrasada.md
+
+  # --- Tipo de cambio (Q-ACC) -----------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'fx_stale_tenants'
+        values: '0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: FxRateStale
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: FxRateStale
+        exp_alerts:
+          - exp_labels: {severity: ticket, slo: Q-ACC}
+            exp_annotations:
+              summary: "Hay negocios con ítems en USD y el tipo de cambio vencido: no pueden cotizar"
+              runbook: docs/runbooks/tc-vencido.md
+
+  # --- Firma del webhook (Q-SEC) -----------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'webhook_requests_total'
+        values: '0+10x40'
+      - series: 'webhook_signature_failures_total'
+        values: '0+1x40'  # 10 %
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WebhookSignatureFailuresHigh
+        exp_alerts:
+          - exp_labels: {severity: ticket, slo: Q-SEC}
+            exp_annotations:
+              summary: "Más del 1 % de los POST del webhook con firma inválida"
+              runbook: docs/runbooks/firma-webhook.md
+
+  - interval: 1m
+    input_series:
+      # Poco tráfico (15 POST en 15 min): una sola falla no es tendencia
+      - series: 'webhook_requests_total'
+        values: '0+1x40'
+      - series: 'webhook_signature_failures_total'
+        values: '0+0.1x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WebhookSignatureFailuresHigh
+        exp_alerts: []
+
+  # --- Envío incierto (ADR-0017) --------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'outbound_outcome_unknown_total'
+        values: '0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: OutboundOutcomeUnknown
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: OutboundOutcomeUnknown
+        exp_alerts:
+          - exp_labels: {severity: ticket, slo: Q-REL-1}
+            exp_annotations:
+              summary: "Envíos con resultado incierto (ADR-0017): revisar si el cliente recibió el mensaje"
+              runbook: docs/runbooks/envio-incierto.md

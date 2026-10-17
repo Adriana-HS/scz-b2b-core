@@ -3,17 +3,20 @@
 Ejecutar en local:  uv run uvicorn app.main:app --reload
 """
 
-from collections.abc import AsyncIterator
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 
 from app import __version__
 from app.api.v1 import health
 from app.api.v1.whatsapp import router as whatsapp
 from app.application.inbound import InboundHandler, RecordInboundMessages
 from app.application.outbound import RecordDeliveryStatuses, StatusHandler
+from app.core import telemetry
 from app.core.config import Settings, get_settings
+from app.core.observability import setup_observability
 from app.infrastructure.postgres.channels import PostgresChannelResolver
 from app.infrastructure.postgres.pool import create_pool
 from app.infrastructure.postgres.unit_of_work import unit_of_work_factory
@@ -34,6 +37,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        setup_observability(settings, service_name="scz-b2b-core-api")
         if app.state.inbound_handler is not None or settings.database_url is None:
             yield
             return
@@ -54,13 +58,31 @@ def create_app(
         redoc_url=None,
         openapi_url="/openapi.json" if docs_enabled else None,
         lifespan=lifespan,
+        # Span de servidor nativo de FastAPI (raíz de la traza, nombre por ruta: baja cardinalidad).
+        # Sin logs OTel (llevarían mensajes de excepción) ni spans internos; sin exportadores propios:
+        # usa los de configure_telemetry, que redacta url.query y url.path antes de exportar.
+        telemetry={"logs": False, "operation_spans": False, "auto_configure": False},
     )
     app.state.settings = settings
     app.state.inbound_handler = inbound_handler
     app.state.status_handler = status_handler
     app.include_router(health.router, prefix="/v1")
     app.include_router(whatsapp.router, prefix="/v1")
+
+    @app.middleware("http")
+    async def observe(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        """webhook_ack_ms del webhook de Meta (Q-PERF-1). El span del request lo crea FastAPI."""
+        started = time.monotonic()
+        response = await call_next(request)
+        if request.url.path == WEBHOOK_PATH and request.method == "POST":
+            elapsed_ms = (time.monotonic() - started) * 1000
+            telemetry.webhook_ack_ms.record(elapsed_ms, telemetry.attributes(status=response.status_code))
+        return response
+
     return app
+
+
+WEBHOOK_PATH = "/v1/webhooks/whatsapp"
 
 
 app = create_app()
