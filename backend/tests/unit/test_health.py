@@ -25,6 +25,7 @@ def test_en_produccion_no_se_publica_la_documentacion_de_la_api() -> None:
                 database_url="postgresql://app_backend@localhost/postgres",
                 meta_app_secret="secreto-de-prueba",
                 meta_webhook_verify_token="token-de-prueba",
+                meta_graph_api_version="v23.0",
             )
         )
     )

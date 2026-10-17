@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.domain.messaging import InboundBatch, InboundResult
+from app.domain.outbound import StatusBatch, StatusResult
 from app.main import create_app
 
 SECRET = "secreto-de-prueba"
@@ -31,11 +32,29 @@ class RecordingHandler:
         return self.result
 
 
-def _client(handler: RecordingHandler | None = None, *, secret: str | None = SECRET) -> TestClient:
+class RecordingStatusHandler:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.batches: list[StatusBatch] = []
+        self.error = error
+
+    async def __call__(self, batch: StatusBatch) -> StatusResult:
+        self.batches.append(batch)
+        if self.error:
+            raise self.error
+        return StatusResult(applied=len(batch.updates))
+
+
+def _client(
+    handler: RecordingHandler | None = None,
+    *,
+    secret: str | None = SECRET,
+    status_handler: RecordingStatusHandler | None = None,
+) -> TestClient:
     settings = Settings(
         _env_file=None, environment="test", meta_app_secret=secret, meta_webhook_verify_token=VERIFY_TOKEN
     )
-    return TestClient(create_app(settings, inbound_handler=handler), raise_server_exceptions=False)
+    app = create_app(settings, inbound_handler=handler, status_handler=status_handler)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 def _body(text: str = "pastilla freno hilux", wamid: str = "wamid.1") -> bytes:
@@ -158,8 +177,9 @@ def test_numero_desconocido_responde_200_para_que_meta_no_reintente() -> None:
     assert _client(handler).post(URL, content=body, headers=_sig(body)).status_code == 200
 
 
-def test_solo_estados_no_llama_al_caso_de_uso() -> None:
+def test_solo_estados_va_al_caso_de_uso_de_estados() -> None:
     handler = RecordingHandler()
+    statuses = RecordingStatusHandler()
     body = json.dumps(
         {
             "object": "whatsapp_business_account",
@@ -170,7 +190,7 @@ def test_solo_estados_no_llama_al_caso_de_uso() -> None:
                             "field": "messages",
                             "value": {
                                 "metadata": {"phone_number_id": "PNID-1"},
-                                "statuses": [{"id": "wamid.o"}],
+                                "statuses": [{"id": "wamid.o", "status": "read", "timestamp": "1792000000"}],
                             },
                         }
                     ]
@@ -179,8 +199,41 @@ def test_solo_estados_no_llama_al_caso_de_uso() -> None:
         }
     ).encode()
 
-    assert _client(handler).post(URL, content=body, headers=_sig(body)).status_code == 200
+    assert (
+        _client(handler, status_handler=statuses).post(URL, content=body, headers=_sig(body)).status_code
+        == 200
+    )
     assert handler.batches == []
+    assert [u.wa_message_id for b in statuses.batches for u in b.updates] == ["wamid.o"]
+
+
+def test_si_falla_registrar_un_estado_es_500_para_que_meta_reintente() -> None:
+    body = json.dumps(
+        {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "field": "messages",
+                            "value": {
+                                "metadata": {"phone_number_id": "PNID-1"},
+                                "statuses": [{"id": "wamid.o", "status": "read", "timestamp": "1792000000"}],
+                            },
+                        }
+                    ]
+                }
+            ],
+        }
+    ).encode()
+    statuses = RecordingStatusHandler(error=RuntimeError("bd caída"))
+
+    assert (
+        _client(RecordingHandler(), status_handler=statuses)
+        .post(URL, content=body, headers=_sig(body))
+        .status_code
+        == 500
+    )
 
 
 def test_si_falla_la_persistencia_es_500_para_que_meta_reintente_y_no_se_loguea_pii(

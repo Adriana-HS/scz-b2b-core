@@ -34,7 +34,7 @@ class FakeInbound:
         self.calls.append(("customer", wa_id))
         return self.customers.setdefault(wa_id, uuid4())
 
-    async def open_conversation(self, customer_id: UUID, seen_at: datetime) -> UUID:
+    async def open_conversation(self, customer_id: UUID, seen_at: datetime, channel_id: UUID) -> UUID:
         self.calls.append(("conversation", customer_id))
         return customer_id  # una conversación por cliente
 
