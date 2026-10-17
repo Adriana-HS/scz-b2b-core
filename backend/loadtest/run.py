@@ -278,6 +278,10 @@ def _k6_command(run: Run) -> tuple[list[str], dict[str, str]]:
     command = ["docker", "run", "--rm", "-v", f"{run.out_dir}:/out", "-v", f"{K6_SCRIPT_DIR}:/scripts:ro"]
     if not _docker_needs_host_gateway():
         command += ["--network", "host"]
+    if sys.platform != "win32":
+        # La imagen de k6 corre con su propio usuario: sin esto no puede escribir el resumen en
+        # la carpeta montada (en Linux los permisos se respetan; Docker Desktop los ignora)
+        command += ["--user", f"{os.getuid()}:{os.getgid()}"]
     for name in env:
         command += ["-e", name]  # solo el nombre: el valor sale del entorno, no de la línea de comandos
     command += [K6_IMAGE, "run", "--quiet", "/scripts/webhook.js"]
@@ -376,7 +380,11 @@ async def main_async(args: argparse.Namespace, out_dir: Path) -> int:
 
     summary_path = out_dir / "summary.json"
     if not summary_path.exists():
-        raise SystemExit(f"k6 no dejó el resumen (ver {out_dir / 'k6.log'})")
+        k6_log = out_dir / "k6.log"
+        tail = (
+            k6_log.read_text(encoding="utf-8", errors="replace").splitlines()[-20:] if k6_log.exists() else []
+        )
+        raise SystemExit("k6 no dejó el resumen. Últimas líneas de k6.log:\n" + "\n".join(tail))
     result = K6Result.from_summary(json.loads(summary_path.read_text(encoding="utf-8")))
     counts = await _count(run)
     verdict = evaluate(run.mode, result, counts)
