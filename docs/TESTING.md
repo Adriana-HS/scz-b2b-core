@@ -18,7 +18,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `alerts` | `promtool check rules` y `promtool test rules` sobre `ops/alerts/` (imagen oficial de Prometheus fijada por digest): sintaxis y disparo de cada alerta con series sintéticas | Sí |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs, nombres de migraciones, puentes de skills y **actions fijadas por SHA** | Sí |
-| `secrets` | gitleaks sobre todo el historial (binario verificado por sha256) | Sí |
+| `secrets` | gitleaks sobre todo el historial (binario verificado por sha256). `.gitleaksignore` guarda solo las huellas de falsos positivos revisados uno por uno (commit:archivo:regla:línea), nunca reglas ni carpetas enteras | Sí |
 
 La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza en un PR propio, para que un cambio de la CLI no se mezcle con un cambio del esquema.
 
