@@ -11,6 +11,7 @@ from typing import Any, Protocol, Self
 from uuid import UUID
 
 from app.domain.catalog import CatalogMatch, CatalogSearch
+from app.domain.consent import ConsentKind, ConsentSource
 from app.domain.jobs import Job
 from app.domain.messaging import InboundMessage, WhatsAppChannel
 from app.domain.orders import Quote, QuoteRequest
@@ -70,6 +71,14 @@ class OutboundRepository(Protocol):
     async def apply_status(self, update: StatusUpdate) -> bool:
         """Avanza el estado si corresponde (sent < delivered < read). False si no cambió nada."""
         ...
+
+
+class ConsentRepository(Protocol):
+    """Estado actual + evidencia append-only, en la misma transacción (migración 17)."""
+
+    async def record(
+        self, customer_id: UUID, kind: ConsentKind, source: ConsentSource, evidence: str | None
+    ) -> None: ...
 
 
 class MessageSender(Protocol):
@@ -132,6 +141,9 @@ class UnitOfWork(Protocol):
 
     @property
     def outbound(self) -> OutboundRepository: ...
+
+    @property
+    def consent(self) -> ConsentRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

@@ -13,7 +13,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones sobre la imagen oficial de Supabase y las 230 pruebas pgTAP | Sí |
+| `database` | Migraciones sobre la imagen oficial de Supabase y las 247 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `repo` | `scripts/ci/check_repo.py`: backlog coherente, enlaces de Markdown, numeración de ADRs, nombres de migraciones, puentes de skills y **actions fijadas por SHA** | Sí |
@@ -36,7 +36,8 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `11_catalog_price_mfa.test.sql` | #50 (ADR-0016): STAFF cambia precios dentro del umbral sin MFA; precio 0, cambio de moneda o variación mayor al umbral exigen OWNER/ADMIN con aal2; umbral por negocio; el backend no cambia precios; aviso al dueño y bitácora | 20 |
 | `12_worker_queue.test.sql` | #17: reclamo solo de los tipos pedidos y uno por conversación; *fencing* en `finish_job` (otro worker no cierra el trabajo; el cierre tardío del que perdió el *lease* se ignora); backoff, error truncado y DEAD informado; *reaper* con conteos; firmas viejas eliminadas; privilegios | 20 |
 | `13_outbox.test.sql` | #18: `idempotency_key` única; fuera de la ventana de 24 h solo plantillas, y estas con opt-in y sin baja; estado `SENDING`; FK compuesta del número de la conversación; aislamiento | 14 |
-| **Total** | | **230** |
+| `14_consent.test.sql` | #13: `record_consent` deja estado y evidencia; las plantillas por categoría (el opt-in de utilidad no habilita marketing; sin categoría no sale); la baja prevalece y un opt-in explícito la levanta; evidencia append-only y aislada | 17 |
+| **Total** | | **247** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 
@@ -64,7 +65,7 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy ap
 | `ruff` | Estilo, errores comunes y reglas de seguridad (bandit) | Sí |
 | `mypy --strict` | Tipos en `app/` y `tests/` | Sí |
 | `lint-imports` | Regla de dependencias de la arquitectura hexagonal: el dominio no importa otras capas ni SDKs (5 contratos en `pyproject.toml`). También corre como prueba (`tests/architecture`) | Sí |
-| `pytest` | Pruebas unitarias y de integración con cobertura mínima de 85 % y avisos tratados como errores | Sí |
+| `pytest` | Pruebas unitarias y de integración con cobertura mínima de 85 %, avisos tratados como errores y un máximo de 120 s por prueba (`pytest-timeout`: una prueba colgada falla con su traceback) | Sí |
 | `pip-audit` | Vulnerabilidades conocidas en las dependencias de `uv.lock` | Sí |
 
 ### Webhook de WhatsApp (RF-01)
@@ -100,6 +101,19 @@ Mutaciones comprobadas:
   * reenviar un mensaje en `SENDING` → falla la prueba de duplicados;
   * estados sin orden → falla "solo avanzan";
   * trigger sin ventana → fallan 3 pruebas pgTAP.
+
+### Consentimiento (#13, RF-08)
+
+* **Palabras clave** (`test_consent.py`): "BAJA", "¡No MÁS!", "stop!" y "cancelar suscripción" cuentan como baja. "No más frenos, quiero cotizar", "la baja de precios" y "stop de luz trasero" **no**: se compara el mensaje completo normalizado.
+* **Flujo** (`test_record_inbound.py`): una BAJA registra la evidencia, encola la confirmación y no despierta al agente.
+* **Contra la BD** (`test_consent_db.py`):
+  * BAJA por WhatsApp → `optout_at`, un evento con el `wa_message_id` y una confirmación en el outbox, sin turno del agente;
+  * después de la baja ninguna plantilla sale;
+  * ALTA habilita utilidad pero no marketing.
+* **Mutaciones comprobadas:**
+  * baja por subcadena → fallan 3 pruebas;
+  * la BAJA despierta al agente → falla 1;
+  * consentimiento sin categoría → fallan 2 pgTAP.
 
 ### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
 

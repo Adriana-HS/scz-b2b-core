@@ -40,8 +40,9 @@ _LOCK = """
     SELECT o.id, o.status, o.kind, o.payload, c.wa_id, w.phone_number_id, w.access_token_ref,
            (c.last_inbound_at IS NOT NULL
             AND c.last_inbound_at >= now() - interval '24 hours') AS window_open,
-           (c.optout_at IS NULL
-            AND (c.optin_utility_at IS NOT NULL OR c.optin_marketing_at IS NOT NULL)) AS consent_ok
+           -- La misma regla que el trigger al encolar (migración 17): por categoría y la baja prevalece
+           coalesce(private.template_consent_ok(c.optin_utility_at, c.optin_marketing_at, c.optout_at,
+                                                o.payload ->> 'category'), false) AS consent_ok
     FROM private.outbound_messages o
     JOIN public.conversations v ON v.organization_id = o.organization_id AND v.id = o.conversation_id
     JOIN public.customers c ON c.organization_id = v.organization_id AND c.id = v.customer_id

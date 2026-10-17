@@ -112,7 +112,7 @@ Ver `SYSTEM_DESIGN.md` §1.3 y `docs/research/2026-10-15-restricciones-externas.
 | RF-20, RF-21 | §5, §6 | 0004, 0007 | pgTAP 02, 03 | 2 |
 | RF-22 … RF-25 | §6, §7.2 | 0004 | pgTAP 03 | 4 |
 | RF-30 … RF-34 | §4.5 | 0008, 0013, 0014 | pgTAP 02 | 3 (RF-31: escala) |
-| RF-08, RF-09 | §7, §10.1 | 0006, 0014 | Evals, unit | 1 / 2 |
+| RF-08, RF-09 | §7, §10.1 | 0006, 0014 | pgTAP 13, 14; unit e integración del consentimiento; evals | 1 / 2 |
 | RF-53, RF-54 | — | 0014 | Revisión | 6 |
 | RF-40 … RF-45 | §8.2 | 0002 | pgTAP 01, E2E | 5 / 7 |
 | RF-50, RF-51 | §7.4, §11 | 0006 | E2E, métricas | 6 |

@@ -62,6 +62,8 @@ async with uow_factory(TenantContext(org_id, Actor.BOT)) as uow:
 
 * **`idempotency_key`:** la misma clave no encola dos veces. Para una respuesta del agente: `conversación + último wa_message_id consumido` (§10.1).
 * **Fuera de la ventana de 24 h solo `OutboundRequest.template(...)`,** con consentimiento. Si no, la BD rechaza con `WINDOW_CLOSED` o `CONSENT_REQUIRED`.
+* **Plantillas:** `OutboundRequest.template(..., category=TemplateCategory.UTILITY | MARKETING)`. La categoría define el consentimiento exigido (#13).
+* **Consentimiento:** `uow.consent.record(customer_id, ConsentKind.OPTIN_MARKETING, ConsentSource.AGENT, evidencia)` actualiza el estado y deja la evidencia en `consent_events`. El webhook ya maneja BAJA/ALTA por WhatsApp.
 * **Configuración:** el worker envía solo si hay `META_GRAPH_API_VERSION` (por ejemplo `v23.0`). El token de cada número es la variable de entorno que nombra `whatsapp_channels.access_token_ref` (`WA_TOKEN_*`).
 
 ## Worker (ADR-0005)

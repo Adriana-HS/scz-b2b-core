@@ -30,6 +30,13 @@ class OutboundKind(StrEnum):
     TEMPLATE = "TEMPLATE"  # la única que sale fuera de la ventana de 24 h (con consentimiento)
 
 
+class TemplateCategory(StrEnum):
+    """Categoría de la plantilla en Meta. Define qué consentimiento exige (migración 17)."""
+
+    UTILITY = "UTILITY"  # recordatorios, avisos de pedidos y citas: exige opt-in de utilidad
+    MARKETING = "MARKETING"  # promociones: exige opt-in de marketing
+
+
 class OutboundStatus(StrEnum):
     PENDING = "PENDING"
     SENDING = "SENDING"  # confirmado ANTES de llamar a Meta: si el worker muere, no se reenvía
@@ -88,15 +95,18 @@ class OutboundRequest:
         idempotency_key: str,
         name: str,
         language: str,
+        category: TemplateCategory,
         components: list[dict[str, Any]] | None = None,
     ) -> "OutboundRequest":
         if not _TEMPLATE_NAME.fullmatch(name) or not _LANGUAGE.fullmatch(language):
             raise ValueError("nombre de plantilla o idioma inválido")
+        if not isinstance(category, TemplateCategory):
+            raise ValueError("la plantilla necesita su categoría (UTILITY o MARKETING)")
         return cls(
             conversation_id,
             idempotency_key,
             OutboundKind.TEMPLATE,
-            {"name": name, "language": language, "components": components or []},
+            {"name": name, "language": language, "category": category.value, "components": components or []},
         )
 
 

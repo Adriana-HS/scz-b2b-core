@@ -14,6 +14,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (backend)
+- **Consentimiento con evidencia (#13, RF-08, EXT-16):**
+  - **Migración 17:** tabla `consent_events` (append-only, con RLS y FK compuesta); `private.record_consent` actualiza el estado y la evidencia en una transacción; `private.template_consent_ok` es la única regla de plantillas por categoría (UTILITY y MARKETING; la baja prevalece; sin categoría no sale), y la usan el trigger y el worker.
+  - BAJA, STOP y NO MÁS (y ALTA o START) por WhatsApp se reconocen solo si son el mensaje completo; se confirman al cliente y no despiertan al agente.
+  - `OutboundRequest.template` exige la categoría.
+  - `pytest-timeout` (120 s por prueba).
+  - Pruebas: 247 pgTAP y 193 de backend; tres mutaciones comprobadas.
 - **Outbox y envío por la WhatsApp Cloud API (#18, RF-06, ADR-0017):**
   - Encolar es idempotente por `idempotency_key` y crea el mensaje y su trabajo `SEND_OUTBOUND` en una transacción.
   - **Migración 16:** trigger de ventana de 24 h y de consentimiento para plantillas; estado `SENDING`; la conversación guarda su número (FK compuesta); el backend solo actualiza las columnas del envío.
