@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -80,3 +81,49 @@ def test_el_dsn_de_sentry_no_aparece_al_imprimir_la_configuracion() -> None:
     )
 
     assert "clave-publica" not in repr(settings)
+
+
+_PRICES: dict[str, Any] = {
+    "llm_price_input_usd_per_mtok": "3",
+    "llm_price_output_usd_per_mtok": "15",
+    "llm_price_cache_read_usd_per_mtok": "0.30",
+    "llm_price_cache_write_usd_per_mtok": "3.75",
+}
+
+
+def test_el_modelo_de_ia_con_sus_precios_arma_el_tarifario() -> None:
+    settings = Settings(_env_file=None, environment="local", llm_model="claude-sonnet-5-5", **_PRICES)
+
+    pricing = settings.llm_pricing()
+    assert pricing is not None and pricing.output_usd_per_mtok == Decimal("15")
+
+
+def test_sin_modelo_de_ia_no_hay_tarifario() -> None:
+    assert Settings(_env_file=None, environment="local").llm_pricing() is None
+
+
+@pytest.mark.parametrize("model", ["claude-3-5-sonnet-latest", "Claude Sonnet", ""])
+def test_el_modelo_de_ia_va_fijado_por_identificador_exacto(model: str) -> None:
+    with pytest.raises(ValidationError, match="modelo"):
+        Settings(_env_file=None, environment="local", llm_model=model, **_PRICES)
+
+
+def test_un_modelo_sin_precios_no_arranca() -> None:
+    """Sin precios el costo se registraría en cero: falla cerrado (Q-COST-1)."""
+    partial = {k: v for k, v in _PRICES.items() if "output" not in k}
+    with pytest.raises(ValidationError, match="precios"):
+        Settings(_env_file=None, environment="local", llm_model="claude-sonnet-5-5", **partial)
+
+
+def test_un_precio_negativo_se_rechaza() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None, environment="local", llm_model="claude-sonnet-5-5",
+            **{**_PRICES, "llm_price_input_usd_per_mtok": "-1"},
+        )  # fmt: skip
+
+
+def test_la_clave_de_ia_no_aparece_al_imprimir_la_configuracion() -> None:
+    settings = Settings(_env_file=None, environment="local", llm_api_key="sk-ant-clave-de-prueba")
+
+    assert "sk-ant-clave-de-prueba" not in repr(settings)
