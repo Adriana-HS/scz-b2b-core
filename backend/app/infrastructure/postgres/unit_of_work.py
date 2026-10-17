@@ -15,6 +15,7 @@ import asyncpg
 from asyncpg.pool import PoolConnectionProxy
 from asyncpg.transaction import Transaction
 
+from app.core.telemetry import current_traceparent
 from app.domain.errors import UnitOfWorkNotActiveError
 from app.domain.ports import UnitOfWorkFactory
 from app.domain.tenancy import TenantContext
@@ -23,7 +24,11 @@ from app.infrastructure.postgres.inbound import PostgresInboundRepository
 from app.infrastructure.postgres.outbound import PostgresOutboundRepository
 from app.infrastructure.postgres.repositories import PostgresCatalogRepository, PostgresOrderRepository
 
-_SET_CONTEXT = "SELECT set_config('app.current_org_id', $1, true), set_config('app.actor', $2, true)"
+# app.traceparent: la BD lo guarda en jobs.trace_context de cada trabajo creado en esta transacción
+_SET_CONTEXT = (
+    "SELECT set_config('app.current_org_id', $1, true), set_config('app.actor', $2, true),"
+    " set_config('app.traceparent', $3, true)"
+)
 
 _State = Literal["new", "active", "closed"]
 
@@ -104,7 +109,10 @@ class PostgresUnitOfWork:
         try:
             await transaction.start()
             await connection.execute(
-                _SET_CONTEXT, str(self._context.organization_id), self._context.actor.value
+                _SET_CONTEXT,
+                str(self._context.organization_id),
+                self._context.actor.value,
+                current_traceparent(),
             )
         except BaseException:
             await self._finish(commit=False)

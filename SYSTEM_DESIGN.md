@@ -12,8 +12,8 @@
 | Decisiones | `docs/adr/` (ADR-0001 … ADR-0017) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (17 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 247 pruebas pgTAP en 14 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (18 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 259 pruebas pgTAP en 15 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -638,10 +638,13 @@ El cuello de botella es el **LLM** (latencia, límites de tasa y costo), no Post
 
 ### 10.2 Observabilidad
 
-* **Logs** JSON estructurados con `trace_id`, `organization_id`, `conversation_id`, `wa_message_id` y `job_id`, con PII redactada.
-* **Trazas** OpenTelemetry de punta a punta: webhook → job → LLM → herramienta → envío.
-* **Métricas:** `webhook_ack_ms`, `reply_latency_ms`, `evidence_latency_ms`, `jobs_queued`, `jobs_dead`, `llm_cost_usd{tenant}`, `needs_review_rate`, `handoff_rate`, `grounding_violations`, `fx_stale_tenants`.
-* **Alertas (SLO):** p95 de respuesta > 8 s durante 15 min; cualquier trabajo `DEAD` (log `ALERTA job_dead` del worker); más de 50 trabajos en cola por más de 5 min; TC vencido en algún tenant con ítems en USD; costo de IA de un tenant > 80 % del tope; fallas de firma de webhook > 1 %.
+Implementación y detalle: `docs/observability.md` (#19).
+
+* **Logs** JSON estructurados con `trace_id`, `organization_id`, `conversation_id`, `wa_message_id` y `job_id`, con PII redactada (el mensaje, el traceback y el contexto pasan por `redact`).
+* **Trazas** OpenTelemetry de punta a punta: webhook → job → LLM → herramienta → envío. La traza cruza la cola en la BD: la UnitOfWork fija `app.traceparent` y `jobs.trace_context` lo toma por defecto (migración 18); el worker la continúa. Los atributos de URL se redactan antes de exportar (el `verify_token` de Meta nunca sale).
+* **Exportación:** OTLP/HTTP solo si hay `OTEL_EXPORTER_OTLP_ENDPOINT` (https fuera de local). Sentry solo con `SENTRY_DSN`, con `data_collection` cerrado y `scrub_event`.
+* **Métricas:** `webhook_ack_ms`, `reply_latency_ms`, `evidence_latency_ms`, `jobs_queued`, `jobs_dead`, `llm_cost_usd{tenant}`, `needs_review_rate`, `handoff_rate`, `grounding_violations`, `fx_stale_tenants`. Ya emitidas (#19): `webhook_ack_ms`, `webhook_requests`, `webhook_signature_failures`, `reply_latency_ms`, `wa_billable_messages`, `outbound_outcome_unknown`, `jobs_processed`, `jobs_dead`, `job_duration_ms`, los gauges `jobs_queued`, `jobs_running`, `jobs_dead_pending` y `jobs_oldest_ready_s` (por tipo, solo de los tipos con handler) y `fx_stale_tenants`. Las de comprobantes y del agente llegan con esas funcionalidades.
+* **Alertas (SLO), como código en `ops/alerts/slo-rules.yaml`** y probadas con `promtool` en la CI: p95 de respuesta > 8 s durante 15 min; cualquier trabajo `DEAD` (además del log `ALERTA job_dead`, que llega a Sentry); más de 50 trabajos en cola por más de 5 min; TC vencido en algún tenant con ítems en USD; fallas de firma de webhook > 1 %. Se agregan p99 del ack > 250 ms, un trabajo listo que espera más de 2 min, DEAD sin resolver por 24 h y envíos con resultado incierto. Pendiente con el agente (#26): costo de IA de un tenant > 80 % del tope.
 
 ### 10.3 Continuidad
 
@@ -690,16 +693,18 @@ scz-b2b-core/
 │   ├── requirements/SRS.md       # requisitos RF-xx (ISO/IEC/IEEE 29148)
 │   ├── research/                 # restricciones externas con fuentes y fecha
 │   ├── reviews/                  # revisiones de diseño + evidencia reproducible
-│   ├── runbooks/
+│   ├── runbooks/                 # un runbook por alerta (síntoma → diagnóstico → acción → verificación)
+│   ├── observability.md          # logs, trazas, métricas, Sentry y alertas
 │   ├── GESTION_DEL_PROYECTO.md · HERRAMIENTAS_IA.md · ROADMAP.md · TESTING.md
 ├── .github/
 │   ├── workflows/ci.yml          # pgTAP · secretos (se amplía con backend y frontend)
 │   ├── ISSUE_TEMPLATE/           # funcionalidad · defecto · spike · ADR
 │   └── pull_request_template.md
+├── ops/alerts/                   # alertas SLO como código (Prometheus) y sus pruebas con promtool
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0017 (este documento las referencia)
+│   ├── migrations/               # 0001…0018 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/
@@ -707,7 +712,7 @@ scz-b2b-core/
 │   ├── app/
 │   │   ├── main.py               # proceso API
 │   │   ├── worker.py             # proceso Worker
-│   │   ├── core/                 # config (pydantic-settings), logging, telemetry, errors
+│   │   ├── core/                 # config (pydantic-settings), logs JSON, redacción, telemetría, Sentry
 │   │   ├── domain/               # entidades, value objects, políticas, puertos (sin I/O)
 │   │   ├── application/          # casos de uso, orquestador del agente, guardrails
 │   │   ├── verticals/            # importadora/, clinica/ (VerticalPolicy + config schema + prompts)

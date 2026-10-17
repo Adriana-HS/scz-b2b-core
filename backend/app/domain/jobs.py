@@ -31,3 +31,15 @@ class Job:
     payload: Mapping[str, Any] = field(default_factory=dict)
     attempts: int = 1  # incluido este intento
     max_attempts: int = 8
+    trace_context: str | None = None  # traceparent W3C de quien lo encoló (traza de punta a punta)
+
+
+@dataclass(frozen=True, slots=True)
+class QueueStats:
+    """Estado de la cola para un tipo de trabajo (métricas y alertas, §10.2)."""
+
+    kind: str
+    queued: int = 0
+    running: int = 0
+    dead: int = 0
+    oldest_ready_s: float = 0.0  # espera del trabajo listo (run_after vencido) más viejo

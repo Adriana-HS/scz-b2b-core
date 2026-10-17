@@ -73,4 +73,12 @@ async with uow_factory(TenantContext(org_id, Actor.BOT)) as uow:
 * **Contrato de un handler (*at-least-once*):** puede ejecutarse más de una vez, así que debe ser idempotente. Trabaja dentro de una `UnitOfWork` (si el worker muere, se revierte) y envía mensajes por el outbox con clave de idempotencia (#18). `PermanentJobError` = no reintentar.
 * **Variables:** `WORKER_CONCURRENCY` (16), `WORKER_POLL_INTERVAL_S` (0,25), `JOB_TIMEOUT_S` (60) y `JOB_LEASE_S` (300; debe ser mayor que el timeout).
 
+## Observabilidad (#19)
+
+Logs JSON sin PII por stdout, trazas y métricas OpenTelemetry (se exportan solo con `OTEL_EXPORTER_OTLP_ENDPOINT`) y Sentry (solo con `SENTRY_DSN`). Se configuran al arrancar cada proceso con `setup_observability` (`app/core/observability.py`). Detalle, catálogo de métricas y alertas: [`docs/observability.md`](../docs/observability.md).
+
+* **Una métrica nueva** se crea en `app/core/telemetry.py` y se agrega a `METRIC_NAMES`; sus atributos salen de un conjunto cerrado (nunca un teléfono, un texto ni una ruta libre).
+* **Un log** lleva identificadores y conteos, nunca contenido del cliente. `redact` es la red de seguridad, no un permiso.
+* **Un trabajo nuevo** hereda la traza de quien lo encola sin código extra (`jobs.trace_context`).
+
 Configuración: variables de entorno (ver `.env.example` en la raíz). En `staging` y `production`, el proceso no arranca sin `DATABASE_URL`, `META_APP_SECRET` y `META_WEBHOOK_VERIFY_TOKEN`.

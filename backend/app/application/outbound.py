@@ -13,8 +13,10 @@ RecordDeliveryStatuses aplica los estados que Meta informa por webhook, solo hac
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import Protocol
 
+from app.core import telemetry
 from app.domain.errors import PermanentJobError, PermanentSendError, TransientSendError
 from app.domain.jobs import Job
 from app.domain.outbound import (
@@ -24,6 +26,7 @@ from app.domain.outbound import (
     OutboundStatus,
     StatusBatch,
     StatusResult,
+    TemplateCategory,
 )
 from app.domain.ports import ChannelResolver, MessageSender, SecretStore, UnitOfWorkFactory
 from app.domain.tenancy import Actor, TenantContext
@@ -35,6 +38,7 @@ __all__ = ["SEND_OUTBOUND", "RecordDeliveryStatuses", "SendOutbound", "StatusHan
 _RESOLVED = frozenset(
     {OutboundStatus.SENT, OutboundStatus.DELIVERED, OutboundStatus.READ, OutboundStatus.FAILED}
 )
+_TEMPLATE_CATEGORIES = frozenset(c.value for c in TemplateCategory)
 
 
 class SendOutbound:
@@ -58,6 +62,7 @@ class SendOutbound:
                 return  # inexistente, de otro negocio o ya resuelto: idempotente
             if row.status == OutboundStatus.SENDING:
                 await uow.outbound.mark_failed(outbound_id, FailureReason.OUTCOME_UNKNOWN)
+                telemetry.outbound_outcome_unknown.add(1)
                 logger.error(
                     "ALERTA outbound_outcome_unknown id=%d: el envío anterior quedó a medias", outbound_id
                 )
@@ -96,6 +101,23 @@ class SendOutbound:
         # 3. Confirmar
         async with self._unit_of_work(context) as uow:
             await uow.outbound.mark_sent(outbound_id, wa_message_id)
+        self._observe_sent(row.kind, row.payload, row.last_inbound_at)
+
+    @staticmethod
+    def _observe_sent(
+        kind: OutboundKind, payload: dict[str, object], last_inbound_at: datetime | None
+    ) -> None:
+        """Métricas de un envío aceptado por Meta. Categoría de cobro (EXT-04): service (dentro de la
+        ventana) o la categoría de la plantilla. La latencia de respuesta solo para mensajes libres.
+        La etiqueta sale de un conjunto cerrado: un payload raro no crea series nuevas."""
+        category = "service"
+        if kind == OutboundKind.TEMPLATE:
+            raw = payload.get("category")
+            category = raw.lower() if isinstance(raw, str) and raw in _TEMPLATE_CATEGORIES else "unknown"
+        telemetry.wa_billable_messages.add(1, telemetry.attributes(category=category))
+        if kind != OutboundKind.TEMPLATE and last_inbound_at is not None:
+            latency_ms = (datetime.now(UTC) - last_inbound_at).total_seconds() * 1000
+            telemetry.reply_latency_ms.record(max(latency_ms, 0.0))
 
 
 class StatusHandler(Protocol):

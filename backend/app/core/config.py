@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # Versión fijada de la Graph API (p. ej. v23.0). Sin ella el worker no envía: no se adivina.
     meta_graph_api_version: str | None = Field(default=None, pattern=r"^v\d{1,3}\.\d{1,2}$")
 
+    # Observabilidad (§10.2): sin endpoint no se exporta; sin DSN no hay Sentry.
+    otel_exporter_otlp_endpoint: str | None = Field(default=None, pattern=r"^https?://[^\s]+$")
+    sentry_dsn: SecretStr | None = Field(default=None)
+
     # Worker (ADR-0005, SYSTEM_DESIGN.md §9.2): concurrencia de asyncio, sondeo de la cola y lease.
     worker_concurrency: int = Field(default=16, ge=1, le=256)
     worker_poll_interval_s: float = Field(default=0.25, gt=0, le=10)
@@ -52,6 +56,10 @@ class Settings(BaseSettings):
             missing = [name for name in required if getattr(self, name) is None]
             if missing:
                 raise ValueError(f"faltan variables obligatorias en {self.environment}: {', '.join(missing)}")
+            endpoint = self.otel_exporter_otlp_endpoint
+            if endpoint is not None and not endpoint.startswith("https://"):
+                # Las trazas llevan IDs de negocio y el encabezado de autenticación del colector
+                raise ValueError(f"OTEL_EXPORTER_OTLP_ENDPOINT debe ser https en {self.environment}")
         return self
 
 

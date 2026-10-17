@@ -38,6 +38,7 @@ _ENQUEUE_JOB = """
 """
 _LOCK = """
     SELECT o.id, o.status, o.kind, o.payload, c.wa_id, w.phone_number_id, w.access_token_ref,
+           c.last_inbound_at,
            (c.last_inbound_at IS NOT NULL
             AND c.last_inbound_at >= now() - interval '24 hours') AS window_open,
            -- La misma regla que el trigger al encolar (migración 17): por categoría y la baja prevalece
@@ -129,6 +130,7 @@ class PostgresOutboundRepository:
             access_token_ref=row["access_token_ref"],
             window_open=row["window_open"],
             consent_ok=row["consent_ok"],
+            last_inbound_at=row["last_inbound_at"],
         )
 
     async def _execute(self, query: str, *args: object) -> None:

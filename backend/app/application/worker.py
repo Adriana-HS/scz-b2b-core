@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Protocol
 
+from app.core import telemetry
+from app.core.structured_logging import log_context
 from app.domain.errors import CodedError, PermanentJobError
 from app.domain.jobs import Job, JobStatus
 from app.domain.ports import JobQueue, QueueMaintenance
@@ -116,6 +118,25 @@ class JobRunner:
         return float(min(self._poll_interval * 2**self._claim_failures, 30.0))
 
     async def _process(self, job: Job) -> None:
+        # La traza continúa la de quien encoló (webhook, outbox): trace_id de punta a punta
+        parent = telemetry.context_from_traceparent(job.trace_context)
+        span_attrs = telemetry.attributes(
+            **{"job.id": job.id, "job.kind": job.kind, "job.attempt": job.attempts}
+        )
+        with (
+            telemetry.tracer.start_as_current_span(
+                f"job {job.kind}", context=parent, attributes=span_attrs, record_exception=False
+            ),
+            log_context(job_id=job.id, job_kind=job.kind, organization_id=job.organization_id),
+        ):
+            started = time.monotonic()
+            status = await self._run_handler(job)
+            telemetry.job_duration_ms.record(
+                (time.monotonic() - started) * 1000, telemetry.attributes(kind=job.kind)
+            )
+            self._account(job, status)
+
+    async def _run_handler(self, job: Job) -> str | None:
         handler = self._handlers[job.kind]
         try:
             async with asyncio.timeout(self._timeout):
@@ -130,7 +151,7 @@ class JobRunner:
             )
         else:
             status = await self._safe(self._queue.complete(job.id, self._worker_id))
-        self._account(job, status)
+        return status
 
     async def _safe(self, call: Awaitable[str | None]) -> str | None:
         try:
@@ -140,6 +161,9 @@ class JobRunner:
             return None
 
     def _account(self, job: Job, status: str | None) -> None:
+        outcomes: dict[str | None, str] = {None: "lost", JobStatus.DONE: "done", JobStatus.DEAD: "dead"}
+        outcome = outcomes.get(status, "retried")
+        telemetry.jobs_processed.add(1, telemetry.attributes(kind=job.kind, outcome=outcome))
         if status is None:
             self.stats.lost_leases += 1
             logger.warning(
@@ -149,6 +173,7 @@ class JobRunner:
             self.stats.done += 1
         elif status == JobStatus.DEAD:
             self.stats.dead += 1
+            telemetry.jobs_dead.add(1, telemetry.attributes(kind=job.kind))
             logger.error("ALERTA job_dead id=%d kind=%s attempts=%d", job.id, job.kind, job.attempts)
         else:
             self.stats.retried += 1
@@ -180,14 +205,20 @@ class MaintenanceSchedule:
                 logger.error("worker: falló la tarea de mantenimiento %s (%s)", name, describe_error(exc))
 
 
-def default_maintenance(maintenance: QueueMaintenance, *, lease: timedelta) -> MaintenanceSchedule:
-    """Las tareas de pg_cron (migración 06), corridas por el worker: Supabase no trae pg_cron activo."""
+def default_maintenance(
+    maintenance: QueueMaintenance, *, lease: timedelta, kinds: Sequence[str] = ()
+) -> MaintenanceSchedule:
+    """Las tareas de pg_cron (migración 06), corridas por el worker: Supabase no trae pg_cron activo.
+
+    `kinds`: los tipos con handler; el estado de la cola se mide solo para ellos (un tipo sin
+    handler todavía espera a propósito y no debe disparar "cola atascada")."""
 
     async def requeue() -> None:
         requeued, dead = await maintenance.requeue_stale(lease)
         if requeued:
             logger.warning("worker: %d trabajos con el lease vencido vuelven a la cola", requeued)
         if dead:
+            telemetry.jobs_dead.add(dead, telemetry.attributes(kind="lease_vencido"))
             logger.error("ALERTA job_dead count=%d motivo=lease_vencido_sin_intentos", dead)
 
     async def expire() -> None:
@@ -195,9 +226,15 @@ def default_maintenance(maintenance: QueueMaintenance, *, lease: timedelta) -> M
         if expired:
             logger.info("worker: %d órdenes vencidas", expired)
 
+    async def platform_snapshot() -> None:
+        stats = await maintenance.queue_stats(kinds) if kinds else []
+        fx_stale = await maintenance.fx_stale_tenants()
+        telemetry.set_platform_snapshot(kinds=kinds, queues=stats, fx_stale_tenants=fx_stale)
+
     return MaintenanceSchedule(
         [
             ("requeue_stale_jobs", timedelta(minutes=1), requeue),
+            ("platform_snapshot", timedelta(minutes=1), platform_snapshot),
             ("expire_stale_orders", timedelta(minutes=1), expire),
             ("purge_retention", timedelta(days=1), maintenance.purge_retention),
         ]
