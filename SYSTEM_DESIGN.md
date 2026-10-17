@@ -551,6 +551,12 @@ Rotación trimestral de secretos (inmediata ante sospecha), registro de accesos 
 
 Dependabot, `pip-audit`/`npm audit`, `gitleaks`, `bandit` y Semgrep en CI. En repos privados, CodeQL y la protección de secretos de GitHub son de pago: se usan las alternativas locales. Dependencias fijadas con lockfile (`uv.lock`, `pnpm-lock.yaml`) e imágenes base con digest.
 
+**GitHub Actions:**
+* Cada action se fija por el **SHA completo del commit**, con la versión en un comentario (`actions/checkout@<sha> # v7.0.1`). Una etiqueta como `@v7` puede moverse a otro código; así fue el ataque a `tj-actions` (2025). `scripts/ci/check_repo.py` rechaza cualquier `uses:` sin SHA o sin comentario, y Dependabot actualiza ambos juntos.
+* Al subir de versión se elige una release con al menos dos semanas de publicada. El SHA se resuelve desde las etiquetas del repositorio oficial, nunca desde un fork, para evitar commits impostores.
+* Los `checkout` usan `persist-credentials: false`, porque la CI nunca hace push.
+* El binario de gitleaks se verifica por sha256 antes de extraerlo y ejecutarlo.
+
 ### 8.7 Privacidad y cumplimiento
 
 * **Bolivia (oct-2026):** sin ley general de datos personales vigente. Se aplican, como mínimo: aviso de privacidad y de IA en el primer contacto, minimización (solo los datos necesarios para cotizar, agendar y facturar), retención definida (§5.5), procedimiento de acceso, rectificación y eliminación a pedido del titular, y registro de proveedores que procesan datos (Meta, el proveedor de LLM, Supabase, el proveedor SIAT).

@@ -23,6 +23,7 @@ Ver `SYSTEM_DESIGN.md` §8 (modelo de amenazas STRIDE, identidad, secretos, Stor
 ## Reglas para quienes contribuyen
 
 * Nunca subir secretos: `gitleaks` corre en CI y como hook local recomendado.
+* Las GitHub Actions se fijan por SHA de commit con la versión en un comentario; nunca por etiqueta (`@v7`). Lo verifica `scripts/ci/check_repo.py`.
 * La *service role key* no se usa para consultas de datos (solo en el `StorageAdapter`).
 * Toda función `SECURITY DEFINER` fija `SET search_path = ''`.
 * Toda tabla nueva lleva `organization_id`, RLS, políticas y prueba pgTAP de aislamiento.

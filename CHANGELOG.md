@@ -4,6 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+### Seguridad (CI)
+- **Actions fijadas por SHA:**
+  - `actions/checkout` v7.0.1, `actions/setup-python` v7.0.0, `supabase/setup-cli` v3.0.1 y `astral-sh/setup-uv` v10.2.0, con la versión en un comentario.
+  - Reemplaza los PRs de Dependabot #66-#69. #68 proponía `setup-uv@v7` porque, desde la v8, `setup-uv` ya no publica etiquetas mayores, justamente para obligar a fijar por SHA.
+  - Los SHA de checkout, setup-python y setup-cli son los mismos commits que sus etiquetas mayores, ya probados por la CI de Dependabot.
+- `check_repo.py` rechaza cualquier `uses:` sin SHA de 40 caracteres o sin la versión en un comentario.
+- `persist-credentials: false` en todos los `checkout`; `prune-cache: true` en `setup-uv` (desde v9 el default es `false`).
+- El binario de gitleaks se verifica por sha256 antes de extraerlo.
+
 ### Agregado (backend)
 - **UnitOfWork y repositorios asyncpg (#15, ADR-0011):** `PostgresUnitOfWork` abre una transacción como `app_backend` y fija el tenant y el actor con `SET LOCAL` parametrizado; los repositorios de catálogo (`search_catalog`) y órdenes (`create_quote`) no funcionan fuera de ella. Los `HINT` de la BD se traducen a `BusinessRuleError` y `AccessDeniedError` con códigos estables, y una prueba falla si una migración agrega un `HINT` sin código. El pool no cachea *prepared statements* (Supavisor en modo transacción).
 - Pruebas de integración contra Postgres real como `app_backend` (12), incluida la de no filtrar el contexto entre transacciones con un doble del pooler en modo transacción. Se comprobó que falla con un `SET` de sesión. La CI levanta Postgres en el job `backend` y no permite omitirlas (`SCZ_REQUIRE_DB=1`). 44 pruebas en total; cobertura 98,5 %.
