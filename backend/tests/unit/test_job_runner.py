@@ -9,7 +9,7 @@ import pytest
 
 from app.application.worker import JobRunner, MaintenanceSchedule, describe_error
 from app.domain.errors import BusinessRuleError, ErrorCode, PermanentJobError
-from app.domain.jobs import Job
+from app.domain.jobs import Job, QueueStats
 
 PII = "59170000001 mi carnet 1234567"
 
@@ -265,6 +265,14 @@ class FakeMaintenance:
     async def purge_retention(self) -> None:
         self.calls.append("purge")
 
+    async def queue_stats(self, kinds: Sequence[str]) -> list[QueueStats]:
+        self.calls.append(f"stats:{','.join(kinds)}")
+        return []
+
+    async def fx_stale_tenants(self) -> int:
+        self.calls.append("fx")
+        return 0
+
 
 async def test_mantenimiento_por_defecto_alerta_los_dead_del_reaper(caplog: pytest.LogCaptureFixture) -> None:
     from app.application.worker import default_maintenance
@@ -272,9 +280,9 @@ async def test_mantenimiento_por_defecto_alerta_los_dead_del_reaper(caplog: pyte
     caplog.set_level(logging.INFO, logger="scz.worker")
     fake = FakeMaintenance(requeued=2, dead=1)
 
-    await default_maintenance(fake, lease=timedelta(minutes=5)).run_due()
+    await default_maintenance(fake, lease=timedelta(minutes=5), kinds=["T_OK"]).run_due()
 
-    assert fake.calls == ["requeue:300", "expire", "purge"]
+    assert fake.calls == ["requeue:300", "stats:T_OK", "fx", "expire", "purge"]
     assert "2 trabajos con el lease vencido" in caplog.text
     assert "ALERTA job_dead count=1" in caplog.text
     assert "3 órdenes vencidas" in caplog.text

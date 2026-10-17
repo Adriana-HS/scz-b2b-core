@@ -81,7 +81,20 @@ async def test_fija_tenant_y_actor_antes_de_cualquier_consulta() -> None:
     query, args = conn.executed[0]
     assert "set_config('app.current_org_id', $1, true)" in query
     assert "set_config('app.actor', $2, true)" in query
-    assert args == (str(ORG), "SYSTEM")
+    assert args == (str(ORG), "SYSTEM", "")  # sin traza activa: app.traceparent vacío
+
+
+async def test_con_traza_activa_la_transaccion_lleva_el_traceparent() -> None:
+    from app.core import telemetry
+
+    conn = FakeConnection([])
+    with telemetry.tracer.start_as_current_span("webhook") as span:
+        async with _uow(FakePool(conn)):
+            pass
+
+    query, args = conn.executed[0]
+    assert "set_config('app.traceparent', $3, true)" in query
+    assert args[2].split("-")[1] == format(span.get_span_context().trace_id, "032x")
 
 
 async def test_un_error_revierte_y_libera_la_conexion() -> None:

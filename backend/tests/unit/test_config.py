@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -39,3 +41,42 @@ def test_valores_desconocidos_de_entorno_se_rechazan() -> None:
 def test_la_version_de_la_graph_api_se_valida(version: str) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, environment="local", meta_graph_api_version=version)
+
+
+_PRODUCTION: dict[str, Any] = {
+    "environment": "production",
+    "database_url": "postgresql://app_backend:clave-de-prueba@localhost/postgres",
+    "meta_app_secret": "secreto-de-prueba",
+    "meta_webhook_verify_token": "token-de-prueba",
+    "meta_graph_api_version": "v23.0",
+}
+
+
+def test_en_produccion_el_colector_otlp_debe_ser_https() -> None:
+    with pytest.raises(ValidationError, match="https"):
+        Settings(_env_file=None, **_PRODUCTION, otel_exporter_otlp_endpoint="http://colector:4318")
+
+    settings = Settings(_env_file=None, **_PRODUCTION, otel_exporter_otlp_endpoint="https://otlp.example.com")
+    assert settings.otel_exporter_otlp_endpoint == "https://otlp.example.com"
+
+
+def test_en_local_el_colector_puede_ser_http() -> None:
+    settings = Settings(
+        _env_file=None, environment="local", otel_exporter_otlp_endpoint="http://localhost:4318"
+    )
+
+    assert settings.otel_exporter_otlp_endpoint == "http://localhost:4318"
+
+
+@pytest.mark.parametrize("endpoint", ["localhost:4318", "ftp://colector", "https://colector con espacio"])
+def test_el_endpoint_otlp_se_valida(endpoint: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, environment="local", otel_exporter_otlp_endpoint=endpoint)
+
+
+def test_el_dsn_de_sentry_no_aparece_al_imprimir_la_configuracion() -> None:
+    settings = Settings(
+        _env_file=None, environment="local", sentry_dsn="https://clave-publica@sentry.invalid/1"
+    )
+
+    assert "clave-publica" not in repr(settings)
