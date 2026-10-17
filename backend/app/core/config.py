@@ -1,10 +1,13 @@
 """Configuración por entorno (12-Factor). Los secretos nunca tienen valor por defecto."""
 
+from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.domain.ai import ModelPricing, validate_model_id
 
 Environment = Literal["local", "test", "staging", "production"]
 
@@ -29,11 +32,49 @@ class Settings(BaseSettings):
     otel_exporter_otlp_endpoint: str | None = Field(default=None, pattern=r"^https?://[^\s]+$")
     sentry_dsn: SecretStr | None = Field(default=None)
 
+    # IA (#22): modelo fijado por identificador exacto y sus precios en USD por millón de tokens.
+    # Sin modelo no hay agente; con modelo, los cuatro precios son obligatorios (sin ellos el
+    # costo se registraría en cero: falla cerrado, Q-COST-1).
+    llm_api_key: SecretStr | None = Field(default=None)
+    llm_model: str | None = Field(default=None)
+    llm_price_input_usd_per_mtok: Decimal | None = Field(default=None, ge=0)
+    llm_price_output_usd_per_mtok: Decimal | None = Field(default=None, ge=0)
+    llm_price_cache_read_usd_per_mtok: Decimal | None = Field(default=None, ge=0)
+    llm_price_cache_write_usd_per_mtok: Decimal | None = Field(default=None, ge=0)
+
     # Worker (ADR-0005, SYSTEM_DESIGN.md §9.2): concurrencia de asyncio, sondeo de la cola y lease.
     worker_concurrency: int = Field(default=16, ge=1, le=256)
     worker_poll_interval_s: float = Field(default=0.25, gt=0, le=10)
     job_timeout_s: float = Field(default=60.0, ge=1, le=900)
     job_lease_s: int = Field(default=300, ge=30, le=3600)
+
+    @field_validator("llm_model")
+    @classmethod
+    def _model_is_pinned(cls, value: str | None) -> str | None:
+        return None if value is None else validate_model_id(value)
+
+    @model_validator(mode="after")
+    def _model_has_prices(self) -> "Settings":
+        if self.llm_model is not None and None in self._llm_prices():
+            raise ValueError("con LLM_MODEL hacen falta los cuatro precios LLM_PRICE_*_USD_PER_MTOK")
+        return self
+
+    def _llm_prices(self) -> tuple[Decimal | None, ...]:
+        return (
+            self.llm_price_input_usd_per_mtok,
+            self.llm_price_output_usd_per_mtok,
+            self.llm_price_cache_read_usd_per_mtok,
+            self.llm_price_cache_write_usd_per_mtok,
+        )
+
+    def llm_pricing(self) -> ModelPricing | None:
+        """El tarifario del modelo configurado, o None si no hay modelo (no hay agente)."""
+        if self.llm_model is None:
+            return None
+        input_price, output_price, cache_read, cache_write = self._llm_prices()
+        assert input_price is not None and output_price is not None  # noqa: S101 - lo garantiza el validador
+        assert cache_read is not None and cache_write is not None  # noqa: S101
+        return ModelPricing(input_price, output_price, cache_read, cache_write)
 
     @model_validator(mode="after")
     def _lease_longer_than_job_timeout(self) -> "Settings":

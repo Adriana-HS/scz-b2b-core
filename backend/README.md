@@ -67,6 +67,10 @@ async with uow_factory(TenantContext(org_id, Actor.BOT)) as uow:
 * **Consentimiento:** `uow.consent.record(customer_id, ConsentKind.OPTIN_MARKETING, ConsentSource.AGENT, evidencia)` actualiza el estado y deja la evidencia en `consent_events`. El webhook ya maneja BAJA/ALTA por WhatsApp.
 * **Configuración:** el worker envía solo si hay `META_GRAPH_API_VERSION` (por ejemplo `v23.0`). El token de cada número es la variable de entorno que nombra `whatsapp_channels.access_token_ref` (`WA_TOKEN_*`).
 
+## IA (#22)
+
+Puertos `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText` en `app/domain/ports.py`. El agente usa `resilient_chat_model(...)` (`app/application/ai.py`), que envuelve el adaptador de Anthropic (`app/infrastructure/ai/anthropic.py`) con reintento, circuit breaker, costo en `private.llm_calls` y trazas. Configuración: `LLM_API_KEY`, `LLM_MODEL` (identificador exacto) y los cuatro `LLM_PRICE_*_USD_PER_MTOK`. Detalle: [`docs/ai-ports.md`](../docs/ai-ports.md).
+
 ## Worker (ADR-0005)
 
 `uv run python -m app.worker` (requiere `DATABASE_URL`).

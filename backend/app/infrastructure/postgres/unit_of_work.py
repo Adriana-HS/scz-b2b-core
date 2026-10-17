@@ -21,6 +21,7 @@ from app.domain.ports import UnitOfWorkFactory
 from app.domain.tenancy import TenantContext
 from app.infrastructure.postgres.consent import PostgresConsentRepository
 from app.infrastructure.postgres.inbound import PostgresInboundRepository
+from app.infrastructure.postgres.llm_calls import PostgresLlmCallRepository
 from app.infrastructure.postgres.outbound import PostgresOutboundRepository
 from app.infrastructure.postgres.repositories import PostgresCatalogRepository, PostgresOrderRepository
 
@@ -68,6 +69,7 @@ class PostgresUnitOfWork:
         self._inbound = PostgresInboundRepository(self._session)
         self._outbound = PostgresOutboundRepository(self._session)
         self._consent = PostgresConsentRepository(self._session)
+        self._llm_calls = PostgresLlmCallRepository(self._session)
 
     @property
     def context(self) -> TenantContext:
@@ -97,6 +99,11 @@ class PostgresUnitOfWork:
     def consent(self) -> PostgresConsentRepository:
         self._require_active()
         return self._consent
+
+    @property
+    def llm_calls(self) -> PostgresLlmCallRepository:
+        self._require_active()
+        return self._llm_calls
 
     async def __aenter__(self) -> Self:
         if self._state != "new":
