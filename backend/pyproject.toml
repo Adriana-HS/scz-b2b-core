@@ -64,6 +64,7 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]   # assert y secretos ficticios en pruebas
+"loadtest/**" = ["T201"]                # herramientas de línea de comandos: imprimen el reporte
 
 [tool.mypy]
 strict = true

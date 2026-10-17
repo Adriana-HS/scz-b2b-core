@@ -29,7 +29,7 @@ SCZ-B2B-Core: SaaS multi-tenant de atención, cotización, agenda y conciliació
 ## Comandos
 ```bash
 supabase start && supabase test db          # BD + pgTAP (requiere Docker)
-cd backend && uv sync && uv run ruff check . && uv run mypy app tests && uv run lint-imports && uv run pytest   # backend
+cd backend && uv sync && uv run ruff check . && uv run mypy app tests loadtest && uv run lint-imports && uv run pytest   # backend
 ```
 Verificación sin Docker: ver `docs/TESTING.md`.
 
