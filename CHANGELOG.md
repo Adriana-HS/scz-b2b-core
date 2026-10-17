@@ -5,6 +5,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Sin publicar]
 
 ### Agregado (backend)
+- **UnitOfWork y repositorios asyncpg (#15, ADR-0011):** `PostgresUnitOfWork` abre una transacción como `app_backend` y fija el tenant y el actor con `SET LOCAL` parametrizado; los repositorios de catálogo (`search_catalog`) y órdenes (`create_quote`) no funcionan fuera de ella. Los `HINT` de la BD se traducen a `BusinessRuleError` y `AccessDeniedError` con códigos estables, y una prueba falla si una migración agrega un `HINT` sin código. El pool no cachea *prepared statements* (Supavisor en modo transacción).
+- Pruebas de integración contra Postgres real como `app_backend` (12), incluida la de no filtrar el contexto entre transacciones con un doble del pooler en modo transacción. Se comprobó que falla con un `SET` de sesión. La CI levanta Postgres en el job `backend` y no permite omitirlas (`SCZ_REQUIRE_DB=1`). 44 pruebas en total; cobertura 98,5 %.
 - **Scaffold del backend hexagonal (#14):** `backend/` con Python 3.12, FastAPI y uv (`uv.lock`). Capas `domain`, `application`, `infrastructure`, `api`, `workers`, `verticals` y `core`; *composition root* en `app/main.py` (proceso api, `GET /v1/health`) y `app/worker.py`. La configuración falla cerrado: en staging y producción no arranca sin `DATABASE_URL` y `META_APP_SECRET`, y la documentación de la API no se publica en producción.
 - 5 contratos de `import-linter` para la regla de dependencias (el dominio solo usa stdlib y pydantic). Se comprobó que detectan una violación real.
 - Job de CI `backend`: ruff, `mypy --strict`, `lint-imports`, pytest (cobertura ≥ 85 %, avisos como errores) y pip-audit. Dependabot para `uv` y GitHub Actions.

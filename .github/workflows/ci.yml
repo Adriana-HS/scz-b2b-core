@@ -56,12 +56,22 @@ jobs:
   backend:
     name: Backend (ruff, mypy, import-linter, pytest, pip-audit)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
+    env:
+      SCZ_REQUIRE_DB: "1"   # las pruebas de integración fallan (no se omiten) si no hay BD
     steps:
       - uses: actions/checkout@v4
+
+      # Postgres de Supabase con las migraciones, para las pruebas de integración como app_backend
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Levantar Postgres de Supabase y aplicar migraciones
+        working-directory: .
+        run: supabase db start
 
       - uses: astral-sh/setup-uv@v6
         with:
@@ -82,11 +92,16 @@ jobs:
       - name: Regla de dependencias entre capas (import-linter)
         run: uv run lint-imports
 
-      - name: Pruebas y cobertura (pytest, mínimo 85 %)
-        run: uv run pytest
+      - name: Pruebas unitarias y de integración con cobertura (pytest, mínimo 85 %)
+        run: uv run pytest -rs
 
       - name: Vulnerabilidades conocidas en dependencias (pip-audit)
         run: uv run pip-audit --skip-editable --progress-spinner off
+
+      - name: Detener Postgres
+        if: always()
+        working-directory: .
+        run: supabase stop --no-backup
 
   repo:
     name: Consistencia del repo (backlog, enlaces, ADRs, migraciones)
