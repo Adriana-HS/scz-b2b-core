@@ -36,6 +36,9 @@ class Seed:
     item_b: UUID
     sku_bob_a: str
     sku_usd_a: str
+    phone_a: str  # phone_number_id del canal activo de A
+    phone_b: str
+    phone_inactive: str  # canal de A desactivado
 
 
 def _backend_dsn(password: str) -> str:
@@ -90,6 +93,8 @@ async def seed(admin: asyncpg.Connection) -> Seed:
         org_a=uuid4(), org_b=uuid4(), customer_a=uuid4(), conversation_a=uuid4(),
         item_bob_a=uuid4(), item_usd_a=uuid4(), item_b=uuid4(),
         sku_bob_a=f"AMORT-{secrets.token_hex(3)}", sku_usd_a=f"OEM-{secrets.token_hex(3)}",
+        phone_a=f"PNID-A-{secrets.token_hex(4)}", phone_b=f"PNID-B-{secrets.token_hex(4)}",
+        phone_inactive=f"PNID-OFF-{secrets.token_hex(4)}",
     )  # fmt: skip
     wa_id = "591" + "".join(secrets.choice("0123456789") for _ in range(8))
     async with admin.transaction():
@@ -123,5 +128,13 @@ async def seed(admin: asyncpg.Connection) -> Seed:
         await admin.execute(
             "INSERT INTO public.conversations (id, organization_id, customer_id) VALUES ($1, $2, $3)",
             s.conversation_a, s.org_a, s.customer_a,
+        )  # fmt: skip
+        await admin.execute(
+            """INSERT INTO public.whatsapp_channels
+                   (organization_id, phone_number_id, waba_id, display_phone, access_token_ref, is_active)
+               VALUES ($1, $3, 'WABA-A', '+59100000001', 'vault:wa_token_a', true),
+                      ($2, $4, 'WABA-B', '+59100000002', 'vault:wa_token_b', true),
+                      ($1, $5, 'WABA-A', '+59100000003', 'vault:wa_token_off', false)""",
+            s.org_a, s.org_b, s.phone_a, s.phone_b, s.phone_inactive,
         )  # fmt: skip
     return s

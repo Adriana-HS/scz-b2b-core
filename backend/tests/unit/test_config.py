@@ -22,6 +22,7 @@ def test_los_secretos_no_aparecen_al_imprimir_la_configuracion() -> None:
         environment="production",
         database_url="postgresql://app_backend:clave-de-prueba@localhost/postgres",
         meta_app_secret="secreto-de-prueba",
+        meta_webhook_verify_token="token-de-prueba",
     )
 
     assert "clave-de-prueba" not in repr(settings)

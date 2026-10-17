@@ -7,13 +7,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ### Seguridad (CI)
 - **Actions fijadas por SHA:**
   - `actions/checkout` v7.0.1, `actions/setup-python` v7.0.0, `supabase/setup-cli` v3.0.1 y `astral-sh/setup-uv` v10.2.0, con la versión en un comentario.
-  - Reemplaza los PRs de Dependabot #66-#69. #68 proponía `setup-uv@v7` porque, desde la v8, `setup-uv` ya no publica etiquetas mayores, justamente para obligar a fijar por SHA.
-  - Los SHA de checkout, setup-python y setup-cli son los mismos commits que sus etiquetas mayores, ya probados por la CI de Dependabot.
+  - Los PRs de Dependabot #66-#69 subieron estas actions **por etiqueta** (`@v7`, `@v3`). Este cambio las fija por SHA, con los mismos commits que esas etiquetas para checkout, setup-python y setup-cli.
+  - `setup-uv` pasa de `@v7` (lo que trajo #68) a v10.2.0: desde la v8 ya no publica etiquetas mayores, justamente para obligar a fijar por SHA, y por eso Dependabot no podía proponer más que `@v7`.
 - `check_repo.py` rechaza cualquier `uses:` sin SHA de 40 caracteres o sin la versión en un comentario.
 - `persist-credentials: false` en todos los `checkout`; `prune-cache: true` en `setup-uv` (desde v9 el default es `false`).
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (backend)
+- **Webhook de WhatsApp (#16, RF-01):** `GET` y `POST /v1/webhooks/whatsapp`.
+  - Orden de chequeos: límite de 1 MB (413), firma HMAC-SHA256 sobre los bytes crudos en tiempo constante y antes de parsear (401), traducción del formato de Meta con validación por mensaje.
+  - Los mensajes de un número se registran en una sola transacción como `SYSTEM`: evento idempotente por `wa_message_id`, cliente, conversación abierta, mensaje y trabajo con *debounce*.
+  - Un número desconocido o inactivo responde 200 sin escribir nada; un fallo de BD, 500 para que Meta reintente.
+  - Los logs llevan solo conteos y tipos de error.
+  - `META_WEBHOOK_VERIFY_TOKEN` pasa a ser obligatorio en staging y producción.
+  - 49 pruebas nuevas (93 en total), con integración contra la BD; mutaciones comprobadas para la firma y la idempotencia. El ack p99 con k6 queda para el #21.
 - **UnitOfWork y repositorios asyncpg (#15, ADR-0011):** `PostgresUnitOfWork` abre una transacción como `app_backend` y fija el tenant y el actor con `SET LOCAL` parametrizado; los repositorios de catálogo (`search_catalog`) y órdenes (`create_quote`) no funcionan fuera de ella. Los `HINT` de la BD se traducen a `BusinessRuleError` y `AccessDeniedError` con códigos estables, y una prueba falla si una migración agrega un `HINT` sin código. El pool no cachea *prepared statements* (Supavisor en modo transacción).
 - Pruebas de integración contra Postgres real como `app_backend` (12), incluida la de no filtrar el contexto entre transacciones con un doble del pooler en modo transacción. Se comprobó que falla con un `SET` de sesión. La CI levanta Postgres en el job `backend` y no permite omitirlas (`SCZ_REQUIRE_DB=1`). 44 pruebas en total; cobertura 98,5 %.
 - **Scaffold del backend hexagonal (#14):** `backend/` con Python 3.12, FastAPI y uv (`uv.lock`). Capas `domain`, `application`, `infrastructure`, `api`, `workers`, `verticals` y `core`; *composition root* en `app/main.py` (proceso api, `GET /v1/health`) y `app/worker.py`. La configuración falla cerrado: en staging y producción no arranca sin `DATABASE_URL` y `META_APP_SECRET`, y la documentación de la API no se publica en producción.

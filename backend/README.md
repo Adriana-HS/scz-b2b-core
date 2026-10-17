@@ -43,4 +43,10 @@ async with uow_factory(TenantContext(organization_id, Actor.BOT)) as uow:
 * Los `HINT` de las RPC se traducen a `BusinessRuleError` (P0001) o `AccessDeniedError` (42501, incluida la RLS) con un `ErrorCode` estable. Una prueba falla si una migración agrega un `HINT` sin su código en `app/domain/errors.py`.
 * El backend solo actúa como `BOT` o `SYSTEM`; nunca como `HUMAN` (SEC-02).
 
-Configuración: variables de entorno (ver `.env.example` en la raíz). En `staging` y `production`, el proceso no arranca sin `DATABASE_URL` y `META_APP_SECRET`.
+## Webhook de WhatsApp (RF-01)
+
+* `GET /v1/webhooks/whatsapp`: verificación de la suscripción de Meta. Devuelve `hub.challenge` si `hub.verify_token` coincide con `META_WEBHOOK_VERIFY_TOKEN`; si no, 403.
+* `POST /v1/webhooks/whatsapp`: 413 si el cuerpo pasa de 1 MB; 401 si la firma `X-Hub-Signature-256` no corresponde a `META_APP_SECRET` (se verifica antes de parsear); 200 si se registró, si era un duplicado o si el número no es de ningún negocio activo; 500 si la BD falla, para que Meta reintente.
+* Traducción del formato de Meta: `app/api/v1/whatsapp/payload.py`. Caso de uso: `app/application/inbound.py`. Persistencia: `app/infrastructure/postgres/inbound.py` y `channels.py`.
+
+Configuración: variables de entorno (ver `.env.example` en la raíz). En `staging` y `production`, el proceso no arranca sin `DATABASE_URL`, `META_APP_SECRET` y `META_WEBHOOK_VERIFY_TOKEN`.
