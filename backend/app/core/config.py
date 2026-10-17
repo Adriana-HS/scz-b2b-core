@@ -23,6 +23,20 @@ class Settings(BaseSettings):
     meta_app_secret: SecretStr | None = Field(default=None)
     meta_webhook_verify_token: SecretStr | None = Field(default=None)
 
+    # Worker (ADR-0005, SYSTEM_DESIGN.md §9.2): concurrencia de asyncio, sondeo de la cola y lease.
+    worker_concurrency: int = Field(default=16, ge=1, le=256)
+    worker_poll_interval_s: float = Field(default=0.25, gt=0, le=10)
+    job_timeout_s: float = Field(default=60.0, ge=1, le=900)
+    job_lease_s: int = Field(default=300, ge=30, le=3600)
+
+    @model_validator(mode="after")
+    def _lease_longer_than_job_timeout(self) -> "Settings":
+        """Si el lease venciera antes que el timeout, el reaper le quitaría trabajos vivos a un
+        worker sano y otro los procesaría a la vez (doble respuesta al cliente)."""
+        if self.job_lease_s <= self.job_timeout_s:
+            raise ValueError("job_lease_s debe ser mayor que job_timeout_s")
+        return self
+
     @model_validator(mode="after")
     def _secrets_required_outside_local(self) -> "Settings":
         """Falla cerrado: en staging y producción el proceso no arranca sin sus secretos."""

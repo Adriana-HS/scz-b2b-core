@@ -4,12 +4,14 @@ Todo acceso a datos ocurre dentro de una UnitOfWork: una transacción con el ten
 actor ya fijados en la BD. Los repositorios no existen fuera de ella.
 """
 
-from datetime import datetime
+from collections.abc import Sequence
+from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Protocol, Self
 from uuid import UUID
 
 from app.domain.catalog import CatalogMatch, CatalogSearch
+from app.domain.jobs import Job
 from app.domain.messaging import InboundMessage, WhatsAppChannel
 from app.domain.orders import Quote, QuoteRequest
 from app.domain.tenancy import TenantContext
@@ -49,6 +51,29 @@ class ChannelResolver(Protocol):
     """La única lectura previa a conocer el tenant (ADR-0002 §6): phone_number_id -> negocio."""
 
     async def resolve(self, phone_number_id: str) -> WhatsAppChannel | None: ...
+
+
+class JobQueue(Protocol):
+    """Cola durable (ADR-0005). complete/fail devuelven el estado nuevo, o None si este
+    worker ya no tiene el lease (otro lo reclamó): fencing contra el doble procesamiento."""
+
+    async def claim(self, worker_id: str, limit: int, kinds: Sequence[str]) -> list[Job]: ...
+
+    async def complete(self, job_id: int, worker_id: str) -> str | None: ...
+
+    async def fail(self, job_id: int, worker_id: str, error: str, *, retry: bool) -> str | None: ...
+
+
+class QueueMaintenance(Protocol):
+    """Tareas periódicas que el worker corre si la BD no tiene pg_cron habilitado."""
+
+    async def requeue_stale(self, lease: timedelta) -> tuple[int, int]:
+        """(reintentados, pasados a DEAD) entre los trabajos con el lease vencido."""
+        ...
+
+    async def expire_stale_orders(self) -> int: ...
+
+    async def purge_retention(self) -> None: ...
 
 
 class UnitOfWork(Protocol):

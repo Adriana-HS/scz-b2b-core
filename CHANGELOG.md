@@ -14,6 +14,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (backend)
+- **Worker (#17, ADR-0005):**
+  - `JobRunner` con reclamo continuo y concurrencia acotada, timeout por trabajo y reintento con backoff; `PermanentJobError` va directo a DEAD.
+  - En `last_error` se guarda solo el tipo de error. Un DEAD emite el log `ALERTA job_dead`.
+  - Corre el mantenimiento (*reaper*, vencimientos y retención), porque Supabase no trae `pg_cron` activo, y se apaga ordenado con SIGTERM.
+  - **Migración 15:** `finish_job` con *fencing* (solo cierra quien tiene el *lease*); `claim_jobs` filtra por tipos y saca uno por conversación; `finish_job` y `requeue_stale_jobs` informan los pasos a DEAD. Se eliminan las firmas viejas.
+  - **Prueba de caos real:** un proceso worker muerto a mitad de un trabajo no pierde ni duplica.
+  - 216 pgTAP y 117 pruebas de backend; mutaciones comprobadas para el *fencing* y para la ausencia de PII.
 - **Webhook de WhatsApp (#16, RF-01):** `GET` y `POST /v1/webhooks/whatsapp`.
   - Orden de chequeos: límite de 1 MB (413), firma HMAC-SHA256 sobre los bytes crudos en tiempo constante y antes de parsear (401), traducción del formato de Meta con validación por mensaje.
   - Los mensajes de un número se registran en una sola transacción como `SYSTEM`: evento idempotente por `wa_message_id`, cliente, conversación abierta, mensaje y trabajo con *debounce*.

@@ -46,6 +46,13 @@ class DomainError(Exception):
     """Base de los errores que el dominio y la aplicación saben manejar."""
 
 
+class PermanentJobError(DomainError):
+    """Un trabajo que no va a funcionar aunque se reintente (payload inválido, entidad borrada).
+
+    Va directo a DEAD, sin gastar reintentos. Cualquier otra excepción se reintenta con backoff.
+    """
+
+
 class UnitOfWorkNotActiveError(DomainError):
     """Se usó un repositorio fuera de su unidad de trabajo (ADR-0011). Siempre es un bug."""
 

@@ -12,8 +12,8 @@
 | Decisiones | `docs/adr/` (ADR-0001 … ADR-0016) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (14 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 196 pruebas pgTAP en 11 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (15 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 216 pruebas pgTAP en 12 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -607,7 +607,17 @@ El cuello de botella es el **LLM** (latencia, límites de tasa y costo), no Post
 
 * **Entrada:** el evento se persiste (`inbound_events` + `messages` + `jobs`) en **una sola transacción** antes del `200 OK`. Si la BD no responde, se devuelve 500 y Meta reintenta. Ningún mensaje queda aceptado y sin procesar.
 * **Procesamiento:** semántica *at-least-once*. Los handlers son idempotentes: la clave de idempotencia de la respuesta es `conversation_id + último wa_message_id consumido`. Si un worker muere, su trabajo vuelve a la cola cuando vence el *lease* (`requeue_stale_jobs`, 5 min).
-* **Reintentos:** backoff exponencial con tope de 10 min; tras 8 intentos el trabajo pasa a `DEAD` (DLQ) y genera una alerta.
+* **Reintentos:** backoff exponencial con tope de 10 min; tras 8 intentos el trabajo pasa a `DEAD` (DLQ) y genera una alerta. Un `PermanentJobError` va directo a `DEAD`.
+* **Worker** (`backend/app/application/worker.py`, migración 15):
+  * Mantiene hasta `WORKER_CONCURRENCY` trabajos en curso y reclama solo los lugares libres.
+  * Reclama solo los tipos que tiene registrados (`p_kinds`). Un trabajo sin handler queda en la cola sin gastar intentos.
+  * A lo sumo sale un trabajo por conversación en cada reclamo.
+  * Cada trabajo tiene un timeout (`JOB_TIMEOUT_S`), y el *lease* (`JOB_LEASE_S`) debe ser mayor, lo que valida la configuración.
+  * **Fencing:** `finish_job` solo acepta el cierre del worker que tiene el *lease*. Un worker que lo perdió no puede cerrar el trabajo que otro reclamó.
+  * En `last_error` se guarda solo el **tipo** de error, nunca el mensaje (puede traer datos del cliente).
+  * Un `DEAD` produce el log `ALERTA job_dead`, que conecta con la alerta de §10.2 (#19).
+  * Como Supabase no trae `pg_cron` activo, el worker también corre el mantenimiento: *reaper* y vencimientos cada minuto, retención una vez al día.
+  * Apagado ordenado con SIGTERM: deja de reclamar y termina lo que tiene en curso.
 * **Salida:** `outbound_messages` con `idempotency_key UNIQUE`. Los webhooks de estado de Meta actualizan `SENT/DELIVERED/READ/FAILED` (outbox, #18; hasta entonces el webhook los acepta con 200 y solo los cuenta).
 * **Implementación del webhook** (`backend/app/api/v1/whatsapp/`): límite de 1 MB → 413; firma HMAC sobre los bytes crudos antes de parsear → 401; un número desconocido o inactivo → 200 sin escribir nada; un fallo de BD → 500 para que Meta reintente. Los mensajes de un mismo `phone_number_id` se registran en una transacción como actor `SYSTEM`: evento, cliente (`last_inbound_at`), conversación abierta, mensaje y trabajo con *debounce*. Un mensaje con formato inválido (por ejemplo, un `wa_id` que no cumple el `CHECK`) se descarta y se cuenta, sin tumbar el lote. Los logs llevan solo conteos.
 * **Ventana de 24 h:** si se cerró, solo se envían **plantillas aprobadas** (recordatorio de cita, cotización por vencer, pago confirmado). Las notificaciones al dueño van por el dashboard o por plantilla de utilidad, nunca por mensaje libre fuera de ventana.
@@ -617,7 +627,7 @@ El cuello de botella es el **LLM** (latencia, límites de tasa y costo), no Post
 * **Logs** JSON estructurados con `trace_id`, `organization_id`, `conversation_id`, `wa_message_id` y `job_id`, con PII redactada.
 * **Trazas** OpenTelemetry de punta a punta: webhook → job → LLM → herramienta → envío.
 * **Métricas:** `webhook_ack_ms`, `reply_latency_ms`, `evidence_latency_ms`, `jobs_queued`, `jobs_dead`, `llm_cost_usd{tenant}`, `needs_review_rate`, `handoff_rate`, `grounding_violations`, `fx_stale_tenants`.
-* **Alertas (SLO):** p95 de respuesta > 8 s durante 15 min; cualquier trabajo `DEAD`; más de 50 trabajos en cola por más de 5 min; TC vencido en algún tenant con ítems en USD; costo de IA de un tenant > 80 % del tope; fallas de firma de webhook > 1 %.
+* **Alertas (SLO):** p95 de respuesta > 8 s durante 15 min; cualquier trabajo `DEAD` (log `ALERTA job_dead` del worker); más de 50 trabajos en cola por más de 5 min; TC vencido en algún tenant con ítems en USD; costo de IA de un tenant > 80 % del tope; fallas de firma de webhook > 1 %.
 
 ### 10.3 Continuidad
 
@@ -675,7 +685,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0014 (este documento las referencia)
+│   ├── migrations/               # 0001…0015 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/

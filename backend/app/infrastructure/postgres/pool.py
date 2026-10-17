@@ -3,7 +3,9 @@
 import asyncpg
 
 
-async def create_pool(dsn: str, *, min_size: int = 1, max_size: int = 10) -> asyncpg.Pool:
+async def create_pool(
+    dsn: str, *, min_size: int = 1, max_size: int = 10, application_name: str = "scz-b2b-core"
+) -> asyncpg.Pool:
     """Crea el pool. Apto para Supavisor en modo transacción:
 
     * `statement_cache_size=0`: sin prepared statements con nombre, que el pooler no
@@ -18,7 +20,7 @@ async def create_pool(dsn: str, *, min_size: int = 1, max_size: int = 10) -> asy
         statement_cache_size=0,
         max_inactive_connection_lifetime=60,
         command_timeout=10,
-        server_settings={"application_name": "scz-b2b-core"},
+        server_settings={"application_name": application_name},  # identifica api/worker en pg_stat_activity
     )
     if pool is None:  # pragma: no cover - asyncpg solo devuelve None sin await
         raise RuntimeError("asyncpg.create_pool no devolvió un pool")
