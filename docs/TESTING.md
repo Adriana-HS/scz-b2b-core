@@ -7,7 +7,7 @@ supabase db start      # solo Postgres + migraciones
 supabase test db
 ```
 
-En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI (requiere Docker Desktop y Supabase CLI).
+En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP, lint y `check_repo.py`. Requiere Docker Desktop. Si la Supabase CLI no está instalada, usa `npx supabase@<versión de la CI>` (requiere Node.js). También evita un fallo de la CLI 2.120.0 en Windows con la carpeta temporal (`makeTempDirectoryScoped NotFound`) usando `%LOCALAPPDATA%\scz-b2b-core-tmp`.
 
 ### Qué corre la CI (`.github/workflows/ci.yml`)
 
