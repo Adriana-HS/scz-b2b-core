@@ -81,7 +81,7 @@ def test_cada_alerta_tiene_un_caso_que_dispara_y_uno_que_no() -> None:
 
 def test_las_alertas_del_system_design_estan_todas() -> None:
     """§10.2: p95 > 8 s, cualquier DEAD, cola > 50, TC vencido, firmas > 1 %. El costo de IA
-    llega con el agente (#26) y queda anotado en el archivo de reglas."""
+    llega con las cuotas (#25) y queda anotado en el archivo de reglas."""
     names = {r["alert"] for r in RULES}
     required = {
         "ReplyLatencyP95High",
@@ -92,4 +92,4 @@ def test_las_alertas_del_system_design_estan_todas() -> None:
     }
 
     assert required <= names
-    assert "#26" in (ALERTS / "slo-rules.yaml").read_text(encoding="utf-8")
+    assert "#25" in (ALERTS / "slo-rules.yaml").read_text(encoding="utf-8")

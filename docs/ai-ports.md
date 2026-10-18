@@ -1,6 +1,6 @@
 # Puertos de IA
 
-Cómo el backend habla con los modelos de IA sin depender de un proveedor (#22, `docs/architecture/principios-y-patrones.md` §2.1 y §3). El agente (#26) usa estos puertos; nunca un SDK.
+Cómo el backend habla con los modelos de IA sin depender de un proveedor (#22, `docs/architecture/principios-y-patrones.md` §2.1 y §3). El agente (#81, con las herramientas de #24 y los guardrails de #25) usa estos puertos; nunca un SDK.
 
 ## Puertos
 
@@ -46,5 +46,5 @@ TracedChatModel → CostMeteredChatModel → CircuitBreakerChatModel → Retryin
 ## Qué falta y dónde llega
 
 * **Cuotas por cliente y por tenant** ("denial of wallet", §8.3), con `private.llm_calls`: #25.
-* **Alerta de costo por tenant** > 80 % del tope: #26, junto con el tope por plan.
+* **Alerta de costo por tenant** > 80 % del tope: #25, junto con el tope por plan.
 * **Adaptadores de embeddings, voz y visión:** #23, #30 y #31.
