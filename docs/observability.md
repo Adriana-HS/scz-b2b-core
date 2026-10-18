@@ -62,9 +62,10 @@ Al exportar a Prometheus, los contadores llevan `_total` y los histogramas `_buc
 | `jobs_oldest_ready_s` | gauge | `kind` | ídem: espera del trabajo **listo** más viejo (sin contar backoff) | cola |
 | `fx_stale_tenants` | gauge | — | `private.fx_stale_tenants` cada minuto | Q-ACC |
 | `agent_tool_calls` | contador | `tool`, `outcome` (`OK` o el código del error) | herramientas del agente (#24) | `handoff_rate` = las de `handoff_to_human` sobre los turnos |
-| `llm_cost_usd` | contador | (lo define el agente, #81) | agente | Q-COST-1 |
+| `agent_turns` | contador | `outcome` (`replied`, `limit`, `ai_unavailable`, `window_closed`, `skipped_human`, `skipped_consent`, `nothing_pending`) | orquestador del agente (#81) | tasa de plantillas: `limit` + `ai_unavailable` sobre los turnos |
+| `llm_cost_usd` | contador | `purpose`, `model`, `organization_id` | decorador de costo de IA (#22), en cada turno del agente | Q-COST-1 |
 
-Los gauges de la cola se miden **solo para los tipos que el worker procesa**: un tipo sin handler todavía (`PROCESS_CONVERSATION`, hasta #81) espera a propósito y no debe disparar "cola atascada". Un tipo procesado sin filas se informa en cero, así la alerta se apaga sola.
+Los gauges de la cola se miden **solo para los tipos que el worker procesa**: un tipo sin handler (por ejemplo `PROCESS_CONVERSATION` sin la configuración de IA, o `EMBED_ITEM` hasta #23) espera a propósito y no debe disparar "cola atascada". Un tipo procesado sin filas se informa en cero, así la alerta se apaga sola.
 
 `METRIC_NAMES` en `telemetry.py` es el catálogo: una prueba verifica que coincida con los instrumentos creados y que las alertas solo usen esos nombres.
 

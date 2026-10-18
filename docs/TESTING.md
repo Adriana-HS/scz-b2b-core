@@ -151,6 +151,14 @@ Mutaciones comprobadas:
 * **Contra la BD** (`test_agent_tools_db.py`): precio calculado por la BD, ficha igual a la búsqueda, ítems de otro negocio inexistentes, la cotización reserva stock para el cliente del contexto, el paso a una persona deja la conversación en `HUMAN`.
 * **Mutaciones comprobadas** (9 de 9 detectadas): sin `extra="forbid"`; actor `SYSTEM` en vez de `BOT`; repetir el valor inválido; devolver el mensaje de un error inesperado; montos como número; otra conversación en la cotización; perder el aviso de precio; atributos internos visibles (pgTAP); stock sin descontar reservas (pgTAP).
 
+### Orquestador del agente (#81)
+
+* **Turno** (`test_agent_turn.py`, con modelo guionado y herramientas falsas): responde una vez y marca los mensajes; junta los mensajes seguidos del mismo lado y empieza por el cliente; el prompt del rubro y sus herramientas; el contexto del turno lo pone el servidor.
+* **Cuándo no responde:** nada pendiente; `HUMAN`, `CLOSED` o pausa vigente (marca los mensajes); solo BAJA/ALTA pendientes; ventana de 24 h cerrada.
+* **Límites:** más de 4 herramientas, 2 rondas, sin tiempo, respuesta vacía o de más de 4096 caracteres → plantilla. IA no disponible → plantilla y paso a una persona. Rubro sin política o trabajo mal formado → error permanente.
+* **Contra la BD** (`test_agent_turn_db.py`): webhook → turno → una respuesta en el outbox y el historial, el precio desde la herramienta y el costo en `llm_calls`; repetir el trabajo no duplica; con una persona a cargo no se llama al modelo.
+* **Mutaciones comprobadas** (9 de 9 detectadas): clave de idempotencia sin el último `wa_message_id`; responder con una persona a cargo; sin tope de herramientas; sin presupuesto de tiempo; no marcar los mensajes con una persona a cargo; no pasar a una persona si la IA cae; guardar en el historial lo que el outbox rechazó; una BAJA despierta al agente; mandar una respuesta vacía.
+
 ### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
 
 Corren contra el Postgres local de Supabase (`supabase db start`) **como `app_backend`**, igual que el backend real: RLS, FSM y triggers se aplican de verdad. El *fixture* se conecta como administrador local solo para crear datos sintéticos y habilitar el login de `app_backend` con una contraseña aleatoria de esa corrida; al terminar lo deja otra vez sin login.

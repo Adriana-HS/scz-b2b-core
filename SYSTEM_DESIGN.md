@@ -466,6 +466,8 @@ stateDiagram-v2
 * **Alcance del negocio:** el prompt de sistema y las evals limitan al agente a catálogo, agenda, pagos y atención del negocio, y redirigen cualquier otro tema (política de Meta sobre chatbots de IA de propósito general).
 * **Aviso de IA:** el primer mensaje de cada cliente informa que conversa con un asistente automatizado y cómo pedir una persona. Se registra en `customers.privacy_notice_at`.
 
+> **Implementación (#81):** `ProcessConversation` (`backend/app/application/agent.py`) es el handler de `PROCESS_CONVERSATION`. Lee el turno en una transacción y llama al modelo **fuera** de ella (no retiene conexiones mientras espera a la IA). Luego, en **una** transacción, encola la respuesta en el outbox con `idempotency_key = turn:{conversación}:{último wa_message_id}`, la guarda en el historial y marca los mensajes como atendidos (`processed_at`): un trabajo repetido nunca responde dos veces. No responde con `mode` `HUMAN`/`CLOSED`, con `bot_paused_until` vigente ni si lo pendiente son solo BAJA/ALTA. Si la IA no está disponible responde una plantilla y pasa la conversación a una persona (`TOOL_ERROR`). Las políticas por rubro (`backend/app/verticals/`) definen el prompt y las herramientas habilitadas. El aviso de IA, el resumen rodante y el grounding numérico llegan con #25.
+
 ### 7.2 Contratos de herramientas (tools)
 
 `organization_id`, `customer_id` y `conversation_id` **los inyecta el servidor**, nunca el LLM. Todas las entradas se validan con Pydantic (`extra="forbid"`, rangos) antes de llegar a la BD.

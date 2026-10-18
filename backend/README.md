@@ -75,10 +75,14 @@ Puertos `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText` en `app/doma
 
 `AgentToolbox(uow_factory, TurnContext(org, customer, conversation), enabled=...)` (`app/application/agent_tools.py`): `specs()` entrega los `ToolSpec` para el modelo y `execute(tool_call)` devuelve un `ToolResult` en JSON. Para una herramienta nueva: sus argumentos en `app/domain/agent_tools.py` (con `extra="forbid"`), su handler, su texto y sus mensajes de error; el negocio y el cliente nunca van en los argumentos.
 
+## Orquestador del agente (#81)
+
+`ProcessConversation` (`app/application/agent.py`) atiende un turno: lee el estado, llama al modelo con el prompt del rubro y las herramientas habilitadas (2 rondas, 4 herramientas y 20 s como máximo) y deja en una transacción la respuesta en el outbox, el historial y los mensajes atendidos. Si se pasa de los límites o la IA no responde, contesta una plantilla (`TEMPLATE_LIMIT`, `TEMPLATE_AI_UNAVAILABLE`). Para un rubro nuevo: una clase con `enabled_tools` y `system_prompt(business_name)` en `app/verticals/` y su entrada en `VERTICAL_POLICIES`; un rubro sin política es un error permanente del trabajo, no una respuesta inventada.
+
 ## Worker (ADR-0005)
 
 `uv run python -m app.worker` (requiere `DATABASE_URL`).
-* **Handlers:** se registran en `build_handlers()` de `app/worker.py`. `SEND_OUTBOUND` (outbox, #18) se registra si hay `META_GRAPH_API_VERSION`; `EMBED_ITEM` llega con el #23 y `PROCESS_CONVERSATION` con el orquestador del agente (#81). Sin handler, el worker no reclama ese tipo; el trabajo espera en la cola sin gastar intentos.
+* **Handlers:** se registran en `build_handlers()` de `app/worker.py`. `SEND_OUTBOUND` (outbox, #18) se registra si hay `META_GRAPH_API_VERSION`; `PROCESS_CONVERSATION` (orquestador del agente, #81) si hay `LLM_API_KEY`, `LLM_MODEL` y los cuatro precios; si falta algo, el worker lo avisa en el log y no lo reclama. `EMBED_ITEM` llega con el #23. Sin handler, el worker no reclama ese tipo; el trabajo espera en la cola sin gastar intentos.
 * **Contrato de un handler (*at-least-once*):** puede ejecutarse más de una vez, así que debe ser idempotente. Trabaja dentro de una `UnitOfWork` (si el worker muere, se revierte) y envía mensajes por el outbox con clave de idempotencia (#18). `PermanentJobError` = no reintentar.
 * **Variables:** `WORKER_CONCURRENCY` (16), `WORKER_POLL_INTERVAL_S` (0,25), `JOB_TIMEOUT_S` (60) y `JOB_LEASE_S` (300; debe ser mayor que el timeout).
 
