@@ -106,3 +106,22 @@ async def test_el_agente_usa_los_topes_de_la_configuracion() -> None:
 
     assert isinstance(handler, ProcessConversation)
     assert handler.limits == settings.agent_limits()
+
+
+@pytest.mark.parametrize(("version", "registered"), [("v23.0", True), (None, False)])
+async def test_el_pdf_de_cotizacion_se_atiende_si_se_puede_hablar_con_meta(
+    version: str | None, registered: bool
+) -> None:
+    import httpx
+
+    from app.application.quote_document import SendQuoteDocument
+    from app.domain.jobs import SEND_QUOTE_PDF
+    from app.worker import build_handlers
+
+    settings = Settings(_env_file=None, environment="test", meta_graph_api_version=version)
+    async with httpx.AsyncClient() as http:
+        handlers = build_handlers(settings, object(), http)  # type: ignore[arg-type]
+
+    assert (SEND_QUOTE_PDF in handlers) is registered
+    if registered:
+        assert isinstance(handlers[SEND_QUOTE_PDF], SendQuoteDocument)

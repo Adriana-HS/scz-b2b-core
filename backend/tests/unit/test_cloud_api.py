@@ -142,3 +142,57 @@ async def test_phone_number_id_invalido_no_llega_a_la_url() -> None:
     with pytest.raises(PermanentSendError):
         await _sender(meta).send("../../me", TOKEN, "59170000001", OutboundKind.TEXT, {"body": "x"})
     assert meta.requests == []
+
+
+# --- Subida de documentos (#26): el PDF se sube a Meta y se envía por media_id ---------------------
+PDF = b"%PDF-1.4 contenido de prueba"
+
+
+async def _upload(meta: FakeMeta) -> str:
+    return await _sender(meta).upload_media(PHONE_ID, TOKEN, PDF, "application/pdf", "Cotizacion-COT-1.pdf")
+
+
+async def test_la_subida_va_a_media_como_multipart_con_el_token() -> None:
+    meta = FakeMeta(body={"id": "media-123"})
+
+    media_id = await _upload(meta)
+
+    [request] = meta.requests
+    assert media_id == "media-123"
+    assert str(request.url) == f"https://graph.facebook.com/v23.0/{PHONE_ID}/media"
+    assert request.headers["authorization"] == f"Bearer {TOKEN}"
+    assert request.headers["content-type"].startswith("multipart/form-data")
+    body = request.content
+    assert b'name="messaging_product"' in body and b"whatsapp" in body
+    assert b'name="type"' in body and b"application/pdf" in body
+    assert b'filename="Cotizacion-COT-1.pdf"' in body and PDF in body
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "error", "code"),
+    [
+        (500, {"error": {"code": 1}}, TransientSendError, "HTTP_500"),
+        (429, {"error": {"code": 4}}, TransientSendError, "HTTP_429"),
+        (401, {"error": {"code": 190}}, TransientSendError, "AUTH_190"),
+        (400, {"error": {"code": 131053}}, PermanentSendError, "META_131053"),  # archivo no aceptado
+        (200, {"sin": "id"}, TransientSendError, "BAD_RESPONSE"),
+    ],
+)
+async def test_los_errores_de_la_subida_se_clasifican_igual_que_los_envios(
+    status: int, body: Any, error: type[Exception], code: str
+) -> None:
+    with pytest.raises(error, match=code):
+        await _upload(FakeMeta(status=status, body=body))
+
+
+async def test_la_subida_sin_red_es_transitoria_y_no_filtra_el_token() -> None:
+    with pytest.raises(TransientSendError) as raised:
+        await _upload(FakeMeta(error=httpx.ConnectError(f"fallo con {TOKEN}")))
+
+    assert raised.value.code == "NETWORK" and TOKEN not in str(raised.value)
+    assert raised.value.__cause__ is None and raised.value.__suppress_context__  # `from None`
+
+
+async def test_la_subida_rechaza_un_phone_number_id_raro() -> None:
+    with pytest.raises(PermanentSendError, match="BAD_PHONE_NUMBER_ID"):
+        await _sender(FakeMeta()).upload_media("../otro", TOKEN, PDF, "application/pdf", "x.pdf")
