@@ -48,6 +48,12 @@ def test_el_prompt_queda_completo_y_con_el_nombre_del_negocio(vertical: str, pol
 
 
 @pytest.mark.parametrize(("vertical", "policy"), POLICIES)
+def test_todo_rubro_trata_al_cliente_de_usted(vertical: str, policy: VerticalPolicy) -> None:
+    """Decisión de AHS (18-oct-2026): trato formal en todos los rubros."""
+    assert "de usted" in policy.system_prompt("Negocio de Ejemplo")
+
+
+@pytest.mark.parametrize(("vertical", "policy"), POLICIES)
 def test_solo_habilita_herramientas_que_existen(vertical: str, policy: VerticalPolicy) -> None:
     assert set(policy.enabled_tools) <= set(TOOL_NAMES)
     assert "handoff_to_human" in policy.enabled_tools  # siempre se puede pasar a una persona
