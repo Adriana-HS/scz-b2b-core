@@ -68,11 +68,15 @@ class ToolSpec:
 
 @dataclass(frozen=True, slots=True)
 class ToolCall:
-    """Lo que el modelo pidió. Son datos, no órdenes: el agente los valida antes de ejecutar (#24)."""
+    """Lo que el modelo pidió. Son datos, no órdenes: el agente los valida antes de ejecutar (#24).
+
+    `signature` es un dato opaco del proveedor que debe volver tal cual en la ronda siguiente
+    (la firma de razonamiento de Gemini, #83). El agente no la lee ni la cambia."""
 
     id: str
     name: str
     arguments: Mapping[str, Any]
+    signature: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
