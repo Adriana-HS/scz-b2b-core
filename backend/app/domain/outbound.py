@@ -5,6 +5,7 @@ Nadie envía directo a Meta: todo pasa por el outbox (idempotency_key única) y 
 """
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -22,11 +23,13 @@ def outbound_job_payload(outbound_id: int, conversation_id: UUID) -> dict[str, o
 _TEMPLATE_NAME = re.compile(r"^[a-z0-9_]{1,512}$")
 _LANGUAGE = re.compile(r"^[a-z]{2,3}(_[A-Z]{2})?$")
 _MAX_TEXT = 4096
+_MAX_LIST_BODY = 1024
 
 
 class OutboundKind(StrEnum):
     TEXT = "TEXT"
     DOCUMENT = "DOCUMENT"
+    INTERACTIVE = "INTERACTIVE"  # lista de opciones (horarios de la agenda, #35)
     TEMPLATE = "TEMPLATE"  # la única que sale fuera de la ventana de 24 h (con consentimiento)
 
 
@@ -50,6 +53,23 @@ class FailureReason(StrEnum):
     WINDOW_CLOSED = "WINDOW_CLOSED"
     CONSENT_REQUIRED = "CONSENT_REQUIRED"
     OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"  # el worker murió durante la llamada a Meta: puede o no haber salido
+
+
+@dataclass(frozen=True, slots=True)
+class ListRow:
+    id: str
+    title: str
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not 1 <= len(self.id) <= 200 or not 1 <= len(self.title) <= 24 or len(self.description) > 72:
+            raise ValueError("fila fuera de los límites de WhatsApp")
+
+    def as_payload(self) -> dict[str, str]:
+        row = {"id": self.id, "title": self.title}
+        if self.description:
+            row["description"] = self.description
+        return row
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +107,24 @@ class OutboundRequest:
         if caption:
             payload["caption"] = caption[:1024]
         return cls(conversation_id, idempotency_key, OutboundKind.DOCUMENT, payload)
+
+    @classmethod
+    def interactive_list(
+        cls,
+        conversation_id: UUID,
+        idempotency_key: str,
+        body: str,
+        button: str,
+        rows: Sequence[ListRow],
+    ) -> "OutboundRequest":
+        """Lista de opciones de WhatsApp: el cliente toca una y vuelve su `id` (#35). Límites de Meta:
+        cuerpo ≤ 1024, botón ≤ 20, de 1 a 10 filas, título ≤ 24, descripción ≤ 72, id ≤ 200."""
+        if not 1 <= len(body) <= _MAX_LIST_BODY or not 1 <= len(button) <= 20 or not 1 <= len(rows) <= 10:
+            raise ValueError("lista interactiva fuera de los límites de WhatsApp")
+        if len({row.id for row in rows}) != len(rows):
+            raise ValueError("ids de filas repetidos")
+        payload = {"body": body, "button": button, "rows": [row.as_payload() for row in rows]}
+        return cls(conversation_id, idempotency_key, OutboundKind.INTERACTIVE, payload)
 
     @classmethod
     def template(

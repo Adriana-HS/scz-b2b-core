@@ -68,6 +68,9 @@ def _text_of(message: dict[str, Any]) -> str | None:
         interactive = _as_dict(message.get("interactive"))
         reply = _as_dict(interactive.get("button_reply") or interactive.get("list_reply"))
         text = reply.get("title")
+        option = reply.get("id")
+        if isinstance(text, str) and isinstance(option, str) and option.startswith("slot:"):
+            text = f"{text} [{option}]"  # el horario elegido (#35): el modelo lo pasa a hold_appointment
     elif kind == "button":
         text = _as_dict(message.get("button")).get("text")
     else:

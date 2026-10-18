@@ -6,10 +6,12 @@ de un parámetro. Los montos llegan como `numeric` y se mantienen como `Decimal`
 
 import json
 from collections.abc import Sequence
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from app.domain.agent import ConversationMessage, TurnState, TurnUsage
+from app.domain.booking import Appointment, Slot
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus, TaxMode
 from app.domain.jobs import SEND_QUOTE_PDF, quote_pdf_job_payload
 from app.domain.orders import Quote, QuoteRequest
@@ -44,7 +46,7 @@ _HANDOFF = "SELECT public.request_handoff($1, $2, $3)"
 # Estado del turno (#81). La RLS y el organization_id del tenant acotan todo al negocio.
 _TURN = """
     SELECT c.id, c.customer_id, c.mode::text AS mode, c.bot_paused_until, c.summary,
-           o.name AS business_name, o.vertical::text AS vertical,
+           o.name AS business_name, o.vertical::text AS vertical, o.timezone,
            cu.privacy_notice_at,
            CASE WHEN jsonb_typeof(o.config -> 'ai_notice') = 'string'
                 THEN o.config ->> 'ai_notice' END AS ai_notice
@@ -94,6 +96,17 @@ _ADD_BOT_REPLY = """
 """
 
 # PDF de cotización (#26): el trabajo va serializado con la conversación (sale después del turno)
+# Agenda (#35): las RPC de la migración 6 (horarios libres y retención con exclusión anti doble reserva)
+_TIMEZONE = "SELECT timezone FROM public.organizations WHERE id = private.backend_org_id()"
+_AVAILABLE_SLOTS = """
+    SELECT resource_id, resource_name, slot_start, slot_end FROM public.available_slots($1, $2)
+"""
+_HOLD_APPOINTMENT = """
+    SELECT h.reference_code, h.slot_start, h.slot_end, h.total_bs, h.deposit_required_bs, h.valid_until,
+           r.name AS resource_name
+    FROM public.hold_appointment($1, $2, $3, $4, $5) h
+    JOIN public.resources r ON r.id = $4 AND r.organization_id = private.backend_org_id()
+"""
 _REQUEST_QUOTE_DOCUMENT = """
     INSERT INTO private.jobs (organization_id, kind, payload, conversation_key)
     VALUES (private.backend_org_id(), $1, $2::jsonb, $3)
@@ -209,6 +222,7 @@ class PostgresConversationRepository:
             summary=row["summary"],
             privacy_notice_at=row["privacy_notice_at"],
             ai_notice=row["ai_notice"],
+            timezone=row["timezone"],
             history=tuple(
                 ConversationMessage(
                     id=m["id"],
@@ -269,6 +283,36 @@ class PostgresOrderRepository:
             tax_mode=TaxMode(row["tax_mode"]),
             valid_until=row["valid_until"],
         )
+
+    async def business_timezone(self) -> str:
+        with translate_errors():
+            timezone: str = await self._session.connection().fetchval(_TIMEZONE)
+        return timezone
+
+    async def available_slots(self, service_item_id: UUID, day: date) -> list[Slot]:
+        with translate_errors():
+            rows = await self._session.connection().fetch(_AVAILABLE_SLOTS, service_item_id, day)
+        return [Slot(r["resource_id"], r["resource_name"], r["slot_start"], r["slot_end"]) for r in rows]
+
+    async def hold_appointment(
+        self,
+        customer_id: UUID,
+        conversation_id: UUID,
+        service_item_id: UUID,
+        resource_id: UUID,
+        start: datetime,
+    ) -> Appointment:
+        connection = self._session.connection()
+        with translate_errors():
+            row = await connection.fetchrow(
+                _HOLD_APPOINTMENT, customer_id, conversation_id, service_item_id, resource_id, start
+            )
+        assert row is not None  # noqa: S101 - la RPC devuelve la cita o lanza
+        return Appointment(
+            reference_code=row["reference_code"], resource_name=row["resource_name"], start=row["slot_start"],
+            end=row["slot_end"], total_bs=row["total_bs"], deposit_required_bs=row["deposit_required_bs"],
+            valid_until=row["valid_until"],
+        )  # fmt: skip
 
     async def request_quote_document(self, order_id: UUID, conversation_id: UUID) -> None:
         connection = self._session.connection()

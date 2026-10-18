@@ -5,6 +5,7 @@ cliente, la conversación, un precio o un estado: `extra="forbid"` rechaza cualq
 más (inyección directa, §7.4) y el servidor completa el resto desde el contexto del turno.
 """
 
+from datetime import date
 from enum import StrEnum
 from typing import Self
 from uuid import UUID
@@ -65,6 +66,40 @@ class CreateQuoteArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     items: tuple[QuoteItemArgs, ...] = Field(min_length=1, max_length=50, description="Ítems y cantidades")
+
+
+class _ServiceRef(BaseModel):
+    """El servicio: su código (el que mostró search_catalog) o su item_id, uno de los dos."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    service_sku: str | None = Field(
+        default=None, min_length=1, max_length=64, description="Código del servicio"
+    )
+    service_item_id: UUID | None = Field(
+        default=None, description="item_id del servicio, si no se usa el código"
+    )
+
+    @model_validator(mode="after")
+    def _one_service(self) -> Self:
+        if (self.service_sku is None) == (self.service_item_id is None):
+            raise ValueError("lleva service_sku o service_item_id, uno de los dos")
+        return self
+
+
+class CheckAvailabilityArgs(_ServiceRef):
+    """Horarios libres de un servicio en un día (#35)."""
+
+    day: date = Field(description="El día, AAAA-MM-DD, en la hora del negocio")
+
+
+class HoldAppointmentArgs(_ServiceRef):
+    """Retener un horario que devolvió check_availability (#35)."""
+
+    slot: str = Field(
+        pattern=r"^slot:[0-9a-f-]{36}:\d{8}T\d{4}Z$",
+        description="El slot tal cual vino de check_availability",
+    )
 
 
 class HandoffArgs(BaseModel):

@@ -8,13 +8,14 @@ depende de ChatModel, no de un proveedor. Sus errores son AiError con código es
 """
 
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from types import TracebackType
 from typing import Any, Protocol, Self
 from uuid import UUID
 
 from app.domain.agent import TurnState
 from app.domain.ai import ChatMessage, LlmCall, ModelResponse, ReceiptExtraction, ToolSpec
+from app.domain.booking import Appointment, Slot
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails
 from app.domain.consent import ConsentKind, ConsentSource
 from app.domain.jobs import Job, QueueStats
@@ -74,6 +75,25 @@ class OrderRepository(Protocol):
 
     async def request_quote_document(self, order_id: UUID, conversation_id: UUID) -> None:
         """Encola SEND_QUOTE_PDF en la misma transacción que la cotización (#26)."""
+        ...
+
+    async def business_timezone(self) -> str:
+        """organizations.timezone del tenant: los horarios se muestran en su hora (#35)."""
+        ...
+
+    async def available_slots(self, service_item_id: UUID, day: date) -> list[Slot]:
+        """Horarios libres del servicio ese día. ITEM_NOT_FOUND si no es un servicio activo del tenant."""
+        ...
+
+    async def hold_appointment(
+        self,
+        customer_id: UUID,
+        conversation_id: UUID,
+        service_item_id: UUID,
+        resource_id: UUID,
+        start: datetime,
+    ) -> Appointment:
+        """Retiene el horario (HELD). SLOT_TAKEN, SLOT_IN_PAST u OUTSIDE_BUSINESS_HOURS si no se puede."""
         ...
 
     async def quote_delivery(self, order_id: UUID) -> QuoteDelivery | None:
