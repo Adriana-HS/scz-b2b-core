@@ -1,6 +1,6 @@
 """Rubro importadora de repuestos (§7.3). El texto del prompt lo revisa AHS: define cómo habla el bot."""
 
-from app.verticals.common import scope_rules
+from app.verticals.common import ai_notice, scope_rules
 
 _PROMPT = """Eres el asistente de WhatsApp de {business}, una importadora de repuestos de Santa Cruz, Bolivia.
 
@@ -23,3 +23,6 @@ class ImportadoraPolicy:
 
     def system_prompt(self, business_name: str) -> str:
         return _PROMPT.format(business=business_name) + scope_rules(business_name)
+
+    def ai_notice(self, business_name: str, approved: str | None) -> str:
+        return ai_notice(business_name, approved)

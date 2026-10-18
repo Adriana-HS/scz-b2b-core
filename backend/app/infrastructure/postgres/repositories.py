@@ -34,9 +34,13 @@ _HANDOFF = "SELECT public.request_handoff($1, $2, $3)"
 # Estado del turno (#81). La RLS y el organization_id del tenant acotan todo al negocio.
 _TURN = """
     SELECT c.id, c.customer_id, c.mode::text AS mode, c.bot_paused_until, c.summary,
-           o.name AS business_name, o.vertical::text AS vertical
+           o.name AS business_name, o.vertical::text AS vertical,
+           cu.privacy_notice_at,
+           CASE WHEN jsonb_typeof(o.config -> 'ai_notice') = 'string'
+                THEN o.config ->> 'ai_notice' END AS ai_notice
     FROM public.conversations c
     JOIN public.organizations o ON o.id = c.organization_id
+    JOIN public.customers cu ON cu.id = c.customer_id AND cu.organization_id = c.organization_id
     WHERE c.id = $1 AND c.organization_id = private.backend_org_id()
 """
 # Últimos N mensajes + todos los pendientes (aunque sean más viejos), en orden cronológico
@@ -65,6 +69,10 @@ _TURN_USAGE = """
          WHERE l.organization_id = private.backend_org_id()
            AND l.created_at >= (date_trunc('day', now() AT TIME ZONE 'America/La_Paz')
                                 AT TIME ZONE 'America/La_Paz')) AS ai_cost_today_usd
+"""
+_RECORD_PRIVACY_NOTICE = """
+    UPDATE public.customers SET privacy_notice_at = now()
+    WHERE id = $1 AND organization_id = private.backend_org_id() AND privacy_notice_at IS NULL
 """
 _MARK_PROCESSED = """
     UPDATE public.messages SET processed_at = now()
@@ -155,6 +163,8 @@ class PostgresConversationRepository:
             mode=row["mode"],
             bot_paused_until=row["bot_paused_until"],
             summary=row["summary"],
+            privacy_notice_at=row["privacy_notice_at"],
+            ai_notice=row["ai_notice"],
             history=tuple(
                 ConversationMessage(
                     id=m["id"],
@@ -172,6 +182,10 @@ class PostgresConversationRepository:
                 ai_cost_today_usd=usage["ai_cost_today_usd"],
             ),
         )
+
+    async def record_privacy_notice(self, customer_id: UUID) -> None:
+        with translate_errors():
+            await self._session.connection().execute(_RECORD_PRIVACY_NOTICE, customer_id)
 
     async def mark_processed(self, conversation_id: UUID, message_ids: Sequence[int]) -> None:
         connection = self._session.connection()
