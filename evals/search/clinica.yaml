@@ -1,0 +1,24 @@
+# Eval de búsqueda (#23, ADR-0020): consultas sintéticas de pacientes contra el catálogo de los seeds
+# (supabase/seed/seed_clinica.sql). Mismas reglas que importadora.yaml.
+organization_id: 5eed0000-0000-4000-8000-00000000000b
+queries:
+  - {query: "limpieza de dientes", relevant: [PRE-001, PRE-002]}
+  - {query: "destartraje", relevant: [PRE-001, PRE-002]}
+  - {query: "sacar una muela", relevant: [CIR-001, CIR-002]}
+  - {query: "extraccion de molar", relevant: [CIR-002]}
+  - {query: "tratamiento de conducto", relevant: [END-001, END-002]}
+  - {query: "una calza", relevant: [RES-001, RES-002]}
+  - {query: "tapadura de resina", relevant: [RES-001, RES-002]}
+  - {query: "brackets", relevant: [CON-003]}
+  - {query: "control de frenillos", relevant: [CON-003]}
+  - {query: "placa panoramica", relevant: [RAD-002]}
+  - {query: "rx", relevant: [RAD-001, RAD-002]}
+  - {query: "chequeo general", relevant: [CON-001]}
+  - {query: "emergencia", relevant: [CON-002]}
+  - {query: "blanquear dientes", relevant: [EST-001]}
+  - {query: "fluor", relevant: [PRE-003]}
+  - {query: "endodoncia", relevant: [END-001, END-002]}
+  # Frases completas: tienen palabras que ningún servicio lleva ("quisiera", "hijo", "precio")
+  - {query: "quisiera una limpieza para mi hijo", relevant: [PRE-001, PRE-002]}
+  - {query: "cuanto sale el blanqueamiento", relevant: [EST-001]}
+  - {query: "precio de radiografia panoramica", relevant: [RAD-002]}

@@ -1,0 +1,30 @@
+# Eval de búsqueda (#23, ADR-0020): consultas sintéticas como las escribiría un cliente en Santa Cruz,
+# contra el catálogo de los seeds (supabase/seed/seed_importadora.sql). `relevant`: los SKU que
+# cuentan como acierto. Métrica: MRR@5 (1/posición del primer acierto entre los 5 primeros).
+# Sin datos reales: ni clientes ni consultas de producción.
+organization_id: 5eed0000-0000-4000-8000-00000000000a
+queries:
+  - {query: "zapatas delanteras", relevant: [FRE-001, FRE-004]}
+  - {query: "balatas traseras", relevant: [FRE-002]}
+  - {query: "shocks traseros", relevant: [SUS-001]}
+  - {query: "faja de distribucion", relevant: [MOT-001, MOT-002]}
+  - {query: "clutch completo", relevant: [EMB-001]}
+  - {query: "kit de cloche", relevant: [EMB-001]}
+  - {query: "burro de arranque", relevant: [ELE-002]}
+  - {query: "ampolleta h4", relevant: [ELE-003]}
+  - {query: "anticongelante", relevant: [REF-003]}
+  - {query: "empaquetadura tapa de valvulas", relevant: [MOT-004]}
+  - {query: "bocina de paquete de resortes", relevant: [SUS-005]}
+  - {query: "rotor de freno", relevant: [FRE-003]}
+  - {query: "filtro de aceite", relevant: [FIL-001, FIL-005]}
+  - {query: "pastilla de freno para sedan", relevant: [FRE-004]}
+  - {query: "FRE003", relevant: [FRE-003]}
+  - {query: "amortiguador delantero", relevant: [SUS-002]}
+  - {query: "bujia de iridio", relevant: [MOT-003]}
+  - {query: "rotula de suspension", relevant: [SUS-003]}
+  - {query: "cruceta de cardan", relevant: [TRA-003]}
+  - {query: "termostato", relevant: [REF-002]}
+  # Frases completas: tienen palabras que ningún producto lleva ("necesito", "auto", "camioneta")
+  - {query: "necesito pastillas de freno para mi auto", relevant: [FRE-001, FRE-002, FRE-004]}
+  - {query: "tiene filtro de aire para camioneta", relevant: [FIL-002]}
+  - {query: "busco bomba de agua urgente", relevant: [REF-001]}
