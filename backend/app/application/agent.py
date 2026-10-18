@@ -7,7 +7,7 @@ Un turno, por conversación (la cola los serializa y agrupa ráfagas, ADR-0005):
      persona o está en pausa, o si lo pendiente son solo BAJA/ALTA (ya confirmadas por el
      webhook). En los dos últimos casos marca los mensajes como atendidos.
   3. Llama al modelo con el prompt del rubro y las herramientas habilitadas, dentro de los
-     límites del turno: 2 rondas, 4 herramientas y 20 s. Si se pasa, o la respuesta está vacía
+     límites del turno: 3 rondas, 4 herramientas y 20 s. Si se pasa, o la respuesta está vacía
      o es demasiado larga, responde una plantilla segura que ofrece una persona. Si trae código
      o copia un fragmento del prompt, responde que solo atiende lo del negocio.
   4. Si la IA no está disponible (circuito abierto, timeout, error), responde una plantilla y
@@ -124,7 +124,7 @@ class ProcessConversation:
         policies: Mapping[str, VerticalPolicy],
         clock: Callable[[], float] = time.monotonic,
         history_limit: int = 12,
-        max_rounds: int = 2,
+        max_rounds: int = 3,  # buscar -> cotizar -> responder (#89)
         max_tool_calls: int = 4,
         turn_budget_s: float = 20.0,
         limits: AgentLimits | None = None,

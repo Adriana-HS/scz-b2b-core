@@ -25,6 +25,14 @@ _SEARCH = """
     FROM public.search_catalog($1, NULL, $2, $3)
 """
 
+# Códigos de producto -> ítems activos del tenant (#89). Mismo normalizado que la columna generada.
+_FIND_BY_SKUS = """
+    SELECT sku, id FROM public.catalog_items
+    WHERE organization_id = private.backend_org_id() AND is_active
+      AND sku_normalized = ANY(
+          SELECT upper(regexp_replace(s, '[^A-Za-z0-9]', '', 'g')) FROM unnest($1::text[]) s
+      )
+"""
 _DETAILS = """
     SELECT item_id, sku, name, description, category, item_type::text AS item_type, stock_available,
            duration_minutes, unit_price_bs, price_status, tax_mode::text AS tax_mode, attributes
@@ -142,6 +150,12 @@ class PostgresCatalogRepository:
             )
             for row in rows
         ]
+
+    async def find_by_skus(self, skus: Sequence[str]) -> list[tuple[str, UUID]]:
+        connection = self._session.connection()
+        with translate_errors():
+            rows = await connection.fetch(_FIND_BY_SKUS, list(skus))
+        return [(row["sku"], row["id"]) for row in rows]
 
     async def get_details(self, item_id: UUID) -> ItemDetails | None:
         connection = self._session.connection()
