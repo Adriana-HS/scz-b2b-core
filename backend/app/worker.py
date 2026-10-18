@@ -2,7 +2,8 @@
 
 Ejecutar en local:  uv run python -m app.worker   (requiere DATABASE_URL)
 
-Handlers registrados: SEND_OUTBOUND (outbox, #18), si hay META_GRAPH_API_VERSION, y
+Handlers registrados: SEND_OUTBOUND (outbox, #18) y SEND_QUOTE_PDF (PDF de cotización, #26), si
+hay META_GRAPH_API_VERSION, y
 PROCESS_CONVERSATION (agente, #81), si hay LLM_API_KEY, LLM_MODEL y sus precios. Los demás
 llegan con sus issues: EMBED_ITEM (#23) y PRICE_CHANGE_ALERT.
 Un tipo sin handler NO se reclama: espera en la cola, sin gastar intentos.
@@ -26,16 +27,18 @@ from app.application.agent import ProcessConversation
 from app.application.agent_tools import AgentToolbox, TurnContext
 from app.application.ai import CircuitBreaker, RecordLlmCalls, resilient_chat_model
 from app.application.outbound import SEND_OUTBOUND, SendOutbound
+from app.application.quote_document import SendQuoteDocument
 from app.application.worker import JobHandler, JobRunner, default_maintenance
 from app.core.config import Settings, get_settings
 from app.core.observability import setup_observability
 from app.domain.ai import AiPurpose
-from app.domain.jobs import PROCESS_CONVERSATION
+from app.domain.jobs import PROCESS_CONVERSATION, SEND_QUOTE_PDF
 from app.domain.ports import ChatModel
 from app.infrastructure.ai.anthropic import PROVIDER as ANTHROPIC
 from app.infrastructure.ai.anthropic import AnthropicChatModel
 from app.infrastructure.ai.gemini import PROVIDER as GEMINI
 from app.infrastructure.ai.gemini import GeminiChatModel
+from app.infrastructure.pdf.reportlab_renderer import ReportlabQuoteRenderer
 from app.infrastructure.postgres.jobs import PostgresJobQueue, PostgresMaintenance
 from app.infrastructure.postgres.pool import create_pool
 from app.infrastructure.postgres.unit_of_work import unit_of_work_factory
@@ -56,9 +59,14 @@ def build_handlers(
         handlers[SEND_OUTBOUND] = SendOutbound(
             unit_of_work=unit_of_work_factory(pool), sender=sender, secrets=EnvSecretStore()
         )
+        handlers[SEND_QUOTE_PDF] = SendQuoteDocument(
+            unit_of_work=unit_of_work_factory(pool), renderer=ReportlabQuoteRenderer(), uploader=sender,
+            secrets=EnvSecretStore(),
+        )  # fmt: skip
     else:
         logger.warning(
-            "worker: sin META_GRAPH_API_VERSION no se envían mensajes (SEND_OUTBOUND espera en cola)"
+            "worker: sin META_GRAPH_API_VERSION no se envían mensajes ni PDF (SEND_OUTBOUND y SEND_QUOTE_PDF"
+            " esperan en cola)"
         )
     agent = build_agent(settings, pool, http)
     if agent is not None:

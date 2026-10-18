@@ -7,6 +7,12 @@ from typing import Any
 from uuid import UUID
 
 PROCESS_CONVERSATION = "PROCESS_CONVERSATION"  # turno del agente para una conversación (#81)
+SEND_QUOTE_PDF = "SEND_QUOTE_PDF"  # PDF de una cotización: generar, subir a Meta y encolar (#26)
+
+
+def quote_pdf_job_payload(order_id: UUID, conversation_id: UUID) -> dict[str, object]:
+    """Payload de SEND_QUOTE_PDF: solo referencias; las cifras se leen de la BD al generar."""
+    return {"order_id": str(order_id), "conversation_id": str(conversation_id)}
 
 
 class JobStatus(StrEnum):

@@ -11,7 +11,9 @@ from uuid import UUID
 
 from app.domain.agent import ConversationMessage, TurnState, TurnUsage
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus, TaxMode
+from app.domain.jobs import SEND_QUOTE_PDF, quote_pdf_job_payload
 from app.domain.orders import Quote, QuoteRequest
+from app.domain.quote_document import QuoteDelivery, QuoteDocument, QuoteDocumentLine
 from app.infrastructure.postgres.errors import translate_errors
 
 if TYPE_CHECKING:
@@ -81,6 +83,34 @@ _MARK_PROCESSED = """
 _ADD_BOT_REPLY = """
     INSERT INTO public.messages (organization_id, conversation_id, direction, sender, msg_type, body)
     VALUES (private.backend_org_id(), $1, 'OUT', 'BOT', 'text', $2)
+"""
+
+# PDF de cotización (#26): el trabajo va serializado con la conversación (sale después del turno)
+_REQUEST_QUOTE_DOCUMENT = """
+    INSERT INTO private.jobs (organization_id, kind, payload, conversation_key)
+    VALUES (private.backend_org_id(), $1, $2::jsonb, $3)
+"""
+_QUOTE_DELIVERY = """
+    SELECT o.reference_code, o.created_at, o.valid_until, o.subtotal_bs, o.iva_bs, o.total_bs,
+           o.deposit_required_bs, o.applied_fx_rate, o.conversation_id,
+           tr.mode::text AS tax_mode, tr.iva_rate,
+           g.name AS business_name, g.legal_name, g.nit, g.timezone,
+           cu.display_name AS customer_name,
+           w.phone_number_id, w.access_token_ref
+    FROM public.orders o
+    JOIN public.organizations g ON g.id = o.organization_id
+    JOIN public.customers cu ON cu.organization_id = o.organization_id AND cu.id = o.customer_id
+    JOIN public.tax_regimes tr ON tr.id = o.tax_regime_id
+    LEFT JOIN public.conversations v ON v.organization_id = o.organization_id AND v.id = o.conversation_id
+    LEFT JOIN public.whatsapp_channels w
+           ON w.organization_id = v.organization_id AND w.id = v.whatsapp_channel_id AND w.is_active
+    WHERE o.id = $1 AND o.organization_id = private.backend_org_id()
+"""
+_QUOTE_LINES = """
+    SELECT sku_snapshot, name_snapshot, quantity, unit_price_bs, line_total_bs
+    FROM public.order_items
+    WHERE order_id = $1 AND organization_id = private.backend_org_id()
+    ORDER BY sku_snapshot, id
 """
 
 _CREATE_QUOTE = """
@@ -224,6 +254,55 @@ class PostgresOrderRepository:
             applied_fx_rate=row["applied_fx_rate"],
             tax_mode=TaxMode(row["tax_mode"]),
             valid_until=row["valid_until"],
+        )
+
+    async def request_quote_document(self, order_id: UUID, conversation_id: UUID) -> None:
+        connection = self._session.connection()
+        with translate_errors():
+            await connection.execute(
+                _REQUEST_QUOTE_DOCUMENT, SEND_QUOTE_PDF,
+                json.dumps(quote_pdf_job_payload(order_id, conversation_id)), str(conversation_id),
+            )  # fmt: skip
+
+    async def quote_delivery(self, order_id: UUID) -> QuoteDelivery | None:
+        connection = self._session.connection()
+        with translate_errors():
+            row = await connection.fetchrow(_QUOTE_DELIVERY, order_id)
+            if row is None:
+                return None
+            lines = await connection.fetch(_QUOTE_LINES, order_id)
+        document = QuoteDocument(
+            business_name=row["business_name"],
+            legal_name=row["legal_name"],
+            nit=row["nit"],
+            reference_code=row["reference_code"],
+            issued_at=row["created_at"],
+            valid_until=row["valid_until"],
+            timezone=row["timezone"],
+            customer_name=row["customer_name"],
+            lines=tuple(
+                QuoteDocumentLine(
+                    sku=line["sku_snapshot"],
+                    name=line["name_snapshot"],
+                    quantity=line["quantity"],
+                    unit_price_bs=line["unit_price_bs"],
+                    line_total_bs=line["line_total_bs"],
+                )
+                for line in lines
+            ),
+            subtotal_bs=row["subtotal_bs"],
+            iva_bs=row["iva_bs"],
+            total_bs=row["total_bs"],
+            deposit_required_bs=row["deposit_required_bs"],
+            applied_fx_rate=row["applied_fx_rate"],
+            tax_mode=TaxMode(row["tax_mode"]),
+            iva_percent=row["iva_rate"],
+        )
+        return QuoteDelivery(
+            document=document,
+            conversation_id=row["conversation_id"],
+            phone_number_id=row["phone_number_id"],
+            access_token_ref=row["access_token_ref"],
         )
 
     async def count_for_customer(self, customer_id: UUID) -> int:

@@ -21,6 +21,7 @@ from app.domain.jobs import Job, QueueStats
 from app.domain.messaging import InboundMessage, WhatsAppChannel
 from app.domain.orders import Quote, QuoteRequest
 from app.domain.outbound import OutboundKind, OutboundRequest, PendingSend, StatusUpdate
+from app.domain.quote_document import QuoteDelivery, QuoteDocument
 from app.domain.tenancy import TenantContext
 
 
@@ -66,6 +67,14 @@ class VerticalPolicy(Protocol):
 
 class OrderRepository(Protocol):
     async def create_quote(self, request: QuoteRequest) -> Quote: ...
+
+    async def request_quote_document(self, order_id: UUID, conversation_id: UUID) -> None:
+        """Encola SEND_QUOTE_PDF en la misma transacción que la cotización (#26)."""
+        ...
+
+    async def quote_delivery(self, order_id: UUID) -> QuoteDelivery | None:
+        """La cotización con sus líneas y el canal por el que sale, o None si no es del tenant."""
+        ...
 
     async def count_for_customer(self, customer_id: UUID) -> int: ...
 
@@ -156,6 +165,20 @@ class LlmCallRecorder(Protocol):
     """Deja el registro de una llamada a la IA (lo usa el decorador de costo)."""
 
     async def record(self, call: LlmCall) -> None: ...
+
+
+class QuoteRenderer(Protocol):
+    """Genera el PDF de una cotización. Sincrónico: el caso de uso lo corre en un thread pool."""
+
+    def render(self, document: QuoteDocument) -> bytes: ...
+
+
+class MediaUploader(Protocol):
+    """Sube un archivo a Meta y devuelve su media_id. Lanza TransientSendError o PermanentSendError."""
+
+    async def upload_media(
+        self, phone_number_id: str, token: str, content: bytes, mime_type: str, filename: str
+    ) -> str: ...
 
 
 class MessageSender(Protocol):

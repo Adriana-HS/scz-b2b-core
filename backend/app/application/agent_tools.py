@@ -38,6 +38,8 @@ from app.domain.tenancy import Actor, TenantContext
 logger = logging.getLogger("scz.agent.tools")
 
 TOOL_NAMES = ("search_catalog", "get_item_details", "create_quote", "handoff_to_human")
+# Lo que el modelo sabe del PDF (#26): sale solo por este chat, después de su respuesta
+QUOTE_DOCUMENT_NOTE = "El PDF de esta cotización le llega al cliente por este chat en unos segundos."
 
 # Lo que el bot le dice al cliente ante cada error, de usted (el modelo lo reformula, sin inventar cifras)
 CUSTOMER_MESSAGES: Mapping[str, str] = {
@@ -202,8 +204,10 @@ class AgentToolbox:
                 lines=args.items,
             )
         )
+        # Mismo commit que la cotización: si se revierte, no queda un PDF de una cotización inexistente
+        await uow.orders.request_quote_document(quote.order_id, self._context.conversation_id)
         data = _plain(quote.model_dump(exclude={"order_id"}))  # el id interno no le sirve al modelo
-        return dict(data)
+        return {**data, "document": QUOTE_DOCUMENT_NOTE}
 
     async def _handoff(self, uow: UnitOfWork, args: BaseModel) -> dict[str, Any]:
         assert isinstance(args, HandoffArgs)  # noqa: S101
