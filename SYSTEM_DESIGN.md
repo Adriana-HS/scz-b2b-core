@@ -115,7 +115,7 @@ El detalle (contexto, alternativas, consecuencias y verificación) está en `doc
 | [0014](docs/adr/0014-alcance-de-minimo-regulatorio-para-el-mvp.md) | **MVP de mínimo regulatorio**: QR estático + aprobación humana, suscripción fija, sin facturación ni datos de identidad por chat | Nuevo (viabilidad comercial) |
 | [0015](docs/adr/0015-ciclo-de-vida-de-reservas-de-stock.md) | La vigencia de una **reserva de stock** la decide el estado de la orden; un trigger compromete, libera o devuelve el stock en cada transición | Nuevo (revisión del 15-oct-2026: sobreventa) |
 | [0017](docs/adr/0017-envio-a-lo-sumo-una-vez-ante-resultado-incierto.md) | **Envío a lo sumo una vez ante un resultado incierto:** el mensaje se marca `SENDING` antes de llamar a Meta; si el worker muere durante la llamada, el reintento no reenvía: `FAILED (OUTCOME_UNKNOWN)` con alerta | Nuevo (#18) |
-| [0018](docs/adr/0018-proveedor-de-llm.md) | **Anthropic como único proveedor de IA del agente**, sin comparación entre proveedores (costo y cuentas extra); modelo inicial propuesto Claude Haiku 5.5, a confirmar; calidad medida con las evals de #28 | Nuevo |
+| [0018](docs/adr/0018-proveedor-de-llm.md) | **Anthropic como único proveedor de IA del agente**, sin comparación entre proveedores (costo y cuentas extra); modelo inicial Claude Haiku 5.5 (confirmado); calidad medida con las evals de #28 | Nuevo |
 | [0016](docs/adr/0016-mfa-mixto-para-precios-del-catalogo.md) | **Regla mixta de MFA para precios:** cambios dentro del umbral sin MFA; precio 0, cambio de moneda o variación mayor al umbral del negocio, solo OWNER/ADMIN con aal2; el backend no cambia precios | Nuevo (riesgo residual de SEC-01, #50) |
 
 ---

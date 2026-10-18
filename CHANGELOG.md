@@ -5,7 +5,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Sin publicar]
 
 ### Decisiones
-- **ADR-0018 (aceptado):** Anthropic es el único proveedor de IA del agente; no se hace comparación con otros proveedores, para no sumar costo ni cuentas. Modelo inicial propuesto: Claude Haiku 5.5, a confirmar por AHS. Se descartan DeepSeek (datos en China) y correr un modelo en una computadora local (sin GPU no alcanza el tiempo de respuesta).
+- **ADR-0018 (aceptado):** Anthropic es el único proveedor de IA del agente; no se hace comparación con otros proveedores, para no sumar costo ni cuentas. Modelo inicial: Claude Haiku 5.5, confirmado por AHS; si las evals (#28) muestran que no alcanza, se revisa. Se descartan DeepSeek (datos en China) y correr un modelo en una computadora local (sin GPU no alcanza el tiempo de respuesta).
 - **Referencias corregidas:** varios documentos y comentarios atribuían el agente al #26 (que es el PDF) y EMBED_ITEM al #25. Ahora dicen #23 (embeddings), #24 (herramientas) y #25 (guardrails y cuotas). Los comentarios de las migraciones 18 y 19 quedan como están: las migraciones aplicadas no se editan.
 
 ### Seguridad (CI)

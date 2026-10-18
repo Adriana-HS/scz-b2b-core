@@ -1,6 +1,6 @@
 # ADR-0018: Anthropic como único proveedor de IA del agente
 
-* **Estado:** Aceptado (AHS, 17-oct-2026). El modelo inicial, Claude Haiku 5.5, queda **a confirmar por AHS**.
+* **Estado:** Aceptado (AHS, 17-oct-2026), con el modelo inicial Claude Haiku 5.5 confirmado por AHS el mismo día.
 * **Fecha:** 2026-10-17
 * **Decisores:** AHS
 * **Relacionado:** SYSTEM_DESIGN.md §7 (agente), §8.7 (privacidad), §11 (costos) · Q-ACC-5, Q-COST-1 · #22 (puertos de IA, PR #77), #24 (herramientas), #25 (guardrails y cuotas), #28 (evals *golden*) · ADR-0003 (embeddings)
@@ -75,8 +75,8 @@
 **Decidido por AHS el 17-oct-2026:**
 
 1. **Proveedor: Anthropic**, como único proveedor de chat del agente. Su adaptador ya está en `main` (PR #77). **No** se escriben adaptadores de OpenAI ni de Google y **no** se hace la evaluación comparativa entre proveedores: costaba 2 cuentas más y trabajo extra.
-2. **Modelo inicial propuesto: Claude Haiku 5.5** (`claude-haiku-5-5`), el más barato: ≈ US$ 0,003 por conversación, ≈ US$ 4,40 al mes por negocio mediano. **A confirmar por AHS.** Subir a Claude Sonnet 5.5 (≈ US$ 85 al mes) es cambiar `LLM_MODEL` y los precios; no toca código.
-3. **Calidad.** Las evaluaciones *golden* del roadmap (#28) siguen siendo el criterio de salida de la fase 2 (Q-ACC-5 ≥ 90 %, 0 violaciones de grounding), solo con modelos de Anthropic. Su costo es de centavos: 30 conversaciones con Haiku ≈ US$ 0,09; con Sonnet ≈ US$ 1,60. Si Haiku no llega, se decide con AHS si se sube a Sonnet.
+2. **Modelo inicial: Claude Haiku 5.5** (`claude-haiku-5-5`), confirmado por AHS: el más barato, ≈ US$ 0,003 por conversación, ≈ US$ 4,40 al mes por negocio mediano. Subir a Claude Sonnet 5.5 (≈ US$ 85 al mes) es cambiar `LLM_MODEL` y los precios; no toca código.
+3. **Calidad.** Las evaluaciones *golden* del roadmap (#28) siguen siendo el criterio de salida de la fase 2 (Q-ACC-5 ≥ 90 %, 0 violaciones de grounding), solo con modelos de Anthropic. Su costo es de centavos: 30 conversaciones con Haiku ≈ US$ 0,09; con Sonnet ≈ US$ 1,60. Si Haiku no llega, se decide con AHS si se sube a Sonnet (decisión de AHS: "si las pruebas muestran que no alcanza, lo hablamos").
 4. **Cuenta.** Una sola: la consola de Anthropic, con tarjeta de **crédito** en USD (EXT-11). La clave va en el gestor de secretos del despliegue.
 
 ## Alternativas consideradas
@@ -103,7 +103,7 @@
 
 ## Verificación
 
-* `LLM_MODEL` fija el identificador exacto (#22): hoy se propone `claude-haiku-5-5`.
+* `LLM_MODEL=claude-haiku-5-5`, el identificador exacto (#22).
 * Reporte de las evaluaciones de #28 con exactitud, violaciones de grounding, latencia y costo real, enlazado desde aquí.
 * La alerta de costo por tenant (#25) vigila el gasto real contra el tope de cada plan.
 
