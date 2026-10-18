@@ -8,7 +8,7 @@ import json
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from app.domain.catalog import CatalogMatch, CatalogSearch, PriceStatus, TaxMode
+from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus, TaxMode
 from app.domain.orders import Quote, QuoteRequest
 from app.infrastructure.postgres.errors import translate_errors
 
@@ -20,6 +20,14 @@ _SEARCH = """
            unit_price_bs, price_status, tax_mode::text AS tax_mode
     FROM public.search_catalog($1, NULL, $2, $3)
 """
+
+_DETAILS = """
+    SELECT item_id, sku, name, description, category, item_type::text AS item_type, stock_available,
+           duration_minutes, unit_price_bs, price_status, tax_mode::text AS tax_mode, attributes
+    FROM public.get_item_details($1)
+"""
+
+_HANDOFF = "SELECT public.request_handoff($1, $2, $3)"
 
 _CREATE_QUOTE = """
     SELECT order_id, reference_code, subtotal_bs, iva_bs, total_bs, deposit_required_bs,
@@ -50,6 +58,39 @@ class PostgresCatalogRepository:
             )
             for row in rows
         ]
+
+    async def get_details(self, item_id: UUID) -> ItemDetails | None:
+        connection = self._session.connection()
+        with translate_errors():
+            row = await connection.fetchrow(_DETAILS, item_id)
+        if row is None:
+            return None
+        return ItemDetails(
+            item_id=row["item_id"],
+            sku=row["sku"],
+            name=row["name"],
+            description=row["description"],
+            category=row["category"],
+            item_type=row["item_type"],
+            stock_available=row["stock_available"],
+            duration_minutes=row["duration_minutes"],
+            unit_price_bs=row["unit_price_bs"],
+            price_status=PriceStatus(row["price_status"]),
+            tax_mode=TaxMode(row["tax_mode"]),
+            attributes=json.loads(row["attributes"])
+            if isinstance(row["attributes"], str)
+            else row["attributes"],
+        )
+
+
+class PostgresConversationRepository:
+    def __init__(self, session: "Session") -> None:
+        self._session = session
+
+    async def request_handoff(self, conversation_id: UUID, reason: str, summary: str) -> None:
+        connection = self._session.connection()
+        with translate_errors():
+            await connection.execute(_HANDOFF, conversation_id, reason, summary)
 
 
 class PostgresOrderRepository:

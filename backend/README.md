@@ -71,6 +71,10 @@ async with uow_factory(TenantContext(org_id, Actor.BOT)) as uow:
 
 Puertos `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText` en `app/domain/ports.py`. El agente usa `resilient_chat_model(...)` (`app/application/ai.py`), que envuelve el adaptador de Anthropic (`app/infrastructure/ai/anthropic.py`) con reintento, circuit breaker, costo en `private.llm_calls` y trazas. Configuración: `LLM_API_KEY`, `LLM_MODEL` (identificador exacto) y los cuatro `LLM_PRICE_*_USD_PER_MTOK`. Detalle: [`docs/ai-ports.md`](../docs/ai-ports.md).
 
+## Herramientas del agente (#24)
+
+`AgentToolbox(uow_factory, TurnContext(org, customer, conversation), enabled=...)` (`app/application/agent_tools.py`): `specs()` entrega los `ToolSpec` para el modelo y `execute(tool_call)` devuelve un `ToolResult` en JSON. Para una herramienta nueva: sus argumentos en `app/domain/agent_tools.py` (con `extra="forbid"`), su handler, su texto y sus mensajes de error; el negocio y el cliente nunca van en los argumentos.
+
 ## Worker (ADR-0005)
 
 `uv run python -m app.worker` (requiere `DATABASE_URL`).

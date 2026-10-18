@@ -13,7 +13,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones y seeds sobre la imagen oficial de Supabase y las 281 pruebas pgTAP | Sí |
+| `database` | Migraciones y seeds sobre la imagen oficial de Supabase y las 297 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `alerts` | `promtool check rules` y `promtool test rules` sobre `ops/alerts/` (imagen oficial de Prometheus fijada por digest): sintaxis y disparo de cada alerta con series sintéticas | Sí |
@@ -42,7 +42,8 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `15_observability.test.sql` | #19: `jobs.trace_context` hereda el traceparent de la transacción (uno mal formado se descarta sin romper el INSERT); `queue_stats` por tipo, solo de los tipos pedidos y sin contar el backoff; `fx_stale_tenants`; solo `app_backend` | 12 |
 | `16_llm_calls.test.sql` | #22: el backend registra el costo de IA en su tenant y no en otro; la conversación debe ser del mismo negocio (FK compuesta, migración 19); tokens, costo y latencia no negativos; aislamiento | 9 |
 | `17_seeds.test.sql` | #27: la importadora y la clínica de ejemplo existen; ≥ 25 repuestos en USD y Bs de ≥ 5 categorías, con uno sin stock; TC inicial explícito y todo repuesto cotizable; búsqueda de texto; ≥ 15 servicios con duración y profesionales con horario; sin marcas, sin clientes y con números sintéticos | 13 |
-| **Total** | | **281** |
+| `18_agent_tools.test.sql` | #24: la ficha de un ítem da el mismo precio, stock y estado que la búsqueda; descuenta reservas; con el TC vencido no hay precio en USD; solo atributos públicos; nada de otro negocio ni de ítems dados de baja; el paso a una persona guarda motivo y resumen, con motivo de una lista cerrada y resumen acotado; solo el backend | 16 |
+| **Total** | | **297** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 
@@ -141,6 +142,14 @@ Mutaciones comprobadas:
 * **Contrato** (`tests/contract/test_ai_ports_contract.py`): la misma suite contra el fake y contra el adaptador real.
 * **Contra la BD** (`test_llm_calls_db.py`): costo exacto en el tenant; una conversación de otro negocio se rechaza.
 * **Mutaciones comprobadas** (12 de 12 detectadas): reintentar errores permanentes; abrir el circuito con ellos; varias pruebas a la vez en media apertura; grabar la excepción en la traza; perder la respuesta si falla el registro; no registrar las fallidas; mandar un alias como modelo; tratar 529 como permanente; truncar el costo; aceptar un modelo sin precios; aceptar `-latest`; quitar la FK compuesta (pgTAP).
+
+### Herramientas del agente (#24)
+
+* **Frontera con el LLM** (`test_agent_tools.py`): los esquemas no aceptan negocio, cliente, conversación ni precios; los argumentos inválidos (vacíos, fuera de rango, campos de más como un precio o un `customer_id` inyectados) no abren una transacción; el error de validación no repite lo que mandó el modelo.
+* **Contexto del servidor:** la cotización usa el cliente y la conversación del turno; todo corre como `BOT`.
+* **Respuestas:** montos como texto exacto ("332.88"); aviso de "precio en actualización" si el TC venció; cada error de la BD con su código y un mensaje para el cliente; un error inesperado no filtra detalles.
+* **Contra la BD** (`test_agent_tools_db.py`): precio calculado por la BD, ficha igual a la búsqueda, ítems de otro negocio inexistentes, la cotización reserva stock para el cliente del contexto, el paso a una persona deja la conversación en `HUMAN`.
+* **Mutaciones comprobadas** (9 de 9 detectadas): sin `extra="forbid"`; actor `SYSTEM` en vez de `BOT`; repetir el valor inválido; devolver el mensaje de un error inesperado; montos como número; otra conversación en la cotización; perder el aviso de precio; atributos internos visibles (pgTAP); stock sin descontar reservas (pgTAP).
 
 ### Pruebas de integración (`backend/tests/integration`, marcador `integration`)
 

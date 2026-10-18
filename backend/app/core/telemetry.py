@@ -67,6 +67,10 @@ wa_billable_messages = _meter.create_counter(
 outbound_outcome_unknown = _meter.create_counter(
     "outbound_outcome_unknown", description="Envíos con resultado incierto (ADR-0017): revisión humana"
 )
+agent_tool_calls = _meter.create_counter(
+    "agent_tool_calls",
+    description="Herramientas que pidió el agente, por herramienta y resultado (OK o código)",
+)
 llm_cost_usd = _meter.create_counter(
     "llm_cost_usd", description="Costo de IA en USD por tenant y propósito (Q-COST-1); lo alimenta el agente"
 )
@@ -117,7 +121,7 @@ METRIC_NAMES = frozenset(
     {
         "webhook_ack_ms", "webhook_signature_failures", "webhook_requests", "reply_latency_ms",
         "jobs_processed", "jobs_dead", "job_duration_ms", "wa_billable_messages",
-        "outbound_outcome_unknown", "llm_cost_usd",
+        "outbound_outcome_unknown", "llm_cost_usd", "agent_tool_calls",
         "jobs_queued", "jobs_running", "jobs_dead_pending", "jobs_oldest_ready_s", "fx_stale_tenants",
     }
 )  # fmt: skip
