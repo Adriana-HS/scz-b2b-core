@@ -62,7 +62,8 @@ Al exportar a Prometheus, los contadores llevan `_total` y los histogramas `_buc
 | `jobs_oldest_ready_s` | gauge | `kind` | ídem: espera del trabajo **listo** más viejo (sin contar backoff) | cola |
 | `fx_stale_tenants` | gauge | — | `private.fx_stale_tenants` cada minuto | Q-ACC |
 | `agent_tool_calls` | contador | `tool`, `outcome` (`OK` o el código del error) | herramientas del agente (#24) | `handoff_rate` = las de `handoff_to_human` sobre los turnos |
-| `agent_turns` | contador | `outcome` (`replied`, `limit`, `blocked`, `ai_unavailable`, `window_closed`, `skipped_human`, `skipped_consent`, `nothing_pending`) | orquestador del agente (#81) | tasa de plantillas: `limit` + `ai_unavailable` sobre los turnos |
+| `agent_turns` | contador | `outcome` (`replied`, `limit`, `blocked`, `ungrounded`, `sensitive_request`, `quota_exceeded`, `rate_limited`, `ai_unavailable`, `window_closed`, `skipped_human`, `skipped_consent`, `nothing_pending`) | orquestador del agente (#81) | tasa de plantillas: `limit` + `ai_unavailable` sobre los turnos |
+| `llm_budget_alerts` | contador | `level` (`warning` al 80 %, `exceeded` al 100 %) | orquestador del agente (#25) | Q-COST-1, alertas `LlmBudgetNearLimit` y `LlmBudgetExceeded` |
 | `llm_cost_usd` | contador | `purpose`, `model`, `organization_id` | decorador de costo de IA (#22), en cada turno del agente | Q-COST-1 |
 
 Los gauges de la cola se miden **solo para los tipos que el worker procesa**: un tipo sin handler (por ejemplo `PROCESS_CONVERSATION` sin la configuración de IA, o `EMBED_ITEM` hasta #23) espera a propósito y no debe disparar "cola atascada". Un tipo procesado sin filas se informa en cero, así la alerta se apaga sola.

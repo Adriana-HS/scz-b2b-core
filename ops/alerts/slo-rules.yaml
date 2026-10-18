@@ -7,8 +7,8 @@
 #
 # severity: page = atender ya (afecta a clientes finales o pierde mensajes);
 #           ticket = atender en horario hábil (degradación o riesgo).
-# La alerta de costo de IA por tenant (> 80 % del tope, Q-COST-1) llega con las cuotas por plan (#25):
-# necesita el tope por plan como métrica, que todavía no existe.
+# Costo de IA por negocio (Q-COST-1, RF-51, #25): el agente cuenta en llm_budget_alerts los turnos
+# con el negocio al 80 % (warning) o al 100 % (exceeded) de su tope diario.
 groups:
   - name: scz-b2b-core-slo
     rules:
@@ -104,3 +104,21 @@ groups:
         annotations:
           summary: "Envíos con resultado incierto (ADR-0017): revisar si el cliente recibió el mensaje"
           runbook: docs/runbooks/envio-incierto.md
+
+      - alert: LlmBudgetNearLimit
+        expr: sum(increase(llm_budget_alerts_total{level="warning"}[15m])) > 0
+        labels:
+          severity: ticket
+          slo: Q-COST-1
+        annotations:
+          summary: "Un negocio pasó el 80 % de su tope diario de IA"
+          runbook: docs/runbooks/cuota-ia.md
+
+      - alert: LlmBudgetExceeded
+        expr: sum(increase(llm_budget_alerts_total{level="exceeded"}[15m])) > 0
+        labels:
+          severity: page
+          slo: Q-COST-1
+        annotations:
+          summary: "Un negocio agotó su tope diario de IA: el bot responde plantilla y pasa a una persona"
+          runbook: docs/runbooks/cuota-ia.md

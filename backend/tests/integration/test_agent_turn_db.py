@@ -5,21 +5,22 @@ y las herramientas reales -> una respuesta en el outbox, el historial y el costo
 """
 
 import secrets
-from collections.abc import Sequence
-from datetime import UTC, datetime
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
 import asyncpg
 import pytest
 
-from app.application.agent import ProcessConversation
+from app.application.agent import TEMPLATE_QUOTA, ProcessConversation
 from app.application.agent_tools import AgentToolbox, TurnContext
 from app.application.ai import CircuitBreaker, RecordLlmCalls, resilient_chat_model
 from app.application.inbound import RecordInboundMessages
 from app.domain.ai import AiPurpose, ModelPricing, ModelResponse, StopReason, TokenUsage, ToolCall
 from app.domain.jobs import PROCESS_CONVERSATION, Job
 from app.domain.messaging import InboundBatch, InboundMessage
+from app.domain.tenancy import Actor, TenantContext
 from app.infrastructure.postgres.channels import PostgresChannelResolver
 from app.infrastructure.postgres.unit_of_work import unit_of_work_factory
 
@@ -152,3 +153,62 @@ async def test_con_una_persona_a_cargo_no_responde(
         )
         == 0
     )
+
+
+# --- Cuotas (#25): el costo del día y la actividad del cliente salen de la BD --------------------
+@pytest.fixture
+async def llm_call(admin: asyncpg.Connection) -> AsyncIterator[Callable[..., Awaitable[None]]]:
+    """Inserta costos de IA y los borra al final: si quedaran, agotarían la cuota de las otras pruebas."""
+    ids: list[int] = []
+
+    async def insert(org: UUID, cost: str, ago: timedelta = timedelta(0)) -> None:
+        ids.append(await admin.fetchval(
+            "INSERT INTO private.llm_calls (organization_id, purpose, provider, model, cost_usd, created_at)"
+            " VALUES ($1, 'CHAT', 'anthropic', 'claude-haiku-5-5', $2, now() - $3::interval)"
+            " RETURNING id",
+            org, Decimal(cost), ago,
+        ))  # fmt: skip
+
+    yield insert
+    await admin.execute("DELETE FROM private.llm_calls WHERE id = ANY($1::bigint[])", ids)
+
+
+async def test_el_costo_del_dia_es_solo_de_hoy_y_del_negocio(
+    pool: asyncpg.Pool, admin: asyncpg.Connection, seed: Seed, llm_call: Callable[..., Awaitable[None]]
+) -> None:
+    conversation = await _customer_writes(pool, admin, seed, "hola")
+    baseline = await admin.fetchval(
+        "SELECT coalesce(sum(cost_usd), 0) FROM private.llm_calls WHERE organization_id = $1"
+        " AND created_at >= (date_trunc('day', now() AT TIME ZONE 'America/La_Paz')"
+        " AT TIME ZONE 'America/La_Paz')",
+        seed.org_a,
+    )
+    await llm_call(seed.org_a, "0.120000")
+    await llm_call(seed.org_a, "5.000000", ago=timedelta(days=2))  # otro día
+    await llm_call(seed.org_b, "9.000000")  # otro negocio
+
+    async with unit_of_work_factory(pool)(TenantContext(seed.org_a, Actor.BOT)) as uow:
+        state = await uow.conversations.load_turn(conversation, 12)
+
+    assert state is not None
+    assert state.usage.ai_cost_today_usd == baseline + Decimal("0.12")
+    assert state.usage.customer_messages_last_minute == 1
+    assert state.usage.bot_replies_last_hour == 0
+
+
+async def test_con_la_cuota_agotada_responde_la_plantilla_y_pasa_a_una_persona(
+    pool: asyncpg.Pool, admin: asyncpg.Connection, seed: Seed, llm_call: Callable[..., Awaitable[None]]
+) -> None:
+    conversation = await _customer_writes(pool, admin, seed, "hola")
+    await llm_call(seed.org_a, "1000.000000")  # muy por encima de cualquier tope
+    model = ScriptedChatModel(ModelResponse("no", (), StopReason.END_TURN, TokenUsage(1, 1), "m"))
+
+    await _handler(pool, model)(_job(seed, conversation))
+
+    assert model.calls == []
+    body = await admin.fetchval(
+        "SELECT payload ->> 'body' FROM private.outbound_messages WHERE conversation_id = $1", conversation
+    )
+    assert body == TEMPLATE_QUOTA
+    mode = await admin.fetchval("SELECT mode::text FROM public.conversations WHERE id = $1", conversation)
+    assert mode == "HUMAN"

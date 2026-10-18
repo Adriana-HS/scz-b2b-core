@@ -24,6 +24,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
 
 ### Agregado (backend)
+- **Guardrails y cuotas del agente (#25, §7.4, RF-07, RF-09, RF-51):**
+  - **Grounding numérico:** todo importe que diga el bot (con moneda o decimales, en formato boliviano o inglés) tiene que venir de una herramienta de ese turno; si no, plantilla. Cubre precios y descuentos inventados, cuentas propias del modelo y precios dictados por el cliente (inyección).
+  - **Datos sensibles:** si el bot pide CI, NIT, tarjeta o número de cuenta, la respuesta no sale.
+  - **Cuotas, decididas por AHS (18-oct-2026):** US$ 0,75 de IA por negocio y día de Bolivia (`AGENT_DAILY_BUDGET_USD`); al 80 % alerta, al 100 % plantilla y paso a una persona sin llamar a la IA. Por cliente, 10 mensajes por minuto y 30 respuestas por hora; si se pasa, un aviso sin IA y una sola vez. Iguales para todos hasta que haya planes de cobro.
+  - Métrica `llm_budget_alerts{level}`, alertas `LlmBudgetNearLimit` y `LlmBudgetExceeded`, runbook `cuota-ia.md`. Sin migración: el costo sale de `private.llm_calls`.
+  - Pruebas: 592 de backend (64 nuevas); 17 mutaciones comprobadas; alertas probadas con promtool.
 - **Adaptador de Gemini (#83, ADR-0019):** `GeminiChatModel` (generateContent con httpx, sin SDK) y `LLM_PROVIDER` (`anthropic` por defecto, o `gemini`).
   - Herramientas con `parametersJsonSchema` y los `$ref` de Pydantic expandidos; firmas de razonamiento (`thoughtSignature`) devueltas en la ronda siguiente por `ToolCall.signature`; STOP con herramientas se trata como TOOL_USE; el prompt cacheado y el razonamiento se cuentan aparte en el costo.
   - Errores con código estable: 429 y 5xx transitorios (con la espera de `RetryInfo`), 4xx permanentes; la clave va en el encabezado, nunca en la URL ni en un error.

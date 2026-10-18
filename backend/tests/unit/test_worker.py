@@ -90,3 +90,19 @@ async def test_el_worker_usa_el_adaptador_del_proveedor_configurado(
         name, chat = build_chat_adapter(settings, http)
 
     assert (name, type(chat).__name__) == (provider, adapter)
+
+
+async def test_el_agente_usa_los_topes_de_la_configuracion() -> None:
+    import httpx
+
+    from app.application.agent import ProcessConversation
+    from app.domain.jobs import PROCESS_CONVERSATION
+    from app.worker import build_handlers
+
+    llm: dict[str, Any] = {**_LLM, "agent_daily_budget_usd": "3.00", "agent_customer_turns_per_hour": 12}
+    settings = Settings(_env_file=None, environment="test", **llm)
+    async with httpx.AsyncClient() as http:
+        handler = build_handlers(settings, object(), http)[PROCESS_CONVERSATION]  # type: ignore[arg-type]
+
+    assert isinstance(handler, ProcessConversation)
+    assert handler.limits == settings.agent_limits()

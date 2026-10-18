@@ -68,7 +68,11 @@ outbound_outcome_unknown = _meter.create_counter(
     "outbound_outcome_unknown", description="Envíos con resultado incierto (ADR-0017): revisión humana"
 )
 agent_turns = _meter.create_counter(
-    "agent_turns", description="Turnos del agente por resultado: replied, limit, ai_unavailable, skipped_*"
+    "agent_turns", description="Turnos del agente por resultado: replied, limit, ungrounded, rate_limited..."
+)
+llm_budget_alerts = _meter.create_counter(
+    "llm_budget_alerts",
+    description="Turnos con el costo de IA del negocio al 80 % (warning) o al 100 % (exceeded)",
 )
 agent_tool_calls = _meter.create_counter(
     "agent_tool_calls",
@@ -124,7 +128,7 @@ METRIC_NAMES = frozenset(
     {
         "webhook_ack_ms", "webhook_signature_failures", "webhook_requests", "reply_latency_ms",
         "jobs_processed", "jobs_dead", "job_duration_ms", "wa_billable_messages",
-        "outbound_outcome_unknown", "llm_cost_usd", "agent_tool_calls", "agent_turns",
+        "outbound_outcome_unknown", "llm_cost_usd", "agent_tool_calls", "agent_turns", "llm_budget_alerts",
         "jobs_queued", "jobs_running", "jobs_dead_pending", "jobs_oldest_ready_s", "fx_stale_tenants",
     }
 )  # fmt: skip
