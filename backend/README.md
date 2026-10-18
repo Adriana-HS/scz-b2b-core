@@ -69,6 +69,8 @@ async with uow_factory(TenantContext(org_id, Actor.BOT)) as uow:
 
 ## IA (#22)
 
+`LLM_PROVIDER` elige el adaptador: `anthropic` (por defecto, producción, ADR-0018) o `gemini` (**solo `local` y `test`**, plan gratuito de Google AI Studio, ADR-0019; solo con datos sintéticos). Para probar con Gemini: una clave de AI Studio en `LLM_API_KEY` (en tu `.env`, nunca en el repositorio), `LLM_MODEL` con un modelo estable (p. ej. `gemini-3.8-flash`) y los `LLM_PRICE_*` del plan pago, para que `llm_calls` muestre lo que costaría.
+
 Puertos `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText` en `app/domain/ports.py`. El agente usa `resilient_chat_model(...)` (`app/application/ai.py`), que envuelve el adaptador de Anthropic (`app/infrastructure/ai/anthropic.py`) con reintento, circuit breaker, costo en `private.llm_calls` y trazas. Configuración: `LLM_API_KEY`, `LLM_MODEL` (identificador exacto) y los cuatro `LLM_PRICE_*_USD_PER_MTOK`. Detalle: [`docs/ai-ports.md`](../docs/ai-ports.md).
 
 ## Herramientas del agente (#24)
