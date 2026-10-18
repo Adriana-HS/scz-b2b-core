@@ -29,6 +29,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
 
 ### Agregado (backend)
+- **Cotizar por código y hasta 3 rondas por turno (#89, decisión de AHS):** buscar → cotizar → responder necesitaba 3 rondas y el límite era 2, así que el bot nunca completaba una cotización (lo detectó el diseño de las evals, #28).
+  - `create_quote` acepta el código del producto (`sku`) o el `item_id`, uno de los dos por línea. El servidor resuelve el código dentro del negocio; con dos códigos que se normalizan igual gana el exacto, y si sigue ambiguo, `ITEM_NOT_FOUND`.
+  - Hasta 3 rondas del modelo por turno; 4 herramientas y 20 s no cambian. Los turnos que usan la tercera ronda cuestan una llamada más (el ADR-0018 estimaba 1,5 llamadas por turno).
+  - Pruebas: 670 de backend (12 nuevas, 2 contra la BD); 5 mutaciones comprobadas.
 - **PDF de cotización por WhatsApp (#26, RF-20, §8.3):** `create_quote` encola `SEND_QUOTE_PDF` en la misma transacción; el worker genera el PDF con reportlab en un thread pool, lo sube a Meta y lo envía por `media_id` desde el outbox (clave `quote-pdf:{orden}`, nunca un enlace firmado).
   - El PDF muestra emisor y NIT, referencia, fecha y vigencia en la hora del negocio, líneas, subtotal, IVA según el régimen, total, seña, TC aplicado y la aclaración de que no es una factura. Las cifras son las de la BD; Python solo las formatea (1.252,00).
   - Snapshot del PDF byte a byte (`tests/snapshots/cotizacion_iva_incluido.pdf`, modo invariante de reportlab); se regenera con `SCZ_UPDATE_SNAPSHOTS=1`.
