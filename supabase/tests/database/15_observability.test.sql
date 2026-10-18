@@ -48,11 +48,21 @@ SELECT is((SELECT count(*)::integer FROM private.queue_stats(ARRAY['T_OBS_DEAD']
           'solo los tipos pedidos: los que aún no tienen handler esperan sin alertar');
 
 -- --- TC vencido en tenants con ítems en USD -------------------------------------------------
+-- La cuenta es de toda la plataforma: los seeds (#27) pueden tener un TC viejo si la BD local
+-- lleva días levantada. Por eso se compara contra la línea de base, no contra 0.
 SELECT tests.reset();
-SELECT is(private.fx_stale_tenants(), 0, 'con TC fresco no hay tenants con TC vencido');
+CREATE TEMP TABLE fx_base AS
+    SELECT count(*)::integer AS n FROM public.organizations o
+     WHERE o.id <> 'a0000000-0000-4000-8000-000000000000' AND o.is_active AND o.deleted_at IS NULL
+       AND EXISTS (SELECT 1 FROM public.catalog_items ci
+                    WHERE ci.organization_id = o.id AND ci.is_active AND ci.price_currency = 'USD')
+       AND coalesce((SELECT f.is_stale FROM private.current_fx(o.id) f), true);
+GRANT SELECT ON fx_base TO app_backend;
+SELECT is(private.fx_stale_tenants(), (SELECT n FROM fx_base), 'con TC fresco, A no cuenta como vencido');
 UPDATE public.organizations SET fx_max_age_hours = 1 WHERE id = 'a0000000-0000-4000-8000-000000000000';
 SELECT tests.as_backend(NULL, 'SYSTEM');
-SELECT is(private.fx_stale_tenants(), 1, 'el TC de A (2 h) con tolerancia de 1 h cuenta como vencido');
+SELECT is(private.fx_stale_tenants(), (SELECT n + 1 FROM fx_base),
+          'el TC de A (2 h) con tolerancia de 1 h cuenta como vencido');
 SELECT tests.reset();
 
 -- --- Privilegios -----------------------------------------------------------------------------
