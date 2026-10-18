@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.application.agent_tools import TOOL_NAMES, AgentToolbox, TurnContext
+from app.application.agent_tools import QUOTE_DOCUMENT_NOTE, TOOL_NAMES, AgentToolbox, TurnContext
 from app.domain.ai import ToolCall
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus, TaxMode
 from app.domain.errors import AccessDeniedError, BusinessRuleError, ErrorCode
@@ -75,6 +75,9 @@ class FakeOrders:
         if self.error:
             raise self.error
         return QUOTE
+
+    async def request_quote_document(self, order_id: UUID, conversation_id: UUID) -> None:
+        self.calls.append(("quote_document", (order_id, conversation_id)))
 
 
 class FakeConversations:
@@ -246,9 +249,28 @@ async def test_cotizar_usa_el_cliente_y_la_conversacion_del_contexto() -> None:
     assert data == {
         "reference_code": "COT-2026-000123", "subtotal_bs": "665.76", "iva_bs": "86.55", "total_bs": "665.76",
         "deposit_required_bs": "332.88", "applied_fx_rate": "11.6800", "tax_mode": "IVA_INCLUIDO",
-        "valid_until": "2026-10-18T15:00:00+00:00",
+        "valid_until": "2026-10-18T15:00:00+00:00", "document": QUOTE_DOCUMENT_NOTE,
     }  # fmt: skip
     assert "order_id" not in data  # el id interno no le sirve al modelo
+
+
+async def test_cotizar_pide_el_pdf_en_la_misma_transaccion() -> None:
+    """#26: si la cotización se confirma, su PDF queda en cola; si se revierte, no."""
+    toolbox, calls = _toolbox()
+
+    await _run(toolbox, "create_quote", {"items": [{"item_id": str(ITEM), "quantity": 2}]})
+
+    assert ("quote_document", (QUOTE.order_id, CONVERSATION)) in calls
+    kinds = [kind for kind, _ in calls]
+    assert kinds.index("quote") < kinds.index("quote_document")
+
+
+async def test_una_cotizacion_que_falla_no_pide_pdf() -> None:
+    toolbox, calls = _toolbox(error=BusinessRuleError(ErrorCode.OUT_OF_STOCK, "detalle"))
+
+    await _run(toolbox, "create_quote", {"items": [{"item_id": str(ITEM), "quantity": 2}]})
+
+    assert not [kind for kind, _ in calls if kind == "quote_document"]
 
 
 @pytest.mark.parametrize(

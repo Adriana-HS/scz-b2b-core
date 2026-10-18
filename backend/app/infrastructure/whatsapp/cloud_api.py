@@ -7,11 +7,14 @@ número en `Authorization: Bearer`. Clasifica la respuesta en:
   * PermanentSendError: ventana cerrada en Meta (131047), destinatario inválido, plantilla
     rechazada... -> FAILED sin reintentos.
 Los errores llevan solo un código estable: nunca el token, el cuerpo ni el detalle de Meta.
-Referencia: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages
+También sube archivos (POST .../<phone_number_id>/media, multipart) para enviarlos por media_id
+(#26): el PDF de una cotización. La subida se clasifica igual que un envío.
+Referencias: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages y
+https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media
 """
 
 import re
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx
 
@@ -82,7 +85,38 @@ class CloudApiSender:
             if not isinstance(wa_message_id, str) or not wa_message_id:
                 raise TransientSendError("BAD_RESPONSE")
             return wa_message_id
+        self._raise_for(response)
 
+    async def upload_media(
+        self, phone_number_id: str, token: str, content: bytes, mime_type: str, filename: str
+    ) -> str:
+        """Sube un archivo (el PDF de una cotización, #26) y devuelve su media_id. El mensaje que lo
+        envía va después por el outbox. Meta guarda el archivo 30 días."""
+        if not _PHONE_NUMBER_ID.fullmatch(phone_number_id):
+            raise PermanentSendError("BAD_PHONE_NUMBER_ID")
+        url = f"{self._base}/{self._version}/{phone_number_id}/media"
+        try:
+            response = await self._client.post(
+                url,
+                data={"messaging_product": "whatsapp", "type": mime_type},
+                files={"file": (filename, content, mime_type)},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=self._timeout,
+            )
+        except httpx.HTTPError:
+            raise TransientSendError("NETWORK") from None
+        if response.status_code == 200:
+            try:
+                media_id = response.json()["id"]
+            except (ValueError, KeyError, TypeError):
+                raise TransientSendError("BAD_RESPONSE") from None
+            if not isinstance(media_id, str) or not media_id:
+                raise TransientSendError("BAD_RESPONSE")
+            return media_id
+        self._raise_for(response)
+
+    def _raise_for(self, response: httpx.Response) -> NoReturn:
+        """La misma clasificación para envíos y subidas: solo un código estable, nunca el detalle."""
         code = self._meta_error_code(response)
         if response.status_code == 429 or response.status_code >= 500 or code in _RATE_LIMIT_CODES:
             raise TransientSendError(f"HTTP_{response.status_code}")

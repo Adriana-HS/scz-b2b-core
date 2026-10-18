@@ -15,7 +15,9 @@ dependencies = [
     "opentelemetry-sdk>=1.27",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
+    "reportlab>=5.0",       # PDF de cotización (#26, SYSTEM_DESIGN §4)
     "sentry-sdk>=2.18",
+    "tzdata>=2025.2",       # zonas horarias en cualquier SO: fechas del PDF en hora del negocio (#26)
     "uvicorn[standard]>=0.32",
 ]
 
@@ -25,6 +27,7 @@ dev = [
     "import-linter>=2.1",
     "mypy>=1.13",
     "pip-audit>=2.7",
+    "pypdf>=6.0",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
@@ -32,6 +35,7 @@ dev = [
     "pyyaml>=6.0",
     "ruff>=0.8",
     "types-pyyaml>=6.0",
+    "types-reportlab>=4.4",
 ]
 
 [build-system]
