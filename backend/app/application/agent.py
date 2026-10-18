@@ -141,12 +141,18 @@ class ProcessConversation:
         self.limits = limits or AgentLimits()
 
     async def __call__(self, job: Job) -> None:
+        await self.run(job)
+
+    async def run(self, job: Job) -> str:
+        """El turno, devolviendo su resultado (replied, limit, ungrounded...). Lo usan el worker
+        (por __call__) y las evals (#28), que miden cada resultado."""
         conversation_id = self._conversation_id(job)
         assert job.organization_id is not None  # noqa: S101 - lo valida _conversation_id
         context = TenantContext(job.organization_id, Actor.BOT)
         with log_context(conversation_id=conversation_id):
             outcome = await self._turn(context, conversation_id)
         telemetry.agent_turns.add(1, telemetry.attributes(outcome=outcome))
+        return outcome
 
     @staticmethod
     def _conversation_id(job: Job) -> UUID:
