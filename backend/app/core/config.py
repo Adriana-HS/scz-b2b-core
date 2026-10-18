@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.domain.agent import AgentLimits
 from app.domain.ai import ModelPricing, validate_model_id
 
 Environment = Literal["local", "test", "staging", "production"]
@@ -43,6 +44,12 @@ class Settings(BaseSettings):
     llm_price_output_usd_per_mtok: Decimal | None = Field(default=None, ge=0)
     llm_price_cache_read_usd_per_mtok: Decimal | None = Field(default=None, ge=0)
     llm_price_cache_write_usd_per_mtok: Decimal | None = Field(default=None, ge=0)
+
+    # Cuotas del agente (#25, RF-51): iguales para todos los negocios hasta que haya planes de cobro.
+    # Valores decididos por AHS (18-oct-2026). Al 80 % del tope diario se avisa; al 100 %, plantilla.
+    agent_daily_budget_usd: Decimal = Field(default=Decimal("0.75"), ge=0)
+    agent_customer_messages_per_minute: int = Field(default=10, ge=1, le=1000)
+    agent_customer_turns_per_hour: int = Field(default=30, ge=1, le=1000)
 
     # Worker (ADR-0005, SYSTEM_DESIGN.md §9.2): concurrencia de asyncio, sondeo de la cola y lease.
     worker_concurrency: int = Field(default=16, ge=1, le=256)
@@ -87,6 +94,13 @@ class Settings(BaseSettings):
         assert input_price is not None and output_price is not None  # noqa: S101 - lo garantiza el validador
         assert cache_read is not None and cache_write is not None  # noqa: S101
         return ModelPricing(input_price, output_price, cache_read, cache_write)
+
+    def agent_limits(self) -> AgentLimits:
+        return AgentLimits(
+            daily_budget_usd=self.agent_daily_budget_usd,
+            messages_per_minute=self.agent_customer_messages_per_minute,
+            turns_per_hour=self.agent_customer_turns_per_hour,
+        )
 
     @model_validator(mode="after")
     def _lease_longer_than_job_timeout(self) -> "Settings":

@@ -12,30 +12,38 @@ Un turno, por conversación (la cola los serializa y agrupa ráfagas, ADR-0005):
      o copia un fragmento del prompt, responde que solo atiende lo del negocio.
   4. Si la IA no está disponible (circuito abierto, timeout, error), responde una plantilla y
      pasa la conversación a una persona.
+  Guardrails y cuotas (#25, §7.4), antes y después del modelo:
+  * Cuota del negocio: con el costo de IA del día en el tope, no llama al modelo, responde una
+    plantilla y pasa a una persona; al 80 % lo avisa (métrica llm_budget_alerts).
+  * Límite por cliente (mensajes por minuto y turnos por hora): un aviso sin IA, una sola vez.
+  * Grounding numérico: un importe que no salió de una herramienta de este turno no sale.
+  * Datos sensibles: si el bot pide CI, NIT, tarjeta o cuenta (RF-09), la respuesta no sale.
   5. En UNA transacción: la respuesta al outbox (idempotency_key = conversación + último
      wa_message_id consumido), la respuesta al historial y los mensajes como atendidos. Si el
      trabajo se repite después del COMMIT no hay pendientes; si se repite antes, el outbox
      rechaza la clave repetida: nunca hay dos respuestas.
 
-El LLM no calcula ni decide estados: las cifras salen de las herramientas (#24); el grounding
-numérico y las cuotas son #25.
+El LLM no calcula ni decide estados: las cifras salen de las herramientas (#24) y el grounding
+lo verifica antes de enviar (#25).
 """
 
 import logging
 import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
 from app.application.agent_tools import TurnContext
 from app.core import telemetry
 from app.core.structured_logging import log_context
-from app.domain.agent import ConversationMessage, TurnState
+from app.domain.agent import AgentLimits, ConversationMessage, TurnState
 from app.domain.agent_tools import HandoffReason
 from app.domain.ai import ChatMessage, Role, ToolCall, ToolResult, ToolSpec
 from app.domain.consent import classify_keyword
 from app.domain.errors import AiError, BusinessRuleError, ErrorCode, PermanentJobError
+from app.domain.guardrails import asks_for_sensitive_data, tool_values, ungrounded_amounts
 from app.domain.jobs import Job
 from app.domain.outbound import OutboundRequest
 from app.domain.ports import ChatModel, UnitOfWorkFactory, VerticalPolicy
@@ -52,6 +60,14 @@ TEMPLATE_AI_UNAVAILABLE = (
     "escribirá pronto."
 )
 TEMPLATE_OUT_OF_SCOPE = "Solo puedo ayudarle con consultas del negocio. ¿En qué le puedo ayudar?"
+TEMPLATE_UNGROUNDED = (
+    "Para darle la cifra exacta necesito consultarla. ¿Me indica el producto y la cantidad que le interesa?"
+)
+TEMPLATE_QUOTA = "En este momento le atenderá una persona del equipo. Ya le avisé y le escribirá pronto."
+TEMPLATE_RATE_LIMITED = (
+    "Recibimos varios mensajes seguidos. Por favor, espere un momento y vuelva a escribirnos."
+)
+_BUDGET_WARNING = Decimal("0.8")  # al 80 % del tope diario se avisa (RF-51)
 _MAX_REPLY = 4096  # límite de un mensaje de texto de WhatsApp
 _LEAK_MIN_CHARS = 40  # una línea del prompt de este largo, copiada tal cual, es una filtración
 
@@ -109,6 +125,7 @@ class ProcessConversation:
         max_rounds: int = 2,
         max_tool_calls: int = 4,
         turn_budget_s: float = 20.0,
+        limits: AgentLimits | None = None,
     ) -> None:
         self._unit_of_work = unit_of_work
         self._chat_model = chat_model
@@ -119,6 +136,7 @@ class ProcessConversation:
         self._max_rounds = max_rounds
         self._max_tool_calls = max_tool_calls
         self._budget = turn_budget_s
+        self.limits = limits or AgentLimits()
 
     async def __call__(self, job: Job) -> None:
         conversation_id = self._conversation_id(job)
@@ -154,13 +172,49 @@ class ProcessConversation:
         if policy is None:
             raise PermanentJobError(f"rubro sin política de agente: {state.vertical}")
 
-        handoff = False
+        spent, budget = state.usage.ai_cost_today_usd, self.limits.daily_budget_usd
+        if spent >= budget:
+            telemetry.llm_budget_alerts.add(1, telemetry.attributes(level="exceeded"))
+            logger.warning("ALERTA cuota_ia_agotada: el negocio llegó a su tope diario de IA")
+            handoff = (
+                HandoffReason.OTHER,
+                "Se agotó el tope diario de IA del negocio: el cliente espera a una persona.",
+            )
+            return await self._deliver(context, state, pending_ids, TEMPLATE_QUOTA, "quota_exceeded", handoff)
+        if spent >= budget * _BUDGET_WARNING:
+            telemetry.llm_budget_alerts.add(1, telemetry.attributes(level="warning"))
+        if self._customer_over_limit(state):
+            if self._last_bot_text(state) == TEMPLATE_RATE_LIMITED:  # ya se le avisó: cada mensaje cuesta
+                await self._mark_processed(context, conversation_id, pending_ids)
+                return "rate_limited"
+            return await self._deliver(
+                context, state, pending_ids, TEMPLATE_RATE_LIMITED, "rate_limited", None
+            )
+
+        handoff_on_error: tuple[HandoffReason, str] | None = None
         try:
             reply, outcome = await self._run_model(context, state, policy)
         except AiError as error:
             logger.warning("agente: IA no disponible (%s); se pasa a una persona", error.code)
-            reply, outcome, handoff = TEMPLATE_AI_UNAVAILABLE, "ai_unavailable", True
+            reply, outcome = TEMPLATE_AI_UNAVAILABLE, "ai_unavailable"
+            handoff_on_error = (
+                HandoffReason.TOOL_ERROR,
+                "La IA no estaba disponible: el cliente espera respuesta de una persona.",
+            )
+        return await self._deliver(context, state, pending_ids, reply, outcome, handoff_on_error)
 
+    async def _deliver(
+        self,
+        context: TenantContext,
+        state: TurnState,
+        pending_ids: Sequence[int],
+        reply: str,
+        outcome: str,
+        handoff: tuple[HandoffReason, str] | None,
+    ) -> str:
+        """UNA transacción: la respuesta al outbox y al historial, el paso a una persona si toca y
+        los mensajes como atendidos."""
+        conversation_id = state.conversation_id
         last_wamid = next(
             (m.wa_message_id for m in reversed(state.pending) if m.wa_message_id), str(pending_ids[-1])
         )
@@ -172,10 +226,7 @@ class ProcessConversation:
                 if outbound_id is not None:
                     await uow.conversations.add_bot_reply(conversation_id, reply)
                 if handoff:
-                    await uow.conversations.request_handoff(
-                        conversation_id, HandoffReason.TOOL_ERROR.value,
-                        "La IA no estaba disponible: el cliente espera respuesta de una persona.",
-                    )  # fmt: skip
+                    await uow.conversations.request_handoff(conversation_id, handoff[0].value, handoff[1])
                 await uow.conversations.mark_processed(conversation_id, pending_ids)
         except BusinessRuleError as error:
             if error.code is not ErrorCode.WINDOW_CLOSED:
@@ -185,6 +236,17 @@ class ProcessConversation:
             await self._mark_processed(context, conversation_id, pending_ids)
             return "window_closed"
         return outcome
+
+    def _customer_over_limit(self, state: TurnState) -> bool:
+        usage = state.usage
+        return (
+            usage.customer_messages_last_minute > self.limits.messages_per_minute
+            or usage.bot_replies_last_hour >= self.limits.turns_per_hour
+        )
+
+    @staticmethod
+    def _last_bot_text(state: TurnState) -> str | None:
+        return next((m.text for m in reversed(state.history) if m.direction == "OUT"), None)
 
     @staticmethod
     def _human_in_charge(state: TurnState) -> bool:
@@ -217,6 +279,7 @@ class ProcessConversation:
         if not messages:
             return TEMPLATE_LIMIT, "limit"
         tool_calls = 0
+        tool_contents: list[str] = []  # lo que devolvieron las herramientas en ESTE turno (grounding)
         for round_number in range(self._max_rounds):
             remaining = deadline - self._clock()
             if remaining <= 0:
@@ -229,6 +292,14 @@ class ProcessConversation:
                 if _out_of_scope(text, instructions):  # el resumen sí se puede repetir
                     logger.warning("agente: respuesta bloqueada (código o fragmento del prompt)")
                     return TEMPLATE_OUT_OF_SCOPE, "blocked"
+                if asks_for_sensitive_data(text):
+                    logger.warning("agente: respuesta bloqueada (pedía un dato sensible, RF-09)")
+                    return TEMPLATE_LIMIT, "sensitive_request"
+                invented = ungrounded_amounts(text, tool_values(tool_contents))
+                if invented:
+                    # Solo la cantidad: los importes y el texto no van al log
+                    logger.warning("agente: %d importe(s) sin herramienta que los respalde", len(invented))
+                    return TEMPLATE_UNGROUNDED, "ungrounded"
                 return text, "replied"
             last_round = round_number == self._max_rounds - 1
             if last_round or tool_calls + len(response.tool_calls) > self._max_tool_calls:
@@ -236,5 +307,6 @@ class ProcessConversation:
             messages.append(ChatMessage.assistant(response.text or None, response.tool_calls))
             results = [await toolbox.execute(call) for call in response.tool_calls]
             tool_calls += len(response.tool_calls)
+            tool_contents += [result.content for result in results if not result.is_error]
             messages.append(ChatMessage.from_tool_results(*results))
         return TEMPLATE_LIMIT, "limit"  # pragma: no cover - el bucle siempre retorna

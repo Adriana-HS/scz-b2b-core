@@ -104,7 +104,11 @@ def build_agent(
         return AgentToolbox(uow, context, enabled=enabled)
 
     return ProcessConversation(
-        unit_of_work=uow, chat_model=chat_model, toolbox=toolbox, policies=VERTICAL_POLICIES
+        unit_of_work=uow,
+        chat_model=chat_model,
+        toolbox=toolbox,
+        policies=VERTICAL_POLICIES,
+        limits=settings.agent_limits(),
     )
 
 

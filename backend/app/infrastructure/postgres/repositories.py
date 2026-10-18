@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from app.domain.agent import ConversationMessage, TurnState
+from app.domain.agent import ConversationMessage, TurnState, TurnUsage
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus, TaxMode
 from app.domain.orders import Quote, QuoteRequest
 from app.infrastructure.postgres.errors import translate_errors
@@ -50,6 +50,21 @@ _TURN_MESSAGES = """
     ) recent
     WHERE rn <= $2 OR (direction = 'IN' AND processed_at IS NULL)
     ORDER BY created_at, id
+"""
+# Uso reciente para las cuotas (#25). El día del tope es el de Bolivia (America/La_Paz, UTC-4).
+_TURN_USAGE = """
+    SELECT
+        (SELECT count(*) FROM public.messages m
+         WHERE m.conversation_id = $1 AND m.organization_id = private.backend_org_id()
+           AND m.direction = 'IN' AND m.created_at > now() - interval '1 minute') AS messages_last_minute,
+        (SELECT count(*) FROM public.messages m
+         WHERE m.conversation_id = $1 AND m.organization_id = private.backend_org_id()
+           AND m.direction = 'OUT' AND m.sender = 'BOT' AND m.created_at > now() - interval '1 hour')
+            AS bot_replies_last_hour,
+        (SELECT coalesce(sum(l.cost_usd), 0) FROM private.llm_calls l
+         WHERE l.organization_id = private.backend_org_id()
+           AND l.created_at >= (date_trunc('day', now() AT TIME ZONE 'America/La_Paz')
+                                AT TIME ZONE 'America/La_Paz')) AS ai_cost_today_usd
 """
 _MARK_PROCESSED = """
     UPDATE public.messages SET processed_at = now()
@@ -130,6 +145,8 @@ class PostgresConversationRepository:
             if row is None:
                 return None
             messages = await connection.fetch(_TURN_MESSAGES, conversation_id, history_limit)
+            usage = await connection.fetchrow(_TURN_USAGE, conversation_id)
+        assert usage is not None  # noqa: S101 - un SELECT sin FROM siempre devuelve una fila
         return TurnState(
             conversation_id=row["id"],
             customer_id=row["customer_id"],
@@ -148,6 +165,11 @@ class PostgresConversationRepository:
                     pending=m["pending"],
                 )
                 for m in messages
+            ),
+            usage=TurnUsage(
+                customer_messages_last_minute=usage["messages_last_minute"],
+                bot_replies_last_hour=usage["bot_replies_last_hour"],
+                ai_cost_today_usd=usage["ai_cost_today_usd"],
             ),
         )
 
