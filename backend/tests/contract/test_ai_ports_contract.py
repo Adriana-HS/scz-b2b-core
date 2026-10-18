@@ -14,6 +14,7 @@ from app.domain.ai import ChatMessage, ModelResponse, StopReason, TokenUsage, To
 from app.domain.errors import AiError, PermanentAiError, TransientAiError
 from app.domain.ports import ChatModel, Embedder, SpeechToText, VisionExtractor
 from app.infrastructure.ai.anthropic import AnthropicChatModel
+from app.infrastructure.ai.gemini import GeminiChatModel
 
 from ..doubles.ai import (
     EMBEDDING_DIMENSIONS,
@@ -49,6 +50,24 @@ SCENARIOS: dict[str, tuple[ModelResponse | Exception, httpx.Response]] = {
     "request_invalido": (PermanentAiError("BAD_REQUEST"), httpx.Response(400, json={"type": "error"})),
 }  # fmt: skip
 
+# Escenario -> lo que devuelve la API de Gemini (generateContent)
+GEMINI: dict[str, httpx.Response] = {
+    "texto": httpx.Response(200, json={
+        "modelVersion": "m-1", "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5},
+        "candidates": [
+            {"content": {"role": "model", "parts": [{"text": "Sí, tenemos."}]}, "finishReason": "STOP"}
+        ],
+    }),
+    "herramienta": httpx.Response(200, json={
+        "modelVersion": "m-1", "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5},
+        "candidates": [{"finishReason": "STOP", "content": {"role": "model", "parts": [
+            {"functionCall": {"name": "search_catalog", "args": {"query": "freno"}}, "thoughtSignature": "s"}
+        ]}}],
+    }),
+    "sobrecarga": httpx.Response(503, json={"error": {"code": 503}}),
+    "request_invalido": httpx.Response(400, json={"error": {"code": 400}}),
+}  # fmt: skip
+
 type ChatFactory = Callable[[str], ChatModel]
 
 
@@ -62,7 +81,13 @@ def _anthropic(scenario: str) -> ChatModel:
     return AnthropicChatModel(client, api_key="sk-ant-prueba", model="claude-sonnet-5-5")
 
 
-@pytest.fixture(params=[_fake, _anthropic], ids=["fake", "anthropic"])
+def _gemini(scenario: str) -> ChatModel:
+    response = GEMINI[scenario]
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: response))
+    return GeminiChatModel(client, api_key="AIza-prueba", model="gemini-3.8-flash")
+
+
+@pytest.fixture(params=[_fake, _anthropic, _gemini], ids=["fake", "anthropic", "gemini"])
 def chat_model(request: pytest.FixtureRequest) -> ChatFactory:
     factory: ChatFactory = request.param
     return factory
