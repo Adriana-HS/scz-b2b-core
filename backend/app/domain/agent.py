@@ -53,6 +53,8 @@ class TurnState:
     summary: str | None
     history: tuple[ConversationMessage, ...]  # en orden cronológico, incluye los pendientes
     usage: TurnUsage = field(default_factory=TurnUsage)
+    privacy_notice_at: datetime | None = None  # cuándo recibió el aviso de IA (#29); None = todavía no
+    ai_notice: str | None = None  # texto del aviso aprobado por el negocio (organizations.config)
 
     @property
     def pending(self) -> tuple[ConversationMessage, ...]:

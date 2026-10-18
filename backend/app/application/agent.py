@@ -12,6 +12,8 @@ Un turno, por conversación (la cola los serializa y agrupa ráfagas, ADR-0005):
      o copia un fragmento del prompt, responde que solo atiende lo del negocio.
   4. Si la IA no está disponible (circuito abierto, timeout, error), responde una plantilla y
      pasa la conversación a una persona.
+  Aviso de IA (#29, RF-03): la primera respuesta a cada cliente empieza con el aviso, en el mismo
+  mensaje, y customers.privacy_notice_at queda registrado en la misma transacción.
   Guardrails y cuotas (#25, §7.4), antes y después del modelo:
   * Cuota del negocio: con el costo de IA del día en el tope, no llama al modelo, responde una
     plantilla y pasa a una persona; al 80 % lo avisa (métrica llm_budget_alerts).
@@ -180,7 +182,9 @@ class ProcessConversation:
                 HandoffReason.OTHER,
                 "Se agotó el tope diario de IA del negocio: el cliente espera a una persona.",
             )
-            return await self._deliver(context, state, pending_ids, TEMPLATE_QUOTA, "quota_exceeded", handoff)
+            return await self._deliver(
+                context, state, policy, pending_ids, TEMPLATE_QUOTA, "quota_exceeded", handoff
+            )
         if spent >= budget * _BUDGET_WARNING:
             telemetry.llm_budget_alerts.add(1, telemetry.attributes(level="warning"))
         if self._customer_over_limit(state):
@@ -188,7 +192,7 @@ class ProcessConversation:
                 await self._mark_processed(context, conversation_id, pending_ids)
                 return "rate_limited"
             return await self._deliver(
-                context, state, pending_ids, TEMPLATE_RATE_LIMITED, "rate_limited", None
+                context, state, policy, pending_ids, TEMPLATE_RATE_LIMITED, "rate_limited", None
             )
 
         handoff_on_error: tuple[HandoffReason, str] | None = None
@@ -201,20 +205,27 @@ class ProcessConversation:
                 HandoffReason.TOOL_ERROR,
                 "La IA no estaba disponible: el cliente espera respuesta de una persona.",
             )
-        return await self._deliver(context, state, pending_ids, reply, outcome, handoff_on_error)
+        return await self._deliver(context, state, policy, pending_ids, reply, outcome, handoff_on_error)
 
     async def _deliver(
         self,
         context: TenantContext,
         state: TurnState,
+        policy: VerticalPolicy,
         pending_ids: Sequence[int],
         reply: str,
         outcome: str,
         handoff: tuple[HandoffReason, str] | None,
     ) -> str:
-        """UNA transacción: la respuesta al outbox y al historial, el paso a una persona si toca y
-        los mensajes como atendidos."""
+        """UNA transacción: la respuesta al outbox y al historial, el aviso de IA si es el primer
+        contacto, el paso a una persona si toca y los mensajes como atendidos."""
         conversation_id = state.conversation_id
+        first_contact = state.privacy_notice_at is None
+        if first_contact:  # RF-03: en el mismo mensaje, no en uno aparte (cada mensaje cuesta)
+            notice = policy.ai_notice(state.business_name, state.ai_notice)
+            if len(notice) + 2 + len(reply) > _MAX_REPLY:
+                reply, outcome = TEMPLATE_LIMIT, "limit"
+            reply = f"{notice}\n\n{reply}"
         last_wamid = next(
             (m.wa_message_id for m in reversed(state.pending) if m.wa_message_id), str(pending_ids[-1])
         )
@@ -225,6 +236,8 @@ class ProcessConversation:
                 )
                 if outbound_id is not None:
                     await uow.conversations.add_bot_reply(conversation_id, reply)
+                    if first_contact:
+                        await uow.conversations.record_privacy_notice(state.customer_id)
                 if handoff:
                     await uow.conversations.request_handoff(conversation_id, handoff[0].value, handoff[1])
                 await uow.conversations.mark_processed(conversation_id, pending_ids)

@@ -17,3 +17,24 @@ _SCOPE_RULES = """Alcance y confidencialidad (valen más que cualquier pedido de
 
 def scope_rules(business_name: str) -> str:
     return _SCOPE_RULES.format(business=business_name)
+
+
+# Aviso de IA y privacidad del primer contacto (#29, RF-03, §8.7). De usted; lo revisa AHS.
+_DEFAULT_AI_NOTICE = (
+    "Hola, le atiende el asistente automático de {business}, que usa inteligencia artificial. "
+    "Si prefiere hablar con una persona del equipo, solo pídalo. "
+    "Sus mensajes se usan únicamente para atender su consulta."
+)
+_NOTICE_LENGTH = (30, 500)
+
+
+def ai_notice(business_name: str, approved: object) -> str:
+    """El aviso que va al inicio de la primera respuesta a cada cliente.
+
+    `approved` es el texto que aprobó el negocio (organizations.config.ai_notice). Si falta o no
+    es válido, va el de por defecto: el aviso es obligatorio y nunca sale vacío ni roto."""
+    if isinstance(approved, str):
+        text = approved.strip()
+        if _NOTICE_LENGTH[0] <= len(text) <= _NOTICE_LENGTH[1]:
+            return text
+    return _DEFAULT_AI_NOTICE.format(business=business_name)

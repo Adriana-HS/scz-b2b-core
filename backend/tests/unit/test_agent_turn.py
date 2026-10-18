@@ -47,11 +47,13 @@ from app.domain.errors import (
 from app.domain.jobs import PROCESS_CONVERSATION, Job
 from app.domain.outbound import OutboundKind, OutboundRequest
 from app.domain.tenancy import Actor, TenantContext
+from app.verticals.common import ai_notice
 
 from ..conftest import MetricValue
 from ..doubles.ai import ScriptedChatModel
 
 ORG, CUSTOMER, CONVERSATION = uuid4(), uuid4(), uuid4()
+NOTICED = datetime(2026, 10, 1, tzinfo=UTC)  # el cliente ya recibió el aviso de IA (#29)
 
 
 def _msg(direction: str, text: str, n: int, *, pending: bool = False) -> ConversationMessage:
@@ -66,11 +68,13 @@ def _state(
     mode: str = "BOT",
     paused: datetime | None = None,
     usage: TurnUsage | None = None,
+    notice_at: datetime | None = NOTICED,
+    ai_notice: str | None = None,
 ) -> TurnState:
     return TurnState(
         conversation_id=CONVERSATION, customer_id=CUSTOMER, business_name="Importadora de Ejemplo",
         vertical="IMPORTADORA_REPUESTOS", mode=mode, bot_paused_until=paused, summary=None,
-        history=messages, usage=usage or TurnUsage(),
+        history=messages, usage=usage or TurnUsage(), privacy_notice_at=notice_at, ai_notice=ai_notice,
     )  # fmt: skip
 
 
@@ -103,6 +107,9 @@ class FakeConversations:
 
     async def request_handoff(self, conversation_id: UUID, reason: str, summary: str) -> None:
         self.log.append(("handoff", reason))
+
+    async def record_privacy_notice(self, customer_id: UUID) -> None:
+        self.log.append(("privacy_notice", customer_id))
 
 
 class FakeOutbound:
@@ -159,6 +166,9 @@ class FakePolicy:
     def system_prompt(self, business_name: str) -> str:
         # una línea larga (copiarla es filtración) y una corta, el nombre (decirlo es normal)
         return f"Eres el asistente de WhatsApp de este negocio de ejemplo.\n{business_name}"
+
+    def ai_notice(self, business_name: str, approved: str | None) -> str:
+        return ai_notice(business_name, approved)
 
 
 def _handler(
@@ -597,3 +607,86 @@ async def test_justo_en_el_limite_responde_normal() -> None:
     await handler(_job())
 
     assert _enqueued(log)[0].payload == {"body": "¡Hola!"}
+
+
+# --- Aviso de IA y privacidad en el primer contacto (#29, RF-03) ----------------------------------
+async def test_la_primera_respuesta_lleva_el_aviso_de_ia_y_lo_registra() -> None:
+    handler, log, _, _ = _handler(_state(_msg("IN", "hola", 1, pending=True), notice_at=None),
+                                  ScriptedChatModel(_text("¿Qué repuesto busca?")))  # fmt: skip
+
+    await handler(_job())
+
+    notice = ai_notice("Importadora de Ejemplo", None)
+    body = f"{notice}\n\n¿Qué repuesto busca?"
+    assert _enqueued(log)[0].payload == {"body": body}  # UN solo mensaje: cada mensaje cuesta
+    assert ("bot_reply", body) in log  # el historial guarda lo que se envió
+    assert ("privacy_notice", CUSTOMER) in log
+    delivery = max(i for i, entry in enumerate(log) if entry[0] == "begin")  # la transacción de la respuesta
+    assert delivery < log.index(("privacy_notice", CUSTOMER)) and log[-1] == ("end", "commit")
+
+
+async def test_con_el_aviso_ya_dado_no_se_repite() -> None:
+    handler, log, _, _ = _handler(
+        _state(_msg("IN", "hola", 1, pending=True)), ScriptedChatModel(_text("¡Hola!"))
+    )
+
+    await handler(_job())
+
+    assert _enqueued(log)[0].payload == {"body": "¡Hola!"}
+    assert not [entry for entry in log if entry[0] == "privacy_notice"]
+
+
+async def test_el_aviso_tambien_va_con_una_plantilla() -> None:
+    """Si la primera respuesta es una plantilla (IA caída, cuota), igual es el bot el que habla."""
+    state = _state(_msg("IN", "hola", 1, pending=True), notice_at=None)
+    handler, log, _, _ = _handler(state, ScriptedChatModel(AiUnavailableError("CIRCUIT_OPEN")))
+
+    await handler(_job())
+
+    body = _enqueued(log)[0].payload["body"]
+    assert body.startswith(ai_notice("Importadora de Ejemplo", None)) and body.endswith(
+        TEMPLATE_AI_UNAVAILABLE
+    )
+    assert ("privacy_notice", CUSTOMER) in log
+
+
+async def test_si_el_outbox_ya_tenia_la_respuesta_no_registra_otra_vez() -> None:
+    handler, log, _, _ = _handler(_state(_msg("IN", "hola", 1, pending=True), notice_at=None),
+                                  ScriptedChatModel(_text("Hola")), duplicate=True)  # fmt: skip
+
+    await handler(_job())
+
+    assert not [entry for entry in log if entry[0] in ("privacy_notice", "bot_reply")]
+
+
+async def test_sin_respuesta_no_hay_aviso() -> None:
+    """Con una persona a cargo no habla el bot: el aviso espera a la primera respuesta automática."""
+    handler, log, _, _ = _handler(_state(_msg("IN", "hola", 1, pending=True), mode="HUMAN", notice_at=None),
+                                  ScriptedChatModel())  # fmt: skip
+
+    await handler(_job())
+
+    assert _enqueued(log) == [] and not [entry for entry in log if entry[0] == "privacy_notice"]
+
+
+async def test_el_negocio_puede_usar_su_propio_texto_aprobado() -> None:
+    own = (
+        "Le atiende el asistente automático de la importadora. Para hablar con una persona, escriba PERSONA."
+    )
+    handler, log, _, _ = _handler(_state(_msg("IN", "hola", 1, pending=True), notice_at=None, ai_notice=own),
+                                  ScriptedChatModel(_text("¡Hola!")))  # fmt: skip
+
+    await handler(_job())
+
+    assert _enqueued(log)[0].payload == {"body": f"{own}\n\n¡Hola!"}
+
+
+async def test_una_respuesta_que_con_el_aviso_no_entra_en_un_mensaje_se_reemplaza() -> None:
+    long_reply = "x" * 4000  # entra sola, pero no con el aviso (límite de 4096 de WhatsApp)
+    handler, log, _, _ = _handler(_state(_msg("IN", "hola", 1, pending=True), notice_at=None),
+                                  ScriptedChatModel(_text(long_reply)))  # fmt: skip
+
+    await handler(_job())
+
+    body = _enqueued(log)[0].payload["body"]
+    assert len(body) <= 4096 and body.endswith(TEMPLATE_LIMIT)

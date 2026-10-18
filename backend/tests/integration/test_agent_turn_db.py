@@ -23,6 +23,7 @@ from app.domain.messaging import InboundBatch, InboundMessage
 from app.domain.tenancy import Actor, TenantContext
 from app.infrastructure.postgres.channels import PostgresChannelResolver
 from app.infrastructure.postgres.unit_of_work import unit_of_work_factory
+from app.verticals.common import ai_notice
 
 from ..doubles.ai import ScriptedChatModel
 from .conftest import Seed
@@ -37,6 +38,9 @@ class Policy:
 
     def system_prompt(self, business_name: str) -> str:
         return f"Eres el asistente de {business_name}."
+
+    def ai_notice(self, business_name: str, approved: str | None) -> str:
+        return ai_notice(business_name, approved)
 
 
 async def _customer_writes(pool: asyncpg.Pool, admin: asyncpg.Connection, seed: Seed, text: str) -> UUID:
@@ -103,7 +107,15 @@ async def test_un_turno_completo_deja_una_respuesta_y_su_costo(
         "SELECT kind, payload ->> 'body' AS body FROM private.outbound_messages WHERE conversation_id = $1",
         conversation,
     )
-    assert [(r["kind"], r["body"]) for r in outbox] == [("TEXT", "Sí, a 480,00 Bs.")]
+    business = await admin.fetchval("SELECT name FROM public.organizations WHERE id = $1", seed.org_a)
+    reply = f"{ai_notice(business, None)}\n\nSí, a 480,00 Bs."  # primer contacto: con el aviso de IA (#29)
+    assert [(r["kind"], r["body"]) for r in outbox] == [("TEXT", reply)]
+    noticed = await admin.fetchval(
+        "SELECT c.privacy_notice_at FROM public.customers c"
+        " JOIN public.conversations v ON v.customer_id = c.id WHERE v.id = $1",
+        conversation,
+    )
+    assert noticed is not None
     history = await admin.fetch(
         "SELECT direction, sender, body, processed_at FROM public.messages WHERE conversation_id = $1"
         " ORDER BY created_at, id",
@@ -209,6 +221,55 @@ async def test_con_la_cuota_agotada_responde_la_plantilla_y_pasa_a_una_persona(
     body = await admin.fetchval(
         "SELECT payload ->> 'body' FROM private.outbound_messages WHERE conversation_id = $1", conversation
     )
-    assert body == TEMPLATE_QUOTA
+    assert body.endswith(TEMPLATE_QUOTA)  # cliente nuevo: con el aviso de IA delante (#29)
     mode = await admin.fetchval("SELECT mode::text FROM public.conversations WHERE id = $1", conversation)
     assert mode == "HUMAN"
+
+
+# --- Aviso de IA (#29) ----------------------------------------------------------------------------
+async def test_el_turno_lee_el_aviso_y_el_texto_aprobado_por_el_negocio(
+    pool: asyncpg.Pool, admin: asyncpg.Connection, seed: Seed
+) -> None:
+    conversation = await _customer_writes(pool, admin, seed, "hola")
+    own = "Le atiende el asistente automático de la importadora. Para hablar con una persona, pídalo."
+    before = await admin.fetchval("SELECT config FROM public.organizations WHERE id = $1", seed.org_a)
+    await admin.execute(
+        "UPDATE public.organizations SET config = config || jsonb_build_object('ai_notice', $2::text)"
+        " WHERE id = $1",
+        seed.org_a,
+        own,
+    )
+    try:
+        async with unit_of_work_factory(pool)(TenantContext(seed.org_a, Actor.BOT)) as uow:
+            state = await uow.conversations.load_turn(conversation, 12)
+            assert state is not None
+            assert (state.privacy_notice_at, state.ai_notice) == (None, own)
+            await uow.conversations.record_privacy_notice(state.customer_id)
+        async with unit_of_work_factory(pool)(TenantContext(seed.org_a, Actor.BOT)) as uow:
+            after = await uow.conversations.load_turn(conversation, 12)
+    finally:
+        await admin.execute(
+            "UPDATE public.organizations SET config = $2::jsonb WHERE id = $1", seed.org_a, before
+        )
+
+    assert after is not None and after.privacy_notice_at is not None
+
+
+async def test_la_fecha_del_primer_aviso_no_se_pisa(
+    pool: asyncpg.Pool, admin: asyncpg.Connection, seed: Seed
+) -> None:
+    """La evidencia es la PRIMERA vez que se informó (RF-03): registrar otra vez no la cambia."""
+    conversation = await _customer_writes(pool, admin, seed, "hola")
+    customer = await admin.fetchval(
+        "SELECT customer_id FROM public.conversations WHERE id = $1", conversation
+    )
+    first = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+    await admin.execute("UPDATE public.customers SET privacy_notice_at = $2 WHERE id = $1", customer, first)
+
+    async with unit_of_work_factory(pool)(TenantContext(seed.org_a, Actor.BOT)) as uow:
+        await uow.conversations.record_privacy_notice(customer)
+
+    assert (
+        await admin.fetchval("SELECT privacy_notice_at FROM public.customers WHERE id = $1", customer)
+        == first
+    )

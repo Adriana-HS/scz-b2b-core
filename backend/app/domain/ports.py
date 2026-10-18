@@ -43,18 +43,25 @@ class ConversationRepository(Protocol):
 
     async def mark_processed(self, conversation_id: UUID, message_ids: Sequence[int]) -> None: ...
 
+    async def record_privacy_notice(self, customer_id: UUID) -> None:
+        """customers.privacy_notice_at = ahora, solo la primera vez (#29, RF-03)."""
+        ...
+
     async def add_bot_reply(self, conversation_id: UUID, text: str) -> None:
         """Guarda la respuesta del bot en el historial (la envía el outbox)."""
         ...
 
 
 class VerticalPolicy(Protocol):
-    """Lo que cambia por rubro (§7.3): el prompt de sistema y las herramientas habilitadas."""
+    """Lo que cambia por rubro (§7.3): el prompt de sistema, las herramientas habilitadas y el
+    aviso de IA del primer contacto (#29)."""
 
     @property
     def enabled_tools(self) -> tuple[str, ...]: ...
 
     def system_prompt(self, business_name: str) -> str: ...
+
+    def ai_notice(self, business_name: str, approved: str | None) -> str: ...
 
 
 class OrderRepository(Protocol):

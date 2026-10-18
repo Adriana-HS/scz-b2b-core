@@ -81,6 +81,10 @@ Puertos `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText` en `app/doma
 
 `ProcessConversation` (`app/application/agent.py`) atiende un turno: lee el estado, llama al modelo con el prompt del rubro y las herramientas habilitadas (2 rondas, 4 herramientas y 20 s como máximo) y deja en una transacción la respuesta en el outbox, el historial y los mensajes atendidos. Si se pasa de los límites o la IA no responde, contesta una plantilla (`TEMPLATE_LIMIT`, `TEMPLATE_AI_UNAVAILABLE`). Para un rubro nuevo: una clase con `enabled_tools` y `system_prompt(business_name)` en `app/verticals/` y su entrada en `VERTICAL_POLICIES`; un rubro sin política es un error permanente del trabajo, no una respuesta inventada.
 
+### Aviso de IA (#29)
+
+La primera respuesta del bot a cada cliente empieza con el aviso de IA (RF-03) y registra `customers.privacy_notice_at`. Para que un negocio use su propio texto: `organizations.config.ai_notice` (de 30 a 500 caracteres, de usted, diciendo cómo pedir una persona). El texto por defecto está en `app/verticals/common.py` y lo revisa AHS.
+
 ### Guardrails y cuotas (#25)
 
 Antes de enviar, el orquestador verifica la respuesta con `app/domain/guardrails.py`: ningún importe sin herramienta que lo respalde y ningún pedido de datos sensibles. Antes de llamar a la IA, revisa las cuotas: `AGENT_DAILY_BUDGET_USD` (por negocio y día), `AGENT_CUSTOMER_MESSAGES_PER_MINUTE` y `AGENT_CUSTOMER_TURNS_PER_HOUR` (por cliente). Cambiar un tope es una decisión de presupuesto (AHS).

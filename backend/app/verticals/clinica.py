@@ -1,6 +1,6 @@
 """Rubro clínica o consultorio (§7.3). Las herramientas de agenda llegan con #35."""
 
-from app.verticals.common import scope_rules
+from app.verticals.common import ai_notice, scope_rules
 
 _PROMPT = """Eres el asistente de WhatsApp de {business}, un consultorio de Santa Cruz, Bolivia.
 
@@ -23,3 +23,6 @@ class ClinicaPolicy:
 
     def system_prompt(self, business_name: str) -> str:
         return _PROMPT.format(business=business_name) + scope_rules(business_name)
+
+    def ai_notice(self, business_name: str, approved: str | None) -> str:
+        return ai_notice(business_name, approved)
