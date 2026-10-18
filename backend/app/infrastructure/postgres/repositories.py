@@ -5,9 +5,11 @@ de un parámetro. Los montos llegan como `numeric` y se mantienen como `Decimal`
 """
 
 import json
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from app.domain.agent import ConversationMessage, TurnState
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus, TaxMode
 from app.domain.orders import Quote, QuoteRequest
 from app.infrastructure.postgres.errors import translate_errors
@@ -28,6 +30,35 @@ _DETAILS = """
 """
 
 _HANDOFF = "SELECT public.request_handoff($1, $2, $3)"
+
+# Estado del turno (#81). La RLS y el organization_id del tenant acotan todo al negocio.
+_TURN = """
+    SELECT c.id, c.customer_id, c.mode::text AS mode, c.bot_paused_until, c.summary,
+           o.name AS business_name, o.vertical::text AS vertical
+    FROM public.conversations c
+    JOIN public.organizations o ON o.id = c.organization_id
+    WHERE c.id = $1 AND c.organization_id = private.backend_org_id()
+"""
+# Últimos N mensajes + todos los pendientes (aunque sean más viejos), en orden cronológico
+_TURN_MESSAGES = """
+    SELECT id, direction, body, wa_message_id, msg_type,
+           (direction = 'IN' AND processed_at IS NULL) AS pending
+    FROM (
+        SELECT m.*, row_number() OVER (ORDER BY m.created_at DESC, m.id DESC) AS rn
+        FROM public.messages m
+        WHERE m.conversation_id = $1 AND m.organization_id = private.backend_org_id()
+    ) recent
+    WHERE rn <= $2 OR (direction = 'IN' AND processed_at IS NULL)
+    ORDER BY created_at, id
+"""
+_MARK_PROCESSED = """
+    UPDATE public.messages SET processed_at = now()
+    WHERE conversation_id = $1 AND id = ANY($2::bigint[]) AND direction = 'IN' AND processed_at IS NULL
+"""
+_ADD_BOT_REPLY = """
+    INSERT INTO public.messages (organization_id, conversation_id, direction, sender, msg_type, body)
+    VALUES (private.backend_org_id(), $1, 'OUT', 'BOT', 'text', $2)
+"""
 
 _CREATE_QUOTE = """
     SELECT order_id, reference_code, subtotal_bs, iva_bs, total_bs, deposit_required_bs,
@@ -91,6 +122,44 @@ class PostgresConversationRepository:
         connection = self._session.connection()
         with translate_errors():
             await connection.execute(_HANDOFF, conversation_id, reason, summary)
+
+    async def load_turn(self, conversation_id: UUID, history_limit: int) -> TurnState | None:
+        connection = self._session.connection()
+        with translate_errors():
+            row = await connection.fetchrow(_TURN, conversation_id)
+            if row is None:
+                return None
+            messages = await connection.fetch(_TURN_MESSAGES, conversation_id, history_limit)
+        return TurnState(
+            conversation_id=row["id"],
+            customer_id=row["customer_id"],
+            business_name=row["business_name"],
+            vertical=row["vertical"],
+            mode=row["mode"],
+            bot_paused_until=row["bot_paused_until"],
+            summary=row["summary"],
+            history=tuple(
+                ConversationMessage(
+                    id=m["id"],
+                    direction=m["direction"],
+                    text=m["body"],
+                    wa_message_id=m["wa_message_id"],
+                    msg_type=m["msg_type"],
+                    pending=m["pending"],
+                )
+                for m in messages
+            ),
+        )
+
+    async def mark_processed(self, conversation_id: UUID, message_ids: Sequence[int]) -> None:
+        connection = self._session.connection()
+        with translate_errors():
+            await connection.execute(_MARK_PROCESSED, conversation_id, list(message_ids))
+
+    async def add_bot_reply(self, conversation_id: UUID, text: str) -> None:
+        connection = self._session.connection()
+        with translate_errors():
+            await connection.execute(_ADD_BOT_REPLY, conversation_id, text)
 
 
 class PostgresOrderRepository:

@@ -2,8 +2,9 @@
 
 Ejecutar en local:  uv run python -m app.worker   (requiere DATABASE_URL)
 
-Handlers registrados: SEND_OUTBOUND (outbox, #18), si hay META_GRAPH_API_VERSION. Los demás
-llegan con sus issues: EMBED_ITEM (#23), PROCESS_CONVERSATION (#81) y PRICE_CHANGE_ALERT.
+Handlers registrados: SEND_OUTBOUND (outbox, #18), si hay META_GRAPH_API_VERSION, y
+PROCESS_CONVERSATION (agente, #81), si hay LLM_API_KEY, LLM_MODEL y sus precios. Los demás
+llegan con sus issues: EMBED_ITEM (#23) y PRICE_CHANGE_ALERT.
 Un tipo sin handler NO se reclama: espera en la cola, sin gastar intentos.
 """
 
@@ -14,21 +15,31 @@ import os
 import secrets
 import signal
 import socket
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import timedelta
+from uuid import UUID
 
 import asyncpg
 import httpx
 
+from app.application.agent import ProcessConversation
+from app.application.agent_tools import AgentToolbox, TurnContext
+from app.application.ai import CircuitBreaker, RecordLlmCalls, resilient_chat_model
 from app.application.outbound import SEND_OUTBOUND, SendOutbound
 from app.application.worker import JobHandler, JobRunner, default_maintenance
 from app.core.config import Settings, get_settings
 from app.core.observability import setup_observability
+from app.domain.ai import AiPurpose
+from app.domain.jobs import PROCESS_CONVERSATION
+from app.domain.ports import ChatModel
+from app.infrastructure.ai.anthropic import PROVIDER as ANTHROPIC
+from app.infrastructure.ai.anthropic import AnthropicChatModel
 from app.infrastructure.postgres.jobs import PostgresJobQueue, PostgresMaintenance
 from app.infrastructure.postgres.pool import create_pool
 from app.infrastructure.postgres.unit_of_work import unit_of_work_factory
 from app.infrastructure.secret_store.env import EnvSecretStore
 from app.infrastructure.whatsapp.cloud_api import CloudApiSender
+from app.verticals import VERTICAL_POLICIES
 
 logger = logging.getLogger("scz.worker")
 
@@ -47,7 +58,42 @@ def build_handlers(
         logger.warning(
             "worker: sin META_GRAPH_API_VERSION no se envían mensajes (SEND_OUTBOUND espera en cola)"
         )
+    agent = build_agent(settings, pool, http)
+    if agent is not None:
+        handlers[PROCESS_CONVERSATION] = agent
+    else:
+        logger.warning(
+            "worker: sin LLM_API_KEY y LLM_MODEL el agente no responde (PROCESS_CONVERSATION espera)"
+        )
     return handlers
+
+
+def build_agent(
+    settings: Settings, pool: asyncpg.Pool, http: httpx.AsyncClient
+) -> ProcessConversation | None:
+    """El orquestador del agente (#81) con Anthropic (ADR-0018), o None si falta configuración."""
+    pricing = settings.llm_pricing()
+    if settings.llm_api_key is None or settings.llm_model is None or pricing is None:
+        return None
+    model_id = settings.llm_model
+    adapter = AnthropicChatModel(http, api_key=settings.llm_api_key.get_secret_value(), model=model_id)
+    breaker = CircuitBreaker()  # uno por proceso y proveedor: si Anthropic cae, todos los turnos degradan
+    uow = unit_of_work_factory(pool)
+    recorder = RecordLlmCalls(uow)
+
+    def chat_model(organization_id: UUID, conversation_id: UUID) -> ChatModel:
+        return resilient_chat_model(
+            adapter, breaker=breaker, recorder=recorder, pricing=pricing, provider=ANTHROPIC,
+            model=model_id, purpose=AiPurpose.CHAT, organization_id=organization_id,
+            conversation_id=conversation_id,
+        )  # fmt: skip
+
+    def toolbox(context: TurnContext, enabled: Sequence[str]) -> AgentToolbox:
+        return AgentToolbox(uow, context, enabled=enabled)
+
+    return ProcessConversation(
+        unit_of_work=uow, chat_model=chat_model, toolbox=toolbox, policies=VERTICAL_POLICIES
+    )
 
 
 def _install_stop_signals(stop: asyncio.Event) -> None:

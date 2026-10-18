@@ -1,4 +1,12 @@
-"""Rubros: una VerticalPolicy por paquete (Strategy, SYSTEM_DESIGN.md §7.3).
+"""Rubros (§7.3): un VerticalPolicy por business_vertical. Agregar un rubro = un módulo más aquí."""
 
-Agregar un rubro no modifica domain/ ni application/ (Q-MAINT-1).
-"""
+from collections.abc import Mapping
+
+from app.domain.ports import VerticalPolicy
+from app.verticals.clinica import ClinicaPolicy
+from app.verticals.importadora import ImportadoraPolicy
+
+VERTICAL_POLICIES: Mapping[str, VerticalPolicy] = {
+    "IMPORTADORA_REPUESTOS": ImportadoraPolicy(),
+    "CLINICA_CONSULTORIO": ClinicaPolicy(),
+}
