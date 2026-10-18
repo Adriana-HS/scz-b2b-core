@@ -81,6 +81,10 @@ Puertos `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText` en `app/doma
 
 `ProcessConversation` (`app/application/agent.py`) atiende un turno: lee el estado, llama al modelo con el prompt del rubro y las herramientas habilitadas (3 rondas, 4 herramientas y 20 s como máximo) y deja en una transacción la respuesta en el outbox, el historial y los mensajes atendidos. Si se pasa de los límites o la IA no responde, contesta una plantilla (`TEMPLATE_LIMIT`, `TEMPLATE_AI_UNAVAILABLE`). Para un rubro nuevo: una clase con `enabled_tools` y `system_prompt(business_name)` en `app/verticals/` y su entrada en `VERTICAL_POLICIES`; un rubro sin política es un error permanente del trabajo, no una respuesta inventada.
 
+### Evals golden (#28)
+
+`agent_evals/` (fuera de `app/`: no se despliega) corre las conversaciones de `evals/conversations/` con el orquestador real. Para medir un cambio de prompt o de modelo: `SCZ_RUN_EVALS=1 uv run pytest tests/integration/test_agent_evals_live.py -s --no-cov` con la IA configurada en el `.env` (guía en `evals/conversations/README.md`).
+
 ### PDF de cotización (#26)
 
 `create_quote` encola `SEND_QUOTE_PDF`; `SendQuoteDocument` (`app/application/quote_document.py`) genera el PDF con `ReportlabQuoteRenderer` (`app/infrastructure/pdf/`) en un thread pool, lo sube con `CloudApiSender.upload_media` y lo encola como `DOCUMENT`. El worker lo registra junto con `SEND_OUTBOUND` (necesita `META_GRAPH_API_VERSION`). Para cambiar el diseño: editar el renderizador, regenerar el snapshot con `SCZ_UPDATE_SNAPSHOTS=1` y revisar el PDF.
