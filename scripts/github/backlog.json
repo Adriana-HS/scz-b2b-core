@@ -652,6 +652,16 @@
         "prio:S"
       ],
       "body": "**Requisitos / referencias:** ADR-0012, EXT-08\n\n### Objetivo\nAyudar al negocio a convertir sus precios de lista a netos cuando rija el nuevo régimen.\n\n### Criterios de aceptación\n- [ ] Simulación antes/después\n- [ ] Migración de tax_regimes revisada\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Orquestador del agente: handler PROCESS_CONVERSATION (turno, herramientas y respuesta)",
+      "labels": [
+        "type:feature",
+        "area:ia",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-02, RF-04, RF-09, SYSTEM_DESIGN §7.1, §7.2 y §10.3, ADR-0005, ADR-0017, ADR-0018\n\n### Objetivo\nQue el bot responda: el handler `PROCESS_CONVERSATION` del worker arma cada turno del agente con los mensajes pendientes, llama al modelo con las herramientas de #24 y envía **una** respuesta por el outbox.\n\n### Alcance\n- **Prompt:** sistema por rubro, configuración validada del negocio, resumen rodante (`conversations.summary`) y últimos N mensajes. La parte estable va cacheada.\n- **Modelo:** `resilient_chat_model` (#22) con Claude Haiku 5.5 (ADR-0018): reintento, circuit breaker, costo en `llm_calls` y trazas.\n- **Herramientas:** `AgentToolbox` (#24) con el `TurnContext` del servidor.\n- **Respuesta:** por el outbox con `idempotency_key` = conversación + último `wa_message_id` consumido.\n\nDepende de #24. Lo completan #25 (guardrails y cuotas), #26 (PDF) y #29 (aviso de IA).\n\n### Criterios de aceptación\n- [ ] Un turno consume los mensajes entrantes pendientes (`processed_at`) en orden y deja una sola respuesta en el outbox; si el trabajo se repite, no duplica la respuesta.\n- [ ] Límites por turno: máximo 4 llamadas a herramientas, 2 rondas de LLM y 20 s; si se exceden, plantilla segura y oferta de pasar a una persona.\n- [ ] Si la conversación está en modo `HUMAN` o `bot_paused_until` está vigente, el bot no responde.\n- [ ] Si el modelo no está disponible (circuito abierto o timeout), plantilla y paso a una persona (§10.3).\n- [ ] El costo de cada turno queda en `private.llm_calls` con su tenant y su conversación.\n- [ ] Pruebas con un ChatModel guionado (sin cuenta de IA) y de integración: webhook → trabajo → respuesta en el outbox.\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
     }
   ]
 }

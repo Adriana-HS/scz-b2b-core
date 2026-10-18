@@ -295,7 +295,7 @@ def resilient_chat_model(
     sleep: Sleep = asyncio.sleep,
     clock: Clock = time.monotonic,
 ) -> ChatModel:
-    """El ChatModel que usa el agente (fase 2, #24/#25), con las políticas en el orden correcto."""
+    """El ChatModel que usa el agente (#81), con las políticas en el orden correcto."""
     retrying = RetryingChatModel(adapter, attempts=attempts, budget_s=budget_s, sleep=sleep, clock=clock)
     guarded = CircuitBreakerChatModel(retrying, breaker)
     metered = CostMeteredChatModel(

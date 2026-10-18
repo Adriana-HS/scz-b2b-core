@@ -9,7 +9,7 @@
 
 ## Contexto
 
-* **Por qué hay que decidir.** El agente (fase 2: #24 herramientas, #25 guardrails) necesita un modelo de chat que use herramientas (buscar en el catálogo, cotizar, pasar a una persona) en español de Bolivia. El PR #77 trae los puertos de IA, que no dependen del proveedor, y **un** adaptador, el de Anthropic. Esa elección salió de una etiqueta en un diagrama de `SYSTEM_DESIGN.md` (`ai/anthropic_adapter.py`), no de un acuerdo. Es una decisión de presupuesto, de privacidad (un tercero procesa los mensajes de los clientes) y de proveedor.
+* **Por qué hay que decidir.** El agente (#81, con las herramientas de #24 y los guardrails de #25) necesita un modelo de chat que use herramientas (buscar en el catálogo, cotizar, pasar a una persona) en español de Bolivia. El PR #77 trae los puertos de IA, que no dependen del proveedor, y **un** adaptador, el de Anthropic. Esa elección salió de una etiqueta en un diagrama de `SYSTEM_DESIGN.md` (`ai/anthropic_adapter.py`), no de un acuerdo. Es una decisión de presupuesto, de privacidad (un tercero procesa los mensajes de los clientes) y de proveedor.
 * **Cuánto cuesta cambiar después.** Poco en código: un adaptador nuevo es un archivo más sus pruebas, y la suite de contrato de #22 verifica que se comporte igual. Los decoradores (reintento, circuito, costo y trazas) no cambian. Cambiar de proveedor en producción también implica una cuenta nueva, una clave, un medio de pago y actualizar el registro de proveedores (§8.7).
 
 ### Precios oficiales (consultados el 17-oct-2026, USD por millón de tokens)

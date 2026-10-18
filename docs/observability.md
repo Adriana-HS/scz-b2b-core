@@ -61,9 +61,9 @@ Al exportar a Prometheus, los contadores llevan `_total` y los histogramas `_buc
 | `jobs_queued`, `jobs_running`, `jobs_dead_pending` | gauge | `kind` | `private.queue_stats` cada minuto | cola |
 | `jobs_oldest_ready_s` | gauge | `kind` | ídem: espera del trabajo **listo** más viejo (sin contar backoff) | cola |
 | `fx_stale_tenants` | gauge | — | `private.fx_stale_tenants` cada minuto | Q-ACC |
-| `llm_cost_usd` | contador | (lo define el agente, fase 2) | agente | Q-COST-1 |
+| `llm_cost_usd` | contador | (lo define el agente, #81) | agente | Q-COST-1 |
 
-Los gauges de la cola se miden **solo para los tipos que el worker procesa**: un tipo sin handler todavía (`PROCESS_CONVERSATION`, hasta que exista el agente) espera a propósito y no debe disparar "cola atascada". Un tipo procesado sin filas se informa en cero, así la alerta se apaga sola.
+Los gauges de la cola se miden **solo para los tipos que el worker procesa**: un tipo sin handler todavía (`PROCESS_CONVERSATION`, hasta #81) espera a propósito y no debe disparar "cola atascada". Un tipo procesado sin filas se informa en cero, así la alerta se apaga sola.
 
 `METRIC_NAMES` en `telemetry.py` es el catálogo: una prueba verifica que coincida con los instrumentos creados y que las alertas solo usen esos nombres.
 

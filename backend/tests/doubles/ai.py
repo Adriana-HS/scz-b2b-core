@@ -1,6 +1,6 @@
 """Fakes de los puertos de IA (#22). Deterministas, sin red ni cuentas.
 
-Los usan las pruebas de los decoradores, las del agente (fase 2) y la suite de contrato, que
+Los usan las pruebas de los decoradores, las del agente (#81) y la suite de contrato, que
 verifica que cada fake se comporte como el puerto que imita.
 """
 

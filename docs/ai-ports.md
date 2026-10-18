@@ -1,6 +1,6 @@
 # Puertos de IA
 
-Cómo el backend habla con los modelos de IA sin depender de un proveedor (#22, `docs/architecture/principios-y-patrones.md` §2.1 y §3). El agente (fase 2: #24 herramientas, #25 guardrails) usa estos puertos; nunca un SDK.
+Cómo el backend habla con los modelos de IA sin depender de un proveedor (#22, `docs/architecture/principios-y-patrones.md` §2.1 y §3). El agente (#81, con las herramientas de #24 y los guardrails de #25) usa estos puertos; nunca un SDK.
 
 ## Puertos
 

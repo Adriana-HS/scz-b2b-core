@@ -54,5 +54,5 @@ uv run python -m loadtest.run chaos-api --rate 5 --duration 60s --out ../load-ou
 ## Qué mide y qué no
 
 * **Server time del webhook en la máquina de la CI**, con Postgres local, no producción. En producción, la latencia del webhook es ~9 × la latencia BD↔cómputo. Por eso #11 exige medir esa latencia (p50 < 5 ms) y por eso existe la métrica `webhook_ack_ms` con su alerta `WebhookAckP99High` (`docs/observability.md`).
-* **No incluye el worker:** `PROCESS_CONVERSATION` todavía no tiene handler (el agente, fase 2). La prueba de caos del worker, que lo mata a mitad de un trabajo sin perder ni duplicar, corre en cada PR (`tests/integration/test_worker_db.py`).
+* **No incluye el worker:** `PROCESS_CONVERSATION` todavía no tiene handler (#81). La prueba de caos del worker, que lo mata a mitad de un trabajo sin perder ni duplicar, corre en cada PR (`tests/integration/test_worker_db.py`).
 * **Cuándo se rompe la cadena.** Un cambio que agregue viajes a la BD en el webhook, que haga el ack antes de persistir o que deje un mensaje sin su trabajo hace fallar este workflow. Se comprobó con mutaciones: responder 200 sin haber persistido → `chaos-db` detecta 8 mensajes perdidos; no encolar el trabajo → `load` detecta 100 conversaciones sin trabajo.
