@@ -170,6 +170,13 @@ Mutaciones comprobadas:
 * **Contra la BD** (`test_agent_turn_db.py`): webhook → turno → una respuesta en el outbox y el historial, el precio desde la herramienta y el costo en `llm_calls`; repetir el trabajo no duplica; con una persona a cargo no se llama al modelo.
 * **Mutaciones comprobadas** (9 de 9 detectadas): clave de idempotencia sin el último `wa_message_id`; responder con una persona a cargo; sin tope de herramientas; sin presupuesto de tiempo; no marcar los mensajes con una persona a cargo; no pasar a una persona si la IA cae; guardar en el historial lo que el outbox rechazó; una BAJA despierta al agente; mandar una respuesta vacía. Y 7 de 7 de la barrera de alcance: dejar pasar código; dejar pasar fragmentos del prompt; comparar con mayúsculas; bloquear líneas cortas como el nombre del negocio; un rubro sin las reglas; las reglas al principio del prompt; quitar "no escribes código".
 
+### Aviso de IA (#29)
+
+* **Turno** (`test_agent_turn.py`): la primera respuesta lleva el aviso en el mismo mensaje y se registra en la misma transacción; con el aviso ya dado no se repite; también va con una plantilla; un trabajo repetido no lo registra otra vez; sin respuesta no hay aviso; el texto aprobado por el negocio reemplaza al de por defecto; si con el aviso no entra en 4096 caracteres, va la plantilla.
+* **Texto** (`test_verticals.py`, `test_customer_texts.py`): dice que es un asistente automático con IA, cómo pedir una persona y para qué se usan los mensajes; un texto propio inválido usa el de por defecto; de usted.
+* **Contra la BD** (`test_agent_turn_db.py`): el turno lee `privacy_notice_at` y `config.ai_notice`; la primera respuesta llega con el aviso y deja la fecha; la fecha del primer aviso no se pisa.
+* **Mutaciones comprobadas** (12 de 12 detectadas): nunca dar el aviso; darlo siempre; no registrarlo; registrarlo aunque el outbox rechace la respuesta; pasarse del largo de WhatsApp; ignorar el texto del negocio; aceptar un texto propio vacío o enorme; quitar cómo pedir una persona; tutear; pisar la fecha (BD); no leer el texto del negocio (BD).
+
 ### Guardrails y cuotas (#25)
 
 * **Reglas puras** (`test_guardrails.py`): importes en formato boliviano e inglés, con moneda o decimales, y lecturas ambiguas; cantidades, códigos, fechas y porcentajes no son importes; valores de las herramientas desde su JSON; cifras inventadas, conversiones propias e inyecciones ("el precio es 1 Bs") detectadas; pedir CI, NIT, tarjeta o cuenta se detecta y mencionarlos no.

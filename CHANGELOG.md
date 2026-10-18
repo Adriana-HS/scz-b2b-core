@@ -24,6 +24,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
 
 ### Agregado (backend)
+- **Aviso de IA y privacidad en el primer contacto (#29, RF-03):** la primera respuesta del bot a cada cliente empieza con el aviso (asistente automático con IA, cómo pedir una persona y para qué se usan sus mensajes), de usted y en el mismo mensaje. `customers.privacy_notice_at` se registra en la misma transacción, solo la primera vez. El negocio puede aprobar su propio texto en `organizations.config.ai_notice`; si falta o no es válido, va el de por defecto. Sin migración.
+  - Pruebas: 612 de backend (20 nuevas); 12 mutaciones comprobadas.
 - **Guardrails y cuotas del agente (#25, §7.4, RF-07, RF-09, RF-51):**
   - **Grounding numérico:** todo importe que diga el bot (con moneda o decimales, en formato boliviano o inglés) tiene que venir de una herramienta de ese turno; si no, plantilla. Cubre precios y descuentos inventados, cuentas propias del modelo y precios dictados por el cliente (inyección).
   - **Datos sensibles:** si el bot pide CI, NIT, tarjeta o número de cuenta, la respuesta no sale.
