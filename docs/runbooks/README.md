@@ -11,6 +11,7 @@ Procedimientos operativos paso a paso (ver `SYSTEM_DESIGN.md` §10.4). Cada aler
 | [Cola atrasada](cola-atrasada.md) | Alertas `QueueBacklog` y `QueueWaitHigh` | Listo (#19) |
 | [Fallas de firma del webhook](firma-webhook.md) | Alerta `WebhookSignatureFailuresHigh` | Listo (#19) |
 | [Envío con resultado incierto](envio-incierto.md) | Alerta `OutboundOutcomeUnknown`; log `ALERTA outbound_outcome_unknown` (Sentry) | Listo (#19) |
+| [Cuota diaria de IA](cuota-ia.md) | Alertas `LlmBudgetNearLimit` y `LlmBudgetExceeded`; log `ALERTA cuota_ia_agotada` | Listo (#25) |
 | Revisión masiva de evidencias | Cola de `NEEDS_REVIEW` > umbral | Pendiente |
 | Restauración de backup | Incidente o simulacro trimestral | Pendiente |
 | Alta y baja de un tenant | Onboarding u offboarding | Pendiente |
