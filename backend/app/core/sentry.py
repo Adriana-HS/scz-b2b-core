@@ -29,7 +29,7 @@ _DATA_COLLECTION: "DataCollectionUserOptions" = {
     "http_bodies": [],
     "url_query_params": {"mode": "off"},
     "graphql": {"document": False, "variables": False},
-    "gen_ai": {"inputs": False, "outputs": False},  # prompts y respuestas del agente (#26)
+    "gen_ai": {"inputs": False, "outputs": False},  # prompts y respuestas del agente (fase 2)
     "database_query_data": False,
     "queues": False,
     "stack_frame_variables": False,  # las variables locales pueden traer datos del cliente

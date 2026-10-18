@@ -3,7 +3,7 @@
 Ejecutar en local:  uv run python -m app.worker   (requiere DATABASE_URL)
 
 Handlers registrados: SEND_OUTBOUND (outbox, #18), si hay META_GRAPH_API_VERSION. Los demás
-llegan con sus issues: EMBED_ITEM (#25), PROCESS_CONVERSATION (#26) y PRICE_CHANGE_ALERT.
+llegan con sus issues: EMBED_ITEM (#23), PROCESS_CONVERSATION (agente, fase 2) y PRICE_CHANGE_ALERT.
 Un tipo sin handler NO se reclama: espera en la cola, sin gastar intentos.
 """
 

@@ -1,15 +1,15 @@
-# ADR-0018: Elegir el proveedor y el modelo de IA del agente midiendo, no por marca
+# ADR-0018: Anthropic como único proveedor de IA del agente
 
-* **Estado:** Propuesto. **Pendiente de la decisión de AHS**: no fusionar el PR #77 hasta decidir.
+* **Estado:** Aceptado (AHS, 17-oct-2026). El modelo inicial, Claude Haiku 5.5, queda **a confirmar por AHS**.
 * **Fecha:** 2026-10-17
 * **Decisores:** AHS
-* **Relacionado:** SYSTEM_DESIGN.md §7 (agente), §8.7 (privacidad), §11 (costos) · Q-ACC-5, Q-COST-1 · #22 (puertos de IA, PR #77), #25 (cuotas), #26 (agente), #28 (evals *golden*) · ADR-0003 (embeddings)
+* **Relacionado:** SYSTEM_DESIGN.md §7 (agente), §8.7 (privacidad), §11 (costos) · Q-ACC-5, Q-COST-1 · #22 (puertos de IA, PR #77), #24 (herramientas), #25 (guardrails y cuotas), #28 (evals *golden*) · ADR-0003 (embeddings)
 
-> **Conflicto de interés declarado:** este documento lo preparó un asistente de IA de Anthropic (Claude). Por eso los datos salen de las páginas oficiales de cada proveedor, con enlace y fecha de consulta, y la recomendación es medir con evaluaciones propias, no elegir por marca.
+> **Conflicto de interés declarado:** este documento lo preparó un asistente de IA de Anthropic (Claude). Por eso los datos salen de las páginas oficiales de cada proveedor, con enlace y fecha de consulta, y la propuesta original fue medir con evaluaciones propias antes de elegir. AHS decidió sin esa comparación, para no sumar costo ni cuentas (ver **Decisión**).
 
 ## Contexto
 
-* **Por qué hay que decidir.** El agente (#26) necesita un modelo de chat que use herramientas (buscar en el catálogo, cotizar, pasar a una persona) en español de Bolivia. El PR #77 trae los puertos de IA, que no dependen del proveedor, y **un** adaptador, el de Anthropic. Esa elección salió de una etiqueta en un diagrama de `SYSTEM_DESIGN.md` (`ai/anthropic_adapter.py`), no de un acuerdo. Es una decisión de presupuesto, de privacidad (un tercero procesa los mensajes de los clientes) y de proveedor.
+* **Por qué hay que decidir.** El agente (fase 2: #24 herramientas, #25 guardrails) necesita un modelo de chat que use herramientas (buscar en el catálogo, cotizar, pasar a una persona) en español de Bolivia. El PR #77 trae los puertos de IA, que no dependen del proveedor, y **un** adaptador, el de Anthropic. Esa elección salió de una etiqueta en un diagrama de `SYSTEM_DESIGN.md` (`ai/anthropic_adapter.py`), no de un acuerdo. Es una decisión de presupuesto, de privacidad (un tercero procesa los mensajes de los clientes) y de proveedor.
 * **Cuánto cuesta cambiar después.** Poco en código: un adaptador nuevo es un archivo más sus pruebas, y la suite de contrato de #22 verifica que se comporte igual. Los decoradores (reintento, circuito, costo y trazas) no cambian. Cambiar de proveedor en producción también implica una cuenta nueva, una clave, un medio de pago y actualizar el registro de proveedores (§8.7).
 
 ### Precios oficiales (consultados el 17-oct-2026, USD por millón de tokens)
@@ -70,15 +70,14 @@
 * **Pago desde Bolivia.** Las tres cobran en USD. Con una tarjeta boliviana, el débito tiene un tope de US$ 500 para el exterior, así que hay que usar **crédito** (EXT-11). Si cada una acepta la tarjeta de un banco boliviano no se sabe hasta crear la cuenta y cargarla.
 * **Calidad en español.** No hay un dato público confiable para español de Bolivia con herramientas. Las tres familias manejan español, pero lo que importa aquí es lo que se mide: Q-ACC-5 ≥ 90 % y **0 violaciones de grounding**. Eso solo se sabe con nuestras evaluaciones (#28).
 
-## Decisión (propuesta, a confirmar por AHS)
+## Decisión
 
-1. **No elegir proveedor por marca.** Correr las evaluaciones *golden* de #28 (≥ 30 conversaciones del rubro importadora) contra una lista corta y elegir con datos: exactitud (Q-ACC-5), violaciones de grounding, errores al pedir herramientas, latencia p95 y costo real medido en `llm_calls`.
-2. **Lista corta** (AHS confirmó el 17-oct-2026 mantener solo estos 3 proveedores), un modelo chico y uno mediano por proveedor:
-   * chicos: Claude Haiku 5.5, gpt-6-luna y Gemini 3.1 Flash-Lite;
-   * medianos, como respaldo si los chicos no llegan al 90 %: Claude Sonnet 5.5, gpt-6.1-sol y Gemini 3.8 Flash.
-   * Se excluyen los modelos *preview* (pueden cambiar o retirarse) y los grandes (Opus, gpt-6-astra), que cuestan de 2 a 4 veces más sin una necesidad demostrada.
-3. **Gana el más barato** que cumpla Q-ACC-5 ≥ 90 % y 0 violaciones de grounding. A igualdad, pesan la privacidad (plazo de retención) y que el pago con tarjeta boliviana funcione.
-4. **PR #77.** Se puede fusionar antes de decidir, si AHS quiere: los puertos, los decoradores y la suite de contrato no dependen del proveedor. El adaptador de Anthropic queda como uno de los tres para las evaluaciones. Si AHS prefiere no tener ningún adaptador hasta decidir, se saca de ese PR.
+**Decidido por AHS el 17-oct-2026:**
+
+1. **Proveedor: Anthropic**, como único proveedor de chat del agente. Su adaptador ya está en `main` (PR #77). **No** se escriben adaptadores de OpenAI ni de Google y **no** se hace la evaluación comparativa entre proveedores: costaba 2 cuentas más y trabajo extra.
+2. **Modelo inicial propuesto: Claude Haiku 5.5** (`claude-haiku-5-5`), el más barato: ≈ US$ 0,003 por conversación, ≈ US$ 4,40 al mes por negocio mediano. **A confirmar por AHS.** Subir a Claude Sonnet 5.5 (≈ US$ 85 al mes) es cambiar `LLM_MODEL` y los precios; no toca código.
+3. **Calidad.** Las evaluaciones *golden* del roadmap (#28) siguen siendo el criterio de salida de la fase 2 (Q-ACC-5 ≥ 90 %, 0 violaciones de grounding), solo con modelos de Anthropic. Su costo es de centavos: 30 conversaciones con Haiku ≈ US$ 0,09; con Sonnet ≈ US$ 1,60. Si Haiku no llega, se decide con AHS si se sube a Sonnet.
+4. **Cuenta.** Una sola: la consola de Anthropic, con tarjeta de **crédito** en USD (EXT-11). La clave va en el gestor de secretos del despliegue.
 
 ## Alternativas consideradas
 
@@ -87,7 +86,8 @@
 | Anthropic sin evaluar (lo que hacía el PR #77) | Ya está el adaptador | Decisión de presupuesto y privacidad tomada sin acuerdo; conflicto de interés del asistente |
 | El más barato sin evaluar (Haiku 5.5 o gpt-6-luna) | ≈ US$ 4/mes por negocio | Un modelo chico puede fallar más al cotizar, y un error de precio es grave (Q-ACC) |
 | El mediano de una marca "por las dudas" | Calidad alta probable | ≈ 20 veces el costo del chico, sin dato que lo justifique |
-| **Evaluar una lista corta (propuesta)** | Decisión medible; deja el respaldo listo | Hay que escribir 2 adaptadores más (OpenAI y Google) y abrir 3 cuentas |
+| Evaluar una lista corta de 3 proveedores (la propuesta original) | Decisión medible; deja el respaldo listo | 2 adaptadores más (OpenAI y Google) y 3 cuentas. **Descartado por AHS (17-oct-2026)** por el costo y las cuentas extra |
+| **Anthropic, con un solo modelo y evaluaciones propias (#28)** | Una cuenta; adaptador ya hecho; costo de evaluación de centavos | Sin comparación con otros proveedores; dependencia de un proveedor (mitigada: los puertos permiten agregar otro adaptador) |
 | Modelo abierto en servidor propio | Datos bajo control propio | GPU always-on de cientos de USD al mes; operación compleja; fuera del alcance del MVP |
 | Modelo abierto en una computadora local (sin GPU) | Sin costo de API | Sin GPU, leer el contexto de un turno toma de decenas de segundos a minutos (el turno debe durar menos de 20 s, §7); solo entran modelos chicos, que fallan más con herramientas; sin respaldo ante cortes de luz o internet; mensajes de clientes en un equipo doméstico. **Descartado por AHS (17-oct-2026)** |
 | DeepSeek (API oficial) | Barato: ~US$ 6–11 al mes por negocio mediano ([precios][d-precios]); tarifa baja en horario comercial de Bolivia | Su política dice que procesa y guarda los datos en China ([política][d-privacidad]) y no aclara el uso de los datos de la API para entrenar. **Descartado por AHS (17-oct-2026)** |
@@ -95,15 +95,17 @@
 
 ## Consecuencias
 
-* **(+)** La elección queda medida y escrita. Cambiar después es agregar un adaptador.
-* **(−) Trabajo:** dos adaptadores más (OpenAI y Google), cada uno con su doble de HTTP y la misma suite de contrato.
-* **(−) Cuentas y costo:** abrir 3 cuentas (una por proveedor), cada una con su tarjeta. Las evaluaciones cuestan poco: 30 conversaciones × 6 modelos × ≤ US$ 0,06 ≈ **menos de US$ 15** en total.
-* **(−) Precios inestables:** cambian seguido (Gemini 3.8 Flash duplica su precio el 1-ene-2027). Hay que revisar este ADR cada semestre, igual que EXT-04.
+* **(+)** Una sola cuenta y un solo adaptador. Sin trabajo extra: el adaptador ya está en `main`.
+* **(+)** Si algún día conviene otro proveedor, se agrega un adaptador. La suite de contrato y los decoradores de #22 no cambian.
+* **(−)** No hay comparación con otros proveedores: no sabremos si otro cotizaba mejor o más barato.
+* **(−)** Dependencia de un proveedor. Si Anthropic cae, el circuit breaker degrada a plantilla y pasa la conversación a una persona (§10.3); no hay un segundo proveedor de respaldo.
+* **(−)** Los precios cambian seguido. Revisar este ADR cada semestre, igual que EXT-04.
 
 ## Verificación
 
-* Un reporte de las evaluaciones de #28 por modelo, con exactitud, violaciones, latencia y costo, enlazado desde este ADR cuando se acepte.
-* Tras elegir, `LLM_MODEL` fija el identificador exacto (#22) y la alerta de costo por tenant (#26) vigila el gasto real.
+* `LLM_MODEL` fija el identificador exacto (#22): hoy se propone `claude-haiku-5-5`.
+* Reporte de las evaluaciones de #28 con exactitud, violaciones de grounding, latencia y costo real, enlazado desde aquí.
+* La alerta de costo por tenant (#25) vigila el gasto real contra el tope de cada plan.
 
 [a-precios]: https://platform.claude.com/docs/en/about-claude/pricing
 [a-residencia]: https://platform.claude.com/docs/en/manage-claude/data-residency

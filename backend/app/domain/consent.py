@@ -3,7 +3,7 @@
 * La baja ("BAJA", "STOP", "NO MÁS"...) debe respetarse de inmediato.
 * Se reconoce solo si el mensaje COMPLETO es la palabra clave, normalizado: "no más frenos,
   quiero cotizar" no es una baja. Un falso positivo le quitaría al cliente sus recordatorios;
-  un falso negativo lo atiende el agente (#26), que también puede registrar la baja.
+  un falso negativo lo atiende el agente (fase 2), que también puede registrar la baja.
 * El opt-in de marketing nunca se infiere de una palabra suelta: lo registra el agente o el
   dashboard con confirmación explícita.
 """
