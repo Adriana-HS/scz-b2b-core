@@ -25,10 +25,12 @@ SUITES = {"importadora": "seed_importadora.sql", "clinica": "seed_clinica.sql"}
 @pytest.mark.parametrize("name", sorted(SUITES))
 def test_cada_rubro_tiene_al_menos_30_conversaciones_de_todas_las_categorias(name: str) -> None:
     suite = load_suite(name)
+    schedules = "check_availability" in VERTICAL_POLICIES[suite.vertical].enabled_tools
+    required = set(Category) - (set() if schedules else {Category.AGENDA})
 
     assert len(suite.cases) >= 30
     per_category = Counter(case.category for case in suite.cases)
-    assert set(per_category) == set(Category), f"faltan categorías: {set(Category) - set(per_category)}"
+    assert set(per_category) == required, f"categorías: {set(per_category) ^ required}"
     assert min(per_category.values()) >= 2
 
 

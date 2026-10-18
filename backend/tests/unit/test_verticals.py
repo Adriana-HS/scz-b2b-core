@@ -59,8 +59,15 @@ def test_solo_habilita_herramientas_que_existen(vertical: str, policy: VerticalP
     assert "handoff_to_human" in policy.enabled_tools  # siempre se puede pasar a una persona
 
 
-def test_la_clinica_no_cotiza_hasta_tener_agenda() -> None:
-    assert "create_quote" not in VERTICAL_POLICIES["CLINICA_CONSULTORIO"].enabled_tools
+def test_la_clinica_agenda_pero_no_cotiza() -> None:
+    enabled = VERTICAL_POLICIES["CLINICA_CONSULTORIO"].enabled_tools
+    assert {"check_availability", "hold_appointment"} <= set(enabled)  # #35
+    assert "create_quote" not in enabled
+
+
+def test_la_importadora_no_agenda() -> None:
+    enabled = VERTICAL_POLICIES["IMPORTADORA_REPUESTOS"].enabled_tools
+    assert "check_availability" not in enabled and "hold_appointment" not in enabled
 
 
 # --- Aviso de IA y privacidad (#29, RF-03) --------------------------------------------------------

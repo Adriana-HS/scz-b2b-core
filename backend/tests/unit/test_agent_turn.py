@@ -140,6 +140,13 @@ class FakeUnitOfWork:
         self.log.append(("end", "rollback" if exc_type else "commit"))
 
 
+SLOTS = [
+    {"slot": f"slot:5eed0000-0000-4000-8000-0000000000b1:20261021T{h}00Z", "label": f"mié 21/10 {h - 4}:00",
+     "professional": "Dra. Ejemplo Uno"}
+    for h in (13, 14, 15)
+]  # fmt: skip
+
+
 class FakeToolbox:
     def __init__(self, log: Log) -> None:
         self.log = log
@@ -149,6 +156,8 @@ class FakeToolbox:
 
     async def execute(self, call: ToolCall) -> ToolResult:
         self.log.append(("tool", call.name))
+        if call.name == "check_availability":
+            return ToolResult(tool_call_id=call.id, content=json.dumps({"day": "2026-10-21", "slots": SLOTS}))
         return ToolResult(tool_call_id=call.id, content=json.dumps({"items": [{"unit_price_bs": "332.88"}]}))
 
 
@@ -704,3 +713,40 @@ async def test_una_respuesta_que_con_el_aviso_no_entra_en_un_mensaje_se_reemplaz
 
     body = _enqueued(log)[0].payload["body"]
     assert len(body) <= 4096 and body.endswith(TEMPLATE_LIMIT)
+
+
+# --- Agenda (#35): los horarios como lista para tocar ---------------------------------------------
+async def test_los_horarios_salen_como_lista_interactiva_en_un_solo_mensaje() -> None:
+    model = ScriptedChatModel(_tools("check_availability"), _text("El miércoles tengo estos horarios:"))
+    handler, log, _, _ = _handler(
+        _state(_msg("IN", "quiero una limpieza el miércoles", 1, pending=True)), model
+    )
+
+    await handler(_job())
+
+    [request] = _enqueued(log)
+    assert request.kind is OutboundKind.INTERACTIVE
+    assert request.payload["body"] == "El miércoles tengo estos horarios:"
+    assert [row["id"] for row in request.payload["rows"]] == [s["slot"] for s in SLOTS]
+    history = next(text for kind, text in log if kind == "bot_reply")
+    assert all(f"[{s['slot']}]" in history for s in SLOTS)  # el próximo turno sabe qué slot es cada uno
+
+
+async def test_una_respuesta_larga_con_horarios_sale_como_texto() -> None:
+    long_reply = "Horarios: " + "x" * 1100  # el cuerpo de una lista admite 1024
+    model = ScriptedChatModel(_tools("check_availability"), _text(long_reply))
+    handler, log, _, _ = _handler(_state(_msg("IN", "horarios?", 1, pending=True)), model)
+
+    await handler(_job())
+
+    assert _enqueued(log)[0].kind is OutboundKind.TEXT
+
+
+async def test_el_modelo_sabe_que_dia_es_hoy() -> None:
+    model = ScriptedChatModel(_text("¡Hola!"))
+    handler, _, _, _ = _handler(_state(_msg("IN", "para mañana", 1, pending=True)), model)
+
+    await handler(_job())
+
+    system = model.calls[0][0]
+    assert "Hoy es " in system and "(hora del negocio)" in system
