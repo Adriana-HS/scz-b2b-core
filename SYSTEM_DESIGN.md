@@ -12,8 +12,8 @@
 | Decisiones | `docs/adr/` (ADR-0001 … ADR-0017) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
-| Esquema ejecutable | `supabase/migrations/` (19 migraciones) — **fuente única de verdad del modelo de datos** |
-| Pruebas del esquema | `supabase/tests/database/` — 268 pruebas pgTAP en 16 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
+| Esquema ejecutable | `supabase/migrations/` (20 migraciones) — **fuente única de verdad del modelo de datos** |
+| Pruebas del esquema | `supabase/tests/database/` — 284 pruebas pgTAP en 17 archivos, ejecutadas en CI con `supabase test db` sobre la imagen oficial de Supabase (PostgreSQL 17, `supabase/config.toml`) |
 | Restricciones externas | `docs/research/2026-10-15-restricciones-externas.md` (EXT-01 … EXT-17) |
 
 > **Cómo leer este documento.** §1–3 explican *qué* y *por qué*; §4–7 describen *cómo funciona*; §8–11 cubren *seguridad, rendimiento, operación y costos*; §12–13 son la guía para construirlo con calidad. Cada afirmación crítica apunta a la migración o prueba que la demuestra.
@@ -481,6 +481,8 @@ stateDiagram-v2
 | `cancel_order` | `reference_code: str`, `reason: str` | UPDATE con FSM (solo estados previos al pago y sin pagos registrados; con pagos, la BD responde `HUMAN_REVIEW_REQUIRED` y se deriva a una persona) | `{status}` |
 | `handoff_to_human` | `reason: enum`, `summary: str` | `mode = 'HUMAN'` + notificación al equipo | `{ok}` |
 
+**Implementación (#24):** `AgentToolbox` (`backend/app/application/agent_tools.py`) expone `search_catalog`, `get_item_details`, `create_quote` y `handoff_to_human`. Valida con Pydantic (`extra="forbid"`) antes de abrir la transacción, inyecta negocio, cliente y conversación desde el `TurnContext`, corre como `BOT` y devuelve JSON con los montos como texto exacto. Cada error vuelve con su código estable y un mensaje para el cliente (`CUSTOMER_MESSAGES`), nunca con el detalle de la BD ni con lo que mandó el modelo. La ficha (`public.get_item_details`) y el paso a una persona (`public.request_handoff`, que guarda motivo y resumen para el equipo) son RPC de la migración 20; la prueba 18 verifica que la ficha y la búsqueda den el mismo precio y stock.
+
 > Por la política de WhatsApp no hay herramientas que pidan CI, NIT ni números de cuenta por el chat. Si un flujo futuro los necesita, se usa un formulario web con enlace temporal.
 
 **Códigos de error estables** (HINT de las RPC → excepción de dominio → mensaje al cliente): `ITEM_NOT_FOUND`, `OUT_OF_STOCK`, `FX_STALE`, `SLOT_TAKEN`, `OUTSIDE_BUSINESS_HOURS`, `SLOT_IN_PAST`, `INVALID_ITEMS`, `INVALID_QUANTITY`, `DUPLICATE_ITEM`, `TENANT_REQUIRED`.
@@ -704,7 +706,7 @@ scz-b2b-core/
 ├── scripts/                      # shim local, bootstrap del backlog en GitHub
 ├── supabase/
 │   ├── config.toml
-│   ├── migrations/               # 0001…0019 (este documento las referencia)
+│   ├── migrations/               # 0001…0020 (este documento las referencia)
 │   ├── seed/                     # datos SINTÉTICOS por rubro
 │   └── tests/database/           # pgTAP: aislamiento, dinero/FSM/pagos, agenda/búsqueda/cola, IVA
 ├── backend/

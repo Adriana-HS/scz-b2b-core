@@ -14,7 +14,7 @@ from typing import Any, Protocol, Self
 from uuid import UUID
 
 from app.domain.ai import ChatMessage, LlmCall, ModelResponse, ReceiptExtraction, ToolSpec
-from app.domain.catalog import CatalogMatch, CatalogSearch
+from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails
 from app.domain.consent import ConsentKind, ConsentSource
 from app.domain.jobs import Job, QueueStats
 from app.domain.messaging import InboundMessage, WhatsAppChannel
@@ -25,6 +25,16 @@ from app.domain.tenancy import TenantContext
 
 class CatalogRepository(Protocol):
     async def search(self, criteria: CatalogSearch) -> list[CatalogMatch]: ...
+
+    async def get_details(self, item_id: UUID) -> ItemDetails | None:
+        """Ficha de un ítem activo del tenant, o None si no existe para este negocio."""
+        ...
+
+
+class ConversationRepository(Protocol):
+    async def request_handoff(self, conversation_id: UUID, reason: str, summary: str) -> None:
+        """Modo HUMAN con motivo y resumen para el equipo (RF-04). NOT_FOUND si no es del tenant."""
+        ...
 
 
 class OrderRepository(Protocol):
@@ -193,6 +203,9 @@ class UnitOfWork(Protocol):
 
     @property
     def llm_calls(self) -> LlmCallRepository: ...
+
+    @property
+    def conversations(self) -> ConversationRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

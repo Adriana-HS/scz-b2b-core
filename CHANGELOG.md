@@ -14,6 +14,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (backend)
+- **Herramientas del agente (#24, §7.2):** `search_catalog`, `get_item_details`, `create_quote` y `handoff_to_human` en `AgentToolbox`.
+  - Argumentos validados con Pydantic `extra="forbid"` antes de abrir la transacción: el modelo no puede mandar negocio, cliente, conversación ni precios. El servidor los inyecta desde el `TurnContext` y todo corre como `BOT`.
+  - Montos como texto exacto para el grounding (#25); "precio en actualización" si el TC venció; errores con código estable y mensaje para el cliente, sin detalle de la BD ni lo que mandó el modelo.
+  - **Migración 20:** `public.get_item_details` (mismo precio, stock y estado que la búsqueda; solo atributos públicos) y `public.request_handoff` con `conversations.handoff_reason/summary/at` para el equipo. Solo `app_backend`.
+  - Métrica `agent_tool_calls{tool,outcome}`.
+  - Pruebas: 284 pgTAP (16 nuevas en `18_agent_tools`) y 413 de backend; 9 mutaciones comprobadas.
 - **Puertos de IA (#22):** detalle en `docs/ai-ports.md`.
   - Puertos segregados `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText`, con tipos propios (mensajes, herramientas, uso de tokens, extracción de comprobantes) y errores con código estable (`TransientAiError`, `PermanentAiError`, `AiUnavailableError`).
   - Adaptador de Anthropic (Messages API con httpx, sin SDK): modelo fijado por identificador exacto, prompt de sistema cacheado y clasificación de errores con `retry-after`; la clave y el contenido nunca van en un error.

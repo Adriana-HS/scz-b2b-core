@@ -23,7 +23,11 @@ from app.infrastructure.postgres.consent import PostgresConsentRepository
 from app.infrastructure.postgres.inbound import PostgresInboundRepository
 from app.infrastructure.postgres.llm_calls import PostgresLlmCallRepository
 from app.infrastructure.postgres.outbound import PostgresOutboundRepository
-from app.infrastructure.postgres.repositories import PostgresCatalogRepository, PostgresOrderRepository
+from app.infrastructure.postgres.repositories import (
+    PostgresCatalogRepository,
+    PostgresConversationRepository,
+    PostgresOrderRepository,
+)
 
 # app.traceparent: la BD lo guarda en jobs.trace_context de cada trabajo creado en esta transacción
 _SET_CONTEXT = (
@@ -70,6 +74,7 @@ class PostgresUnitOfWork:
         self._outbound = PostgresOutboundRepository(self._session)
         self._consent = PostgresConsentRepository(self._session)
         self._llm_calls = PostgresLlmCallRepository(self._session)
+        self._conversations = PostgresConversationRepository(self._session)
 
     @property
     def context(self) -> TenantContext:
@@ -104,6 +109,11 @@ class PostgresUnitOfWork:
     def llm_calls(self) -> PostgresLlmCallRepository:
         self._require_active()
         return self._llm_calls
+
+    @property
+    def conversations(self) -> PostgresConversationRepository:
+        self._require_active()
+        return self._conversations
 
     async def __aenter__(self) -> Self:
         if self._state != "new":
