@@ -13,7 +13,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones sobre la imagen oficial de Supabase y las 284 pruebas pgTAP | Sí |
+| `database` | Migraciones y seeds sobre la imagen oficial de Supabase y las 297 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `alerts` | `promtool check rules` y `promtool test rules` sobre `ops/alerts/` (imagen oficial de Prometheus fijada por digest): sintaxis y disparo de cada alerta con series sintéticas | Sí |
@@ -41,8 +41,9 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `14_consent.test.sql` | #13: `record_consent` deja estado y evidencia; las plantillas por categoría (el opt-in de utilidad no habilita marketing; sin categoría no sale); la baja prevalece y un opt-in explícito la levanta; evidencia append-only y aislada | 17 |
 | `15_observability.test.sql` | #19: `jobs.trace_context` hereda el traceparent de la transacción (uno mal formado se descarta sin romper el INSERT); `queue_stats` por tipo, solo de los tipos pedidos y sin contar el backoff; `fx_stale_tenants`; solo `app_backend` | 12 |
 | `16_llm_calls.test.sql` | #22: el backend registra el costo de IA en su tenant y no en otro; la conversación debe ser del mismo negocio (FK compuesta, migración 19); tokens, costo y latencia no negativos; aislamiento | 9 |
+| `17_seeds.test.sql` | #27: la importadora y la clínica de ejemplo existen; ≥ 25 repuestos en USD y Bs de ≥ 5 categorías, con uno sin stock; TC inicial explícito y todo repuesto cotizable; búsqueda de texto; ≥ 15 servicios con duración y profesionales con horario; sin marcas, sin clientes y con números sintéticos | 13 |
 | `18_agent_tools.test.sql` | #24: la ficha de un ítem da el mismo precio, stock y estado que la búsqueda; descuenta reservas; con el TC vencido no hay precio en USD; solo atributos públicos; nada de otro negocio ni de ítems dados de baja; el paso a una persona guarda motivo y resumen, con motivo de una lista cerrada y resumen acotado; solo el backend | 16 |
-| **Total** | | **284** |
+| **Total** | | **297** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 

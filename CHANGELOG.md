@@ -13,13 +13,18 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - `persist-credentials: false` en todos los `checkout`; `prune-cache: true` en `setup-uv` (desde v9 el default es `false`).
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
+### Agregado (base de datos)
+- **Seeds sintéticos por rubro (#27):** `supabase/seed/seed_importadora.sql` (30 repuestos de 8 categorías en USD y Bs, sin marcas, TC inicial 11,68 Bs/USD) y `seed_clinica.sql` (16 servicios, 2 profesionales con horario). Sin clientes ni datos personales; números y tokens ficticios. Los cargan `supabase db start` y `db reset`.
+  - Prueba pgTAP `17_seeds` (13 casos); 281 pgTAP en total (con las de #22). Dos mutaciones comprobadas: con una marca real, o sin el TC, falla.
+  - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
+
 ### Agregado (backend)
 - **Herramientas del agente (#24, §7.2):** `search_catalog`, `get_item_details`, `create_quote` y `handoff_to_human` en `AgentToolbox`.
   - Argumentos validados con Pydantic `extra="forbid"` antes de abrir la transacción: el modelo no puede mandar negocio, cliente, conversación ni precios. El servidor los inyecta desde el `TurnContext` y todo corre como `BOT`.
   - Montos como texto exacto para el grounding (#25); "precio en actualización" si el TC venció; errores con código estable y mensaje para el cliente, sin detalle de la BD ni lo que mandó el modelo.
   - **Migración 20:** `public.get_item_details` (mismo precio, stock y estado que la búsqueda; solo atributos públicos) y `public.request_handoff` con `conversations.handoff_reason/summary/at` para el equipo. Solo `app_backend`.
   - Métrica `agent_tool_calls{tool,outcome}`.
-  - Pruebas: 284 pgTAP (16 nuevas en `18_agent_tools`) y 413 de backend; 9 mutaciones comprobadas.
+  - Pruebas: 297 pgTAP (16 nuevas en `18_agent_tools`, con los seeds de #27) y 413 de backend; 9 mutaciones comprobadas.
 - **Puertos de IA (#22):** detalle en `docs/ai-ports.md`.
   - Puertos segregados `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText`, con tipos propios (mensajes, herramientas, uso de tokens, extracción de comprobantes) y errores con código estable (`TransientAiError`, `PermanentAiError`, `AiUnavailableError`).
   - Adaptador de Anthropic (Messages API con httpx, sin SDK): modelo fijado por identificador exacto, prompt de sistema cacheado y clasificación de errores con `retry-after`; la clave y el contenido nunca van en un error.

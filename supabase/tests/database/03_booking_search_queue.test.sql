@@ -65,14 +65,16 @@ SELECT is((SELECT price_status FROM public.search_catalog('OEM-4451') LIMIT 1), 
 SELECT tests.reset();
 
 -- --- Cola durable: debounce y serialización por conversación ------------------------
+-- Se reclama solo PROCESS_CONVERSATION, como el worker real: la cola es de toda la plataforma
+-- y puede tener otros trabajos (los seeds dejan EMBED_ITEM en cola, #27).
 SELECT private.enqueue_conversation('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 0, 0);
 SELECT private.enqueue_conversation('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 0, 0);
 SELECT is((SELECT count(*)::int FROM private.jobs WHERE kind = 'PROCESS_CONVERSATION' AND status = 'QUEUED'), 1,
           'ráfaga de mensajes = un solo trabajo en cola (debounce)');
-SELECT is((SELECT count(*)::int FROM private.claim_jobs('worker-1', 10) WHERE kind = 'PROCESS_CONVERSATION'), 1,
+SELECT is((SELECT count(*)::int FROM private.claim_jobs('worker-1', 10, ARRAY['PROCESS_CONVERSATION']) WHERE kind = 'PROCESS_CONVERSATION'), 1,
           'worker-1 reclama la conversación');
 SELECT private.enqueue_conversation('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 0, 0);
-SELECT is((SELECT count(*)::int FROM private.claim_jobs('worker-2', 10) WHERE kind = 'PROCESS_CONVERSATION'), 0,
+SELECT is((SELECT count(*)::int FROM private.claim_jobs('worker-2', 10, ARRAY['PROCESS_CONVERSATION']) WHERE kind = 'PROCESS_CONVERSATION'), 0,
           'worker-2 NO procesa la misma conversación en paralelo (orden garantizado)');
 
 SELECT * FROM finish();

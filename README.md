@@ -2,7 +2,7 @@
 
 **Motor transaccional multi-tenant de atención, cotización, agendamiento y conciliación de pagos QR por WhatsApp**, para PyMEs de Santa Cruz de la Sierra (importadoras de repuestos, ferreterías industriales, clínicas y consultorios).
 
-> Estado: **diseño v2.2 + esquema de base de datos probado (284 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
+> Estado: **diseño v2.2 + esquema de base de datos probado (297 pruebas pgTAP)**. El backend y el dashboard se implementan según `docs/ROADMAP.md`; las tareas viven en GitHub Issues (ver `docs/GESTION_DEL_PROYECTO.md`).
 
 ## Qué resuelve
 
