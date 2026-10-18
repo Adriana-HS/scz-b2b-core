@@ -24,6 +24,9 @@ TEXTS = {
     "TEMPLATE_LIMIT": agent.TEMPLATE_LIMIT,
     "TEMPLATE_AI_UNAVAILABLE": agent.TEMPLATE_AI_UNAVAILABLE,
     "TEMPLATE_OUT_OF_SCOPE": agent.TEMPLATE_OUT_OF_SCOPE,
+    "TEMPLATE_UNGROUNDED": agent.TEMPLATE_UNGROUNDED,
+    "TEMPLATE_QUOTA": agent.TEMPLATE_QUOTA,
+    "TEMPLATE_RATE_LIMITED": agent.TEMPLATE_RATE_LIMITED,
     **{f"tool:{code}": text for code, text in CUSTOMER_MESSAGES.items()},
     **{f"consent:{kind}": text for kind, text in CONFIRMATION_TEXT.items()},
 }

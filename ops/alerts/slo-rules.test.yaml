@@ -222,3 +222,32 @@ tests:
             exp_annotations:
               summary: "Envíos con resultado incierto (ADR-0017): revisar si el cliente recibió el mensaje"
               runbook: docs/runbooks/envio-incierto.md
+
+  # --- Cuota diaria de IA por negocio (Q-COST-1, #25) -----------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'llm_budget_alerts_total{level="warning"}'
+        values: '0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+      - series: 'llm_budget_alerts_total{level="exceeded"}'
+        values: '0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: LlmBudgetNearLimit
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: LlmBudgetNearLimit
+        exp_alerts:
+          - exp_labels: {severity: ticket, slo: Q-COST-1}
+            exp_annotations:
+              summary: "Un negocio pasó el 80 % de su tope diario de IA"
+              runbook: docs/runbooks/cuota-ia.md
+      - eval_time: 5m
+        alertname: LlmBudgetExceeded
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: LlmBudgetExceeded
+        exp_alerts:
+          - exp_labels: {severity: page, slo: Q-COST-1}
+            exp_annotations:
+              summary: "Un negocio agotó su tope diario de IA: el bot responde plantilla y pasa a una persona"
+              runbook: docs/runbooks/cuota-ia.md

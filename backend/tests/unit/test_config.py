@@ -159,3 +159,36 @@ def test_gemini_no_arranca_donde_hay_datos_de_clientes(environment: str) -> None
 def test_un_proveedor_desconocido_se_rechaza() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, environment="local", llm_provider="deepseek")
+
+
+# --- Cuotas del agente (#25, RF-51; valores decididos por AHS el 18-oct-2026) ---------------------
+def test_los_topes_por_defecto_son_los_que_decidio_ahs() -> None:
+    limits = Settings(_env_file=None, environment="local").agent_limits()
+
+    assert limits.daily_budget_usd == Decimal("0.75")
+    assert (limits.messages_per_minute, limits.turns_per_hour) == (10, 30)
+
+
+def test_los_topes_se_configuran_por_variable() -> None:
+    settings = Settings(
+        _env_file=None, environment="local", agent_daily_budget_usd="2.50",
+        agent_customer_messages_per_minute=5, agent_customer_turns_per_hour=20,
+    )  # fmt: skip
+
+    limits = settings.agent_limits()
+    assert (limits.daily_budget_usd, limits.messages_per_minute, limits.turns_per_hour) == (
+        Decimal("2.50"), 5, 20,
+    )  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"agent_daily_budget_usd": "-1"},
+        {"agent_customer_messages_per_minute": 0},
+        {"agent_customer_turns_per_hour": 0},
+    ],
+)
+def test_un_tope_invalido_no_arranca(bad: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, environment="local", **bad)
