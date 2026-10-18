@@ -10,7 +10,7 @@ import pytest
 from app.application.agent_tools import TOOL_NAMES
 from app.domain.ports import VerticalPolicy
 from app.verticals import VERTICAL_POLICIES
-from app.verticals.common import scope_rules
+from app.verticals.common import ai_notice, scope_rules
 
 POLICIES = sorted(VERTICAL_POLICIES.items())
 
@@ -61,3 +61,30 @@ def test_solo_habilita_herramientas_que_existen(vertical: str, policy: VerticalP
 
 def test_la_clinica_no_cotiza_hasta_tener_agenda() -> None:
     assert "create_quote" not in VERTICAL_POLICIES["CLINICA_CONSULTORIO"].enabled_tools
+
+
+# --- Aviso de IA y privacidad (#29, RF-03) --------------------------------------------------------
+def test_el_aviso_por_defecto_dice_lo_que_pide_rf_03() -> None:
+    notice = ai_notice("Negocio de Ejemplo", None).lower()
+
+    assert "negocio de ejemplo" in notice
+    assert "asistente automático" in notice and "inteligencia artificial" in notice
+    assert "persona" in notice  # cómo pedir una persona
+    assert "consulta" in notice  # para qué se usan sus mensajes (privacidad, §8.7)
+
+
+def test_el_texto_aprobado_por_el_negocio_reemplaza_al_de_por_defecto() -> None:
+    own = "  Le atiende el asistente automático de la tienda. Para hablar con una persona, pídalo.  "
+
+    assert ai_notice("Negocio de Ejemplo", own) == own.strip()
+
+
+@pytest.mark.parametrize("bad", ["", "   ", "Hola", "x" * 501, 42, ["texto"]])
+def test_un_texto_propio_invalido_usa_el_de_por_defecto(bad: object) -> None:
+    """Mejor el aviso estándar que ninguno (o uno roto): el aviso es obligatorio (RF-03)."""
+    assert ai_notice("Negocio de Ejemplo", bad) == ai_notice("Negocio de Ejemplo", None)
+
+
+@pytest.mark.parametrize(("vertical", "policy"), POLICIES)
+def test_todo_rubro_da_el_aviso_de_ia(vertical: str, policy: VerticalPolicy) -> None:
+    assert policy.ai_notice("Negocio de Ejemplo", None) == ai_notice("Negocio de Ejemplo", None)

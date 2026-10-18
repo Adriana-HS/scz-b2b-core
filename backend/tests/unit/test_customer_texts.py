@@ -12,6 +12,7 @@ import pytest
 from app.application import agent
 from app.application.agent_tools import CUSTOMER_MESSAGES
 from app.domain.consent import CONFIRMATION_TEXT
+from app.verticals.common import ai_notice
 
 # Formas de tuteo que no deben aparecer (pronombres y verbos frecuentes en un chat de atención)
 _TUTEO = re.compile(
@@ -27,6 +28,7 @@ TEXTS = {
     "TEMPLATE_UNGROUNDED": agent.TEMPLATE_UNGROUNDED,
     "TEMPLATE_QUOTA": agent.TEMPLATE_QUOTA,
     "TEMPLATE_RATE_LIMITED": agent.TEMPLATE_RATE_LIMITED,
+    "AI_NOTICE": ai_notice("Negocio de Ejemplo", None),
     **{f"tool:{code}": text for code, text in CUSTOMER_MESSAGES.items()},
     **{f"consent:{kind}": text for kind, text in CONFIRMATION_TEXT.items()},
 }
