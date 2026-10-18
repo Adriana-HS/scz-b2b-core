@@ -237,7 +237,7 @@ class UnitOfWork(Protocol):          # abre la transacción y fija tenant + acto
 | Partes interesadas y sus intereses (*concerns*) | `docs/requirements/SRS.md` §2 |
 | Puntos de vista y vistas | Contexto y contenedores (C4), lógica (UML de clases), procesos (secuencia y actividad), despliegue, datos (ER), seguridad (STRIDE) — `SYSTEM_DESIGN.md` §4–8 y `docs/architecture/uml.md` |
 | Correspondencias entre vistas | Matriz de trazabilidad (`SRS.md` §6) |
-| Justificación (*rationale*) | ADR-0001 … ADR-0019 |
+| Justificación (*rationale*) | ADR-0001 … ADR-0020 |
 
 ### 4.2 Mapa arc42
 

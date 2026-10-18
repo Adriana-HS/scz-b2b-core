@@ -5,6 +5,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Sin publicar]
 
 ### Decisiones
+- **ADR-0020 (aceptado):** búsqueda con sinónimos por rubro, **sin embeddings por ahora** (opción E elegida por AHS el 18-oct-2026 entre cinco opciones: modelo propio, Voyage, Gemini, OpenAI o sinónimos). Sin costo, sin cuentas nuevas y sin enviar búsquedas de clientes a terceros. Se revisa si el eval con consultas reales del piloto queda por debajo de 0,8.
 - **ADR-0019 (aceptado):** Gemini con el plan gratuito de Google AI Studio, **solo para pruebas de desarrollo** del agente, sin costo. Anthropic sigue en producción (ADR-0018). El plan gratuito permite a Google usar y leer lo enviado: solo datos sintéticos, y la configuración no arranca con Gemini en staging ni producción.
 - **ADR-0018 (aceptado):** Anthropic es el único proveedor de IA del agente; no se hace comparación con otros proveedores, para no sumar costo ni cuentas. Modelo inicial: Claude Haiku 5.5, confirmado por AHS; si las evals (#28) muestran que no alcanza, se revisa. Se descartan DeepSeek (datos en China) y correr un modelo en una computadora local (sin GPU no alcanza el tiempo de respuesta).
 - **Referencias corregidas:** varios documentos y comentarios atribuían el agente al #26 (que es el PDF) y EMBED_ITEM al #25. Ahora dicen #23 (embeddings), #24 (herramientas), #25 (guardrails y cuotas) y **#81**, el issue nuevo del orquestador del agente (`PROCESS_CONVERSATION`), que faltaba en el backlog (también en `scripts/github/backlog.json`). Los comentarios de las migraciones 18 y 19 quedan como están: las migraciones aplicadas no se editan.
@@ -19,6 +20,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
 ### Agregado (base de datos)
+- **Sinónimos por rubro en la búsqueda (#23, ADR-0020):** **migración 21** con `public.search_synonyms` (76 términos en 25 grupos: repuestos y consultorio dental, en español de Santa Cruz; datos de la plataforma, solo lectura) y `private.search_tsquery`, que expande cada palabra de la consulta a sus sinónimos en singular o plural. `search_catalog` la usa en su recuperador de texto; el resto del ADR-0003 no cambia.
+  - Ya no se encolan trabajos `EMBED_ITEM` (nadie los procesa) y se descartan los que había.
+  - **Eval de búsqueda** (`evals/search/`, consultas inventadas): MRR@5 de importadora 0,86 → 1,00 y de consultorio 0,71 → 0,92 (objetivo 0,8). Es optimista: las consultas se escribieron conociendo la lista; falta medir con consultas reales del piloto.
+  - Pruebas: 313 pgTAP (16 nuevas en `19_search_synonyms`) y 2 de eval; 4 mutaciones de SQL comprobadas. Una segunda pasada (aceptar alguna palabra en vez de todas) se probó y se descartó: la búsqueda difusa ya rescata esas frases y no mejoraba el eval.
 - **Seeds sintéticos por rubro (#27):** `supabase/seed/seed_importadora.sql` (30 repuestos de 8 categorías en USD y Bs, sin marcas, TC inicial 11,68 Bs/USD) y `seed_clinica.sql` (16 servicios, 2 profesionales con horario). Sin clientes ni datos personales; números y tokens ficticios. Los cargan `supabase db start` y `db reset`.
   - Prueba pgTAP `17_seeds` (13 casos); 281 pgTAP en total (con las de #22). Dos mutaciones comprobadas: con una marca real, o sin el TC, falla.
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.

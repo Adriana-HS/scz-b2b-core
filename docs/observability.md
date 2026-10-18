@@ -66,7 +66,7 @@ Al exportar a Prometheus, los contadores llevan `_total` y los histogramas `_buc
 | `llm_budget_alerts` | contador | `level` (`warning` al 80 %, `exceeded` al 100 %) | orquestador del agente (#25) | Q-COST-1, alertas `LlmBudgetNearLimit` y `LlmBudgetExceeded` |
 | `llm_cost_usd` | contador | `purpose`, `model`, `organization_id` | decorador de costo de IA (#22), en cada turno del agente | Q-COST-1 |
 
-Los gauges de la cola se miden **solo para los tipos que el worker procesa**: un tipo sin handler (por ejemplo `PROCESS_CONVERSATION` sin la configuración de IA, o `EMBED_ITEM` hasta #23) espera a propósito y no debe disparar "cola atascada". Un tipo procesado sin filas se informa en cero, así la alerta se apaga sola.
+Los gauges de la cola se miden **solo para los tipos que el worker procesa**: un tipo sin handler (por ejemplo `PROCESS_CONVERSATION` sin la configuración de IA, ) espera a propósito y no debe disparar "cola atascada". Un tipo procesado sin filas se informa en cero, así la alerta se apaga sola.
 
 `METRIC_NAMES` en `telemetry.py` es el catálogo: una prueba verifica que coincida con los instrumentos creados y que las alertas solo usen esos nombres.
 

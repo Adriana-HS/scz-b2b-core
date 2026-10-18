@@ -10,7 +10,7 @@ Cómo el backend habla con los modelos de IA sin depender de un proveedor (#22, 
 | :--- | :--- | :--- |
 | `ChatModel.run_turn(system, history, tools, timeout_s)` | Un turno del modelo: texto y/o herramientas pedidas | `AnthropicChatModel` (Messages API, httpx) y `ScriptedChatModel` (fake) |
 | `VisionExtractor.extract_receipt(image, timeout_s)` | Lee los campos de un comprobante QR. Es **evidencia**, nunca confirma un pago (ADR-0008) | Fake. El adaptador llega con el dataset OCR (#31, #33) |
-| `Embedder.embed(texts)` | Un vector de 1536 dimensiones por texto (`catalog_items.embedding`, ADR-0003) | Fake. El modelo se elige midiendo 2 candidatos (pregunta P-4 del ADR-0003) en #23 |
+| `Embedder.embed(texts)` | Un vector de 1536 dimensiones por texto (`catalog_items.embedding`, ADR-0003) | Fake. Sin adaptador por ahora: la búsqueda usa sinónimos por rubro (ADR-0020) |
 | `SpeechToText.transcribe(audio, mime)` | Notas de voz a texto | Fake. El adaptador llega con #30 |
 
 Todos lanzan errores del dominio con un **código estable**:
@@ -49,4 +49,4 @@ TracedChatModel → CostMeteredChatModel → CircuitBreakerChatModel → Retryin
 
 * **Cuotas por cliente y por tenant** ("denial of wallet", §8.3), con `private.llm_calls`: #25.
 * **Alerta de costo por tenant** > 80 % del tope: #25, junto con el tope por plan.
-* **Adaptadores de embeddings, voz y visión:** #23, #30 y #31.
+* **Adaptadores de voz y visión:** #30 y #31. Embeddings: ninguno por ahora (ADR-0020).
