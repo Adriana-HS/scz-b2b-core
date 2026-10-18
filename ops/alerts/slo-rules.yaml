@@ -7,7 +7,7 @@
 #
 # severity: page = atender ya (afecta a clientes finales o pierde mensajes);
 #           ticket = atender en horario hábil (degradación o riesgo).
-# La alerta de costo de IA por tenant (> 80 % del tope, Q-COST-1) llega con el agente (#26):
+# La alerta de costo de IA por tenant (> 80 % del tope, Q-COST-1) llega con las cuotas por plan (#25):
 # necesita el tope por plan como métrica, que todavía no existe.
 groups:
   - name: scz-b2b-core-slo

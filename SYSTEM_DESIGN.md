@@ -9,7 +9,7 @@
 | Mercado inicial | Santa Cruz de la Sierra, Bolivia |
 | Versión | **2.2** (15-oct-2026) — reemplaza a la v1.0 |
 | Estado | Propuesta para revisión (ver `docs/reviews/2026-10-15-revision-system-design-v1.md`) |
-| Decisiones | `docs/adr/` (ADR-0001 … ADR-0017) |
+| Decisiones | `docs/adr/` (ADR-0001 … ADR-0018) |
 | Marco legal y negocio | `docs/legal/marco-legal-y-modelo-de-negocio.md` |
 | Requisitos | `docs/requirements/SRS.md` (RF-xx) · arquitectura y UML en `docs/architecture/` |
 | Esquema ejecutable | `supabase/migrations/` (19 migraciones) — **fuente única de verdad del modelo de datos** |
@@ -115,6 +115,7 @@ El detalle (contexto, alternativas, consecuencias y verificación) está en `doc
 | [0014](docs/adr/0014-alcance-de-minimo-regulatorio-para-el-mvp.md) | **MVP de mínimo regulatorio**: QR estático + aprobación humana, suscripción fija, sin facturación ni datos de identidad por chat | Nuevo (viabilidad comercial) |
 | [0015](docs/adr/0015-ciclo-de-vida-de-reservas-de-stock.md) | La vigencia de una **reserva de stock** la decide el estado de la orden; un trigger compromete, libera o devuelve el stock en cada transición | Nuevo (revisión del 15-oct-2026: sobreventa) |
 | [0017](docs/adr/0017-envio-a-lo-sumo-una-vez-ante-resultado-incierto.md) | **Envío a lo sumo una vez ante un resultado incierto:** el mensaje se marca `SENDING` antes de llamar a Meta; si el worker muere durante la llamada, el reintento no reenvía: `FAILED (OUTCOME_UNKNOWN)` con alerta | Nuevo (#18) |
+| [0018](docs/adr/0018-proveedor-de-llm.md) | **Anthropic como único proveedor de IA del agente**, sin comparación entre proveedores (costo y cuentas extra); modelo inicial Claude Haiku 5.5 (confirmado); calidad medida con las evals de #28 | Nuevo |
 | [0016](docs/adr/0016-mfa-mixto-para-precios-del-catalogo.md) | **Regla mixta de MFA para precios:** cambios dentro del umbral sin MFA; precio 0, cambio de moneda o variación mayor al umbral del negocio, solo OWNER/ADMIN con aal2; el backend no cambia precios | Nuevo (riesgo residual de SEC-01, #50) |
 
 ---
@@ -644,7 +645,7 @@ Implementación y detalle: `docs/observability.md` (#19).
 * **Trazas** OpenTelemetry de punta a punta: webhook → job → LLM → herramienta → envío. La traza cruza la cola en la BD: la UnitOfWork fija `app.traceparent` y `jobs.trace_context` lo toma por defecto (migración 18); el worker la continúa. Los atributos de URL se redactan antes de exportar (el `verify_token` de Meta nunca sale).
 * **Exportación:** OTLP/HTTP solo si hay `OTEL_EXPORTER_OTLP_ENDPOINT` (https fuera de local). Sentry solo con `SENTRY_DSN`, con `data_collection` cerrado y `scrub_event`.
 * **Métricas:** `webhook_ack_ms`, `reply_latency_ms`, `evidence_latency_ms`, `jobs_queued`, `jobs_dead`, `llm_cost_usd{tenant}`, `needs_review_rate`, `handoff_rate`, `grounding_violations`, `fx_stale_tenants`. Ya emitidas (#19): `webhook_ack_ms`, `webhook_requests`, `webhook_signature_failures`, `reply_latency_ms`, `wa_billable_messages`, `outbound_outcome_unknown`, `jobs_processed`, `jobs_dead`, `job_duration_ms`, los gauges `jobs_queued`, `jobs_running`, `jobs_dead_pending` y `jobs_oldest_ready_s` (por tipo, solo de los tipos con handler) y `fx_stale_tenants`. Las de comprobantes y del agente llegan con esas funcionalidades.
-* **Alertas (SLO), como código en `ops/alerts/slo-rules.yaml`** y probadas con `promtool` en la CI: p95 de respuesta > 8 s durante 15 min; cualquier trabajo `DEAD` (además del log `ALERTA job_dead`, que llega a Sentry); más de 50 trabajos en cola por más de 5 min; TC vencido en algún tenant con ítems en USD; fallas de firma de webhook > 1 %. Se agregan p99 del ack > 250 ms, un trabajo listo que espera más de 2 min, DEAD sin resolver por 24 h y envíos con resultado incierto. Pendiente con el agente (#26): costo de IA de un tenant > 80 % del tope.
+* **Alertas (SLO), como código en `ops/alerts/slo-rules.yaml`** y probadas con `promtool` en la CI: p95 de respuesta > 8 s durante 15 min; cualquier trabajo `DEAD` (además del log `ALERTA job_dead`, que llega a Sentry); más de 50 trabajos en cola por más de 5 min; TC vencido en algún tenant con ítems en USD; fallas de firma de webhook > 1 %. Se agregan p99 del ack > 250 ms, un trabajo listo que espera más de 2 min, DEAD sin resolver por 24 h y envíos con resultado incierto. Pendiente con las cuotas por plan (#25): costo de IA de un tenant > 80 % del tope.
 
 ### 10.3 Continuidad
 
@@ -687,7 +688,7 @@ scz-b2b-core/
 ├── .agents/skills/               # skills del proyecto (formato SKILL.md, fuente única)
 ├── .claude/skills/               # puentes para Claude Code (mismo frontmatter, remiten a .agents/)
 ├── docs/
-│   ├── adr/                      # ADR-0001 … ADR-0017 (formato MADR)
+│   ├── adr/                      # ADR-0001 … ADR-0018 (formato MADR)
 │   ├── architecture/             # estilo, SOLID, patrones, UML
 │   ├── legal/                    # marco legal y modelo de negocio (sin documentos firmados)
 │   ├── requirements/SRS.md       # requisitos RF-xx (ISO/IEC/IEEE 29148)

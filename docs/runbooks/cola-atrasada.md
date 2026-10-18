@@ -4,7 +4,7 @@
 * `QueueBacklog` (page): más de 50 trabajos en cola durante 5 min.
 * `QueueWaitHigh` (ticket): un trabajo **listo** de un tipo espera más de 2 min.
 
-Ambas se calculan solo con los tipos que el worker procesa (los que tienen handler). Un tipo sin handler todavía, como `PROCESS_CONVERSATION` hasta el agente (#26), espera a propósito y no alerta. Un trabajo en backoff (`run_after` en el futuro) no cuenta como espera.
+Ambas se calculan solo con los tipos que el worker procesa (los que tienen handler). Un tipo sin handler todavía, como `PROCESS_CONVERSATION` hasta el orquestador del agente (#81), espera a propósito y no alerta. Un trabajo en backoff (`run_after` en el futuro) no cuenta como espera.
 
 ## Síntoma
 

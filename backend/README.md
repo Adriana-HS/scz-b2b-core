@@ -74,7 +74,7 @@ Puertos `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText` en `app/doma
 ## Worker (ADR-0005)
 
 `uv run python -m app.worker` (requiere `DATABASE_URL`).
-* **Handlers:** se registran en `build_handlers()` de `app/worker.py`. `SEND_OUTBOUND` (outbox, #18) se registra si hay `META_GRAPH_API_VERSION`; `EMBED_ITEM` llega con el #25 y `PROCESS_CONVERSATION` con el #26. Sin handler, el worker no reclama ese tipo; el trabajo espera en la cola sin gastar intentos.
+* **Handlers:** se registran en `build_handlers()` de `app/worker.py`. `SEND_OUTBOUND` (outbox, #18) se registra si hay `META_GRAPH_API_VERSION`; `EMBED_ITEM` llega con el #23 y `PROCESS_CONVERSATION` con el orquestador del agente (#81). Sin handler, el worker no reclama ese tipo; el trabajo espera en la cola sin gastar intentos.
 * **Contrato de un handler (*at-least-once*):** puede ejecutarse más de una vez, así que debe ser idempotente. Trabaja dentro de una `UnitOfWork` (si el worker muere, se revierte) y envía mensajes por el outbox con clave de idempotencia (#18). `PermanentJobError` = no reintentar.
 * **Variables:** `WORKER_CONCURRENCY` (16), `WORKER_POLL_INTERVAL_S` (0,25), `JOB_TIMEOUT_S` (60) y `JOB_LEASE_S` (300; debe ser mayor que el timeout).
 
