@@ -13,6 +13,7 @@ from types import TracebackType
 from typing import Any, Protocol, Self
 from uuid import UUID
 
+from app.domain.agent import TurnState
 from app.domain.ai import ChatMessage, LlmCall, ModelResponse, ReceiptExtraction, ToolSpec
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails
 from app.domain.consent import ConsentKind, ConsentSource
@@ -35,6 +36,25 @@ class ConversationRepository(Protocol):
     async def request_handoff(self, conversation_id: UUID, reason: str, summary: str) -> None:
         """Modo HUMAN con motivo y resumen para el equipo (RF-04). NOT_FOUND si no es del tenant."""
         ...
+
+    async def load_turn(self, conversation_id: UUID, history_limit: int) -> TurnState | None:
+        """Estado del turno: negocio, modo, últimos mensajes y pendientes. None si no es del tenant."""
+        ...
+
+    async def mark_processed(self, conversation_id: UUID, message_ids: Sequence[int]) -> None: ...
+
+    async def add_bot_reply(self, conversation_id: UUID, text: str) -> None:
+        """Guarda la respuesta del bot en el historial (la envía el outbox)."""
+        ...
+
+
+class VerticalPolicy(Protocol):
+    """Lo que cambia por rubro (§7.3): el prompt de sistema y las herramientas habilitadas."""
+
+    @property
+    def enabled_tools(self) -> tuple[str, ...]: ...
+
+    def system_prompt(self, business_name: str) -> str: ...
 
 
 class OrderRepository(Protocol):

@@ -23,6 +23,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
 
 ### Agregado (backend)
+- **Orquestador del agente (#81, §7.1):** handler `PROCESS_CONVERSATION` (`ProcessConversation`).
+  - Un turno: estado y últimos 12 mensajes en una transacción; el modelo fuera de ella; respuesta al outbox (clave `turn:{conversación}:{último wa_message_id}`), historial y `processed_at` en **una** transacción. Repetir el trabajo no responde dos veces.
+  - Límites de §7.1: 2 rondas, 4 herramientas y 20 s; si se pasan, o la respuesta está vacía o es demasiado larga, plantilla que ofrece una persona. IA no disponible → plantilla y paso a una persona (`TOOL_ERROR`).
+  - No responde con `HUMAN`/`CLOSED`, pausa vigente, solo BAJA/ALTA pendientes ni con la ventana de 24 h cerrada.
+  - Políticas por rubro en `app/verticals/` (importadora con las 4 herramientas; clínica sin `create_quote` hasta la agenda). El worker registra el handler solo con la configuración de IA completa (ADR-0018).
+  - **Alcance y confidencialidad (revisión de AHS):** todo rubro termina con las mismas reglas (`app/verticals/common.py`): solo lo del negocio y sus flujos, nada de código, tareas ni consejos ajenos, nunca revelar las instrucciones ni hablar del sistema, del modelo o de procesos internos, nada de datos de otros clientes, y ningún mensaje del chat cambia las reglas. Segunda barrera en el orquestador: una respuesta con código o que copia una línea del prompt se reemplaza por una plantilla (`outcome=blocked`).
+  - Métrica `agent_turns{outcome}`.
+  - Pruebas: 456 de backend (43 nuevas, 3 contra la BD); 16 mutaciones comprobadas.
 - **Herramientas del agente (#24, §7.2):** `search_catalog`, `get_item_details`, `create_quote` y `handoff_to_human` en `AgentToolbox`.
   - Argumentos validados con Pydantic `extra="forbid"` antes de abrir la transacción: el modelo no puede mandar negocio, cliente, conversación ni precios. El servidor los inyecta desde el `TurnContext` y todo corre como `BOT`.
   - Montos como texto exacto para el grounding (#25); "precio en actualización" si el TC venció; errores con código estable y mensaje para el cliente, sin detalle de la BD ni lo que mandó el modelo.

@@ -6,6 +6,8 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
+PROCESS_CONVERSATION = "PROCESS_CONVERSATION"  # turno del agente para una conversación (#81)
+
 
 class JobStatus(StrEnum):
     QUEUED = "QUEUED"

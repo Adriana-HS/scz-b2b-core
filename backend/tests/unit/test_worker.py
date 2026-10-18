@@ -30,3 +30,40 @@ async def test_run_worker_exige_base_de_datos() -> None:
 
     with pytest.raises(ValueError, match="DATABASE_URL"):
         await run_worker(Settings(_env_file=None, environment="test"))
+
+
+_LLM = {
+    "llm_api_key": "sk-ant-clave-de-prueba",
+    "llm_model": "claude-haiku-5-5",
+    "llm_price_input_usd_per_mtok": "0.10",
+    "llm_price_output_usd_per_mtok": "0.50",
+    "llm_price_cache_read_usd_per_mtok": "0.01",
+    "llm_price_cache_write_usd_per_mtok": "0.125",
+}
+
+
+async def test_con_la_ia_configurada_el_agente_atiende_las_conversaciones() -> None:
+    import httpx
+
+    from app.application.agent import ProcessConversation
+    from app.domain.jobs import PROCESS_CONVERSATION
+    from app.worker import build_handlers
+
+    async with httpx.AsyncClient() as http:
+        handlers = build_handlers(Settings(_env_file=None, environment="test", **_LLM), object(), http)  # type: ignore[arg-type]
+
+    assert isinstance(handlers[PROCESS_CONVERSATION], ProcessConversation)
+
+
+async def test_sin_la_ia_configurada_las_conversaciones_esperan(caplog: pytest.LogCaptureFixture) -> None:
+    import httpx
+
+    from app.domain.jobs import PROCESS_CONVERSATION
+    from app.worker import build_handlers
+
+    caplog.set_level(logging.WARNING, logger="scz.worker")
+    async with httpx.AsyncClient() as http:
+        handlers = build_handlers(Settings(_env_file=None, environment="test"), object(), http)  # type: ignore[arg-type]
+
+    assert PROCESS_CONVERSATION not in handlers
+    assert "LLM_API_KEY" in caplog.text
