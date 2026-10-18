@@ -311,7 +311,7 @@ flowchart TD
     mode -->|no| quota{"¿Dentro de las cuotas<br/>de cliente y tenant?"}
     quota -->|no| tmpl["Respuesta plantilla + handoff"] --> send
     quota -->|sí| ctx["Cargar contexto: política del rubro,<br/>resumen, últimos N mensajes"]
-    ctx --> llm1["LLM: decidir (≤ 2 rondas, ≤ 4 tools)"]
+    ctx --> llm1["LLM: decidir (≤ 3 rondas, ≤ 4 tools)"]
     llm1 --> tool{"¿tool_use?"}
     tool -->|sí| val["Validar comando (Pydantic, extra=forbid)<br/>inyectar tenant/cliente"]
     val --> exec["Ejecutar RPC / caso de uso"]

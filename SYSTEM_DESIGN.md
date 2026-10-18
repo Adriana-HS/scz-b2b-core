@@ -463,7 +463,7 @@ stateDiagram-v2
 
 * **Un trabajo por conversación** (`conversation_key`): los mensajes en ráfaga se agrupan (*debounce* 1,5 s, espera máxima 4 s) y se responden en orden.
 * **Contexto acotado:** prompt de sistema por rubro + configuración validada del tenant + resumen rodante (`conversations.summary`) + últimos N mensajes + resultados de herramientas. Se usa *prompt caching* para la parte estable del prompt.
-* **Límites por turno:** máximo 4 llamadas a herramientas, 2 rondas de LLM, *timeout* total de 20 s. Si se excede, el bot responde con una plantilla segura y ofrece pasar a un humano.
+* **Límites por turno:** máximo 4 llamadas a herramientas, 3 rondas de LLM (buscar → cotizar → responder; antes 2, #89), *timeout* total de 20 s. Si se excede, el bot responde con una plantilla segura y ofrece pasar a un humano.
 * **Modo humano:** si un miembro del equipo toma la conversación (`mode = 'HUMAN'`) o la responde desde el dashboard, el bot se pausa (`bot_paused_until`).
 * **Alcance del negocio:** el prompt de sistema y las evals limitan al agente a catálogo, agenda, pagos y atención del negocio, y redirigen cualquier otro tema (política de Meta sobre chatbots de IA de propósito general).
 * **Aviso de IA:** el primer mensaje de cada cliente informa que conversa con un asistente automatizado y cómo pedir una persona. Se registra en `customers.privacy_notice_at`.
@@ -479,7 +479,7 @@ stateDiagram-v2
 | :--- | :--- | :--- | :--- |
 | `search_catalog` | `query: str (≤200)`, `category: str \| None` | Embedding de la consulta → RPC `search_catalog` | `[{item_id, sku, name, unit_price_bs, price_status, tax_mode, stock_available, duration_minutes}]` |
 | `get_item_details` | `item_id: UUID` | Lectura con RLS | Ficha del ítem (sin costos internos) |
-| `create_quote` | `items: [{item_id: UUID, quantity: 1..10000}] (1..50)` | RPC `create_quote` (atómica) → PDF → subida del documento a Meta | `{reference_code, subtotal_bs, iva_bs, total_bs, deposit_required_bs, applied_fx_rate, tax_mode, valid_until}` |
+| `create_quote` | `items: [{sku: str (≤64) \| item_id: UUID, quantity: 1..10000}] (1..50)`: el código que mostró `search_catalog` o el `item_id`, uno de los dos; el servidor resuelve el código dentro del negocio (#89) | RPC `create_quote` (atómica) → PDF → subida del documento a Meta | `{reference_code, subtotal_bs, iva_bs, total_bs, deposit_required_bs, applied_fx_rate, tax_mode, valid_until}` |
 | `check_availability` | `service_item_id: UUID`, `date: date`, `resource_id: UUID \| None` | RPC `available_slots` | Lista cerrada de bloques `[{resource, start, end}]` |
 | `hold_appointment` | `service_item_id`, `resource_id`, `start: datetime` (debe venir de `check_availability`) | RPC `hold_appointment` | `{reference_code, start, end, total_bs, deposit_required_bs, valid_until}` |
 | `request_payment` | `reference_code: str` | `PaymentPort` → `StaticQrProvider`: imagen del **QR estático del propio negocio** (ADR-0014). El QR dinámico del banco del negocio llega en la fase de escala detrás del mismo puerto | `{qr_media_id, amount_bs, instructions}` |

@@ -6,11 +6,10 @@ más (inyección directa, §7.4) y el servidor completa el resto desde el contex
 """
 
 from enum import StrEnum
+from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from app.domain.orders import QuoteLine
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class HandoffReason(StrEnum):
@@ -41,12 +40,31 @@ class GetItemDetailsArgs(BaseModel):
     item_id: UUID = Field(description="El item_id que devolvió search_catalog")
 
 
+class QuoteItemArgs(BaseModel):
+    """Una línea: el código del producto (el SKU que mostró search_catalog o que dio el cliente) o
+    su item_id, y la cantidad. El servidor resuelve el código dentro del negocio (#89)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    sku: str | None = Field(default=None, min_length=1, max_length=64, description="Código del producto")
+    item_id: UUID | None = Field(
+        default=None, description="item_id de search_catalog, si no se usa el código"
+    )
+    quantity: int = Field(ge=1, le=10_000)
+
+    @model_validator(mode="after")
+    def _one_reference(self) -> Self:
+        if (self.sku is None) == (self.item_id is None):
+            raise ValueError("cada línea lleva sku o item_id, uno de los dos")
+        return self
+
+
 class CreateQuoteArgs(BaseModel):
     """Cotizar ítems del catálogo. Los precios, el IVA, la seña y la vigencia los calcula la BD."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    items: tuple[QuoteLine, ...] = Field(min_length=1, max_length=50, description="Ítems y cantidades")
+    items: tuple[QuoteItemArgs, ...] = Field(min_length=1, max_length=50, description="Ítems y cantidades")
 
 
 class HandoffArgs(BaseModel):

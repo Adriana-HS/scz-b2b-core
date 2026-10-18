@@ -28,6 +28,10 @@ from app.domain.tenancy import TenantContext
 class CatalogRepository(Protocol):
     async def search(self, criteria: CatalogSearch) -> list[CatalogMatch]: ...
 
+    async def find_by_skus(self, skus: Sequence[str]) -> list[tuple[str, UUID]]:
+        """(sku, item_id) de los ítems activos del tenant cuyo código normalizado coincide (#89)."""
+        ...
+
     async def get_details(self, item_id: UUID) -> ItemDetails | None:
         """Ficha de un ítem activo del tenant, o None si no existe para este negocio."""
         ...

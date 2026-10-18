@@ -17,6 +17,7 @@ La subida del PDF de la cotización a Meta llega con #26; el aviso al equipo, co
 
 import json
 import logging
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -31,7 +32,7 @@ from app.domain.agent_tools import CreateQuoteArgs, GetItemDetailsArgs, HandoffA
 from app.domain.ai import ToolCall, ToolResult, ToolSpec
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus
 from app.domain.errors import CodedError, ErrorCode
-from app.domain.orders import QuoteRequest
+from app.domain.orders import QuoteLine, QuoteRequest
 from app.domain.ports import UnitOfWork, UnitOfWorkFactory
 from app.domain.tenancy import Actor, TenantContext
 
@@ -65,7 +66,8 @@ _SPEC_TEXT: Mapping[str, str] = {
     "precio en Bs (o un aviso si está en actualización), stock disponible e indicación de IVA.",
     "get_item_details": "Ficha de un ítem devuelto por search_catalog: descripción, compatibilidad, precio "
     "y stock disponible.",
-    "create_quote": "Crea una cotización con ítems y cantidades del catálogo. La base de datos calcula "
+    "create_quote": "Crea una cotización con ítems y cantidades del catálogo. Cada ítem va con su código "
+    "(sku, el que devolvió search_catalog o el que dio el cliente) o su item_id. La base de datos calcula "
     "subtotal, IVA, total, seña y vigencia; usa solo esas cifras al responder.",
     "handoff_to_human": "Pasa la conversación a una persona del equipo cuando el cliente lo pide, cuando "
     "algo no se puede resolver aquí o ante un reclamo.",
@@ -109,6 +111,11 @@ def _item(match: CatalogMatch | ItemDetails) -> dict[str, Any]:
     if note:
         data["price_note"] = note
     return dict(data)
+
+
+def _sku_key(sku: str) -> str:
+    """El mismo normalizado que catalog_items.sku_normalized."""
+    return re.sub(r"[^A-Za-z0-9]", "", sku).upper()
 
 
 class _ToolError(Exception):
@@ -197,17 +204,38 @@ class AgentToolbox:
 
     async def _quote(self, uow: UnitOfWork, args: BaseModel) -> dict[str, Any]:
         assert isinstance(args, CreateQuoteArgs)  # noqa: S101
+        lines = await self._quote_lines(uow, args)
         quote = await uow.orders.create_quote(
             QuoteRequest(
                 customer_id=self._context.customer_id,
                 conversation_id=self._context.conversation_id,
-                lines=args.items,
+                lines=lines,
             )
         )
         # Mismo commit que la cotización: si se revierte, no queda un PDF de una cotización inexistente
         await uow.orders.request_quote_document(quote.order_id, self._context.conversation_id)
         data = _plain(quote.model_dump(exclude={"order_id"}))  # el id interno no le sirve al modelo
         return {**data, "document": QUOTE_DOCUMENT_NOTE}
+
+    @staticmethod
+    async def _quote_lines(uow: UnitOfWork, args: CreateQuoteArgs) -> tuple[QuoteLine, ...]:
+        """Códigos -> ítems del negocio (#89). Con dos códigos que se normalizan igual ("FRE-001" y
+        "FRE001") gana el que coincide tal cual; si sigue ambiguo o no existe: ITEM_NOT_FOUND."""
+        skus = [item.sku for item in args.items if item.sku is not None]
+        found = await uow.catalog.find_by_skus(skus) if skus else []
+        lines = []
+        for item in args.items:
+            item_id = item.item_id
+            if item.sku is not None:
+                candidates = [(sku, ref) for sku, ref in found if _sku_key(sku) == _sku_key(item.sku)]
+                exact = [ref for sku, ref in candidates if sku.casefold() == item.sku.casefold()]
+                matches = exact or [ref for _, ref in candidates]
+                if len(matches) != 1:
+                    raise _ToolError(ErrorCode.ITEM_NOT_FOUND.value)
+                item_id = matches[0]
+            assert item_id is not None  # noqa: S101 - lo garantiza QuoteItemArgs
+            lines.append(QuoteLine(item_id=item_id, quantity=item.quantity))
+        return tuple(lines)
 
     async def _handoff(self, uow: UnitOfWork, args: BaseModel) -> dict[str, Any]:
         assert isinstance(args, HandoffArgs)  # noqa: S101

@@ -672,6 +672,16 @@
         "prio:M"
       ],
       "body": "**Requisitos / referencias:** SYSTEM_DESIGN §7.1 y §8.7, ADR-0018, principios-y-patrones §2.1, #22, #81\n\n### Objetivo\nProbar el agente sin pagar: un segundo adaptador del puerto `ChatModel` para la API de Gemini (plan gratuito de Google AI Studio). Anthropic sigue siendo el proveedor de producción (ADR-0018); este adaptador es solo para desarrollo.\n\n### Alcance\n- `GeminiChatModel` (generateContent con httpx, sin SDK): prompt de sistema, historial, herramientas con su JSON Schema, firmas de pensamiento (`thoughtSignature`) devueltas en la misma ronda, uso de tokens y clasificación de errores con código estable.\n- `LLM_PROVIDER` = `anthropic` (por defecto) o `gemini`; el worker elige el adaptador.\n- **Privacidad:** en el plan gratuito Google usa lo enviado para mejorar sus productos y puede revisarlo una persona. Por eso `gemini` solo se acepta con `ENVIRONMENT` `local` o `test` y solo con datos sintéticos (seeds).\n- ADR nuevo que amplía el ADR-0018.\n\n### Criterios de aceptación\n- [ ] La suite de contrato de `ChatModel` pasa también con Gemini (con un doble de HTTP).\n- [ ] Una llamada a herramienta conserva su firma y vuelve en la ronda siguiente; sin firma no se inventa una.\n- [ ] 429 y 5xx son transitorios; 400, 401/403 y 404 son permanentes; la clave nunca aparece en un error ni en la URL.\n- [ ] Con `LLM_PROVIDER=gemini` en `staging` o `production` el proceso no arranca.\n- [ ] Costo por llamada en `private.llm_calls` con `provider=gemini`.\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._"
+    },
+    {
+      "milestone": "Fase 2 · Agente MVP (importadora)",
+      "title": "Cotizar por código (SKU) y hasta 3 rondas por turno del agente",
+      "labels": [
+        "type:feature",
+        "area:ia",
+        "prio:M"
+      ],
+      "body": "**Requisitos / referencias:** RF-20, SYSTEM_DESIGN §7.1 y §7.2, #81, #24, #28\n\n### Problema\nPara cotizar, el modelo necesita el `item_id` que solo trae `search_catalog`, y ese id no queda en el historial (solo texto). Buscar → cotizar → responder son 3 rondas y el límite de §7.1 es 2: hoy el bot no completa una cotización en un turno y responde la plantilla de \"pasar a una persona\". Lo detectó el diseño de las evals (#28).\n\n### Decisión de AHS (18-oct-2026): las dos\n- `create_quote` acepta el **código del producto (SKU)** que el bot ya mostró al cliente; el servidor lo resuelve dentro del catálogo del negocio (nunca de otro). Sigue aceptando `item_id`.\n- Hasta **3 rondas** del modelo por turno (antes 2); el tope de 4 herramientas y de 20 s no cambia.\n\n### Criterios de aceptación\n- [ ] Una cotización por SKU se completa en una ronda de herramientas + respuesta.\n- [ ] Un SKU de otro negocio, inactivo o inexistente da ITEM_NOT_FOUND, sin detalle.\n- [ ] Exactamente uno de `sku` o `item_id` por línea (Pydantic, `extra=\"forbid\"`).\n- [ ] 3 rondas como máximo; con la tercera pidiendo herramientas, plantilla.\n\n_Definición de terminado: SYSTEM_DESIGN.md §13.3._\n"
     }
   ]
 }

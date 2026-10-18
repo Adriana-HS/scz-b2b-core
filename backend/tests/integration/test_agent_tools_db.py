@@ -108,3 +108,34 @@ async def test_pasar_a_una_persona(pool: asyncpg.Pool, admin: asyncpg.Connection
     )
     assert row is not None and tuple(row) == ("HUMAN", "COMPLAINT", "Reclamo por una entrega.")
     await admin.execute("UPDATE public.conversations SET mode = 'BOT' WHERE id = $1", seed.conversation_a)
+
+
+# --- Cotizar por código (#89) ---------------------------------------------------------------------
+async def test_cotizar_por_codigo_usa_el_item_del_negocio(
+    pool: asyncpg.Pool, admin: asyncpg.Connection, seed: Seed
+) -> None:
+    toolbox = _toolbox(pool, seed)
+
+    is_error, quote = await _run(
+        toolbox, "create_quote", {"items": [{"sku": seed.sku_bob_a.lower(), "quantity": 1}]}
+    )
+
+    assert not is_error, quote
+    item = await admin.fetchval(
+        "SELECT oi.catalog_item_id FROM public.order_items oi JOIN public.orders o ON o.id = oi.order_id"
+        " WHERE o.reference_code = $1 AND o.organization_id = $2",
+        quote["reference_code"],
+        seed.org_a,
+    )
+    assert item == seed.item_bob_a
+
+
+async def test_un_codigo_de_otro_negocio_no_existe(
+    pool: asyncpg.Pool, admin: asyncpg.Connection, seed: Seed
+) -> None:
+    other_sku = await admin.fetchval("SELECT sku FROM public.catalog_items WHERE id = $1", seed.item_b)
+    toolbox = _toolbox(pool, seed)
+
+    is_error, data = await _run(toolbox, "create_quote", {"items": [{"sku": other_sku, "quantity": 1}]})
+
+    assert is_error and data["error"] == "ITEM_NOT_FOUND"
