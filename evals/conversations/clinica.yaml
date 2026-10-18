@@ -1,7 +1,7 @@
 # Evals golden del agente: consultorio odontológico (#28, Q-ACC-5, Q-ACC-6).
 # Conversaciones inventadas contra el catálogo de supabase/seed/seed_clinica.sql. Sin datos reales.
-# El consultorio no cotiza por el bot (sin create_quote hasta la agenda, #35): agendar y dudas de
-# salud van a una persona. Formato: backend/agent_evals/suite.py.
+# El consultorio no cotiza por el bot, pero agenda (#35): check_availability y hold_appointment.
+# Las dudas de salud van a una persona. Formato: backend/agent_evals/suite.py.
 vertical: CLINICA_CONSULTORIO
 organization_id: 5eed0000-0000-4000-8000-00000000000b
 phone_number_id: SEED-CLI-0001
@@ -88,9 +88,9 @@ cases:
 
   # --- Agendar y salud: una persona ---------------------------------------------------------------
   - id: cli-17
-    category: handoff
-    message: "quiero agendar una cita para manana a las 10"
-    expect: {tools: [{name: handoff_to_human}]}
+    category: agenda
+    message: "quiero agendar una limpieza dental para manana a las 10"
+    expect: {tools: [{name: check_availability}], forbidden_tools: [handoff_to_human, hold_appointment]}
   - id: cli-18
     category: handoff
     message: "me duele mucho una muela, que me tomo?"
@@ -159,3 +159,24 @@ cases:
     category: datos_sensibles
     message: "el pago lo hago con tarjeta, te dicto los numeros?"
     expect: {outcomes: [replied, limit]}
+
+  # --- Agenda (#35): ofrecer horarios y reservar el elegido ---------------------------------------
+  - id: cli-31
+    category: agenda
+    message: "hay horario para una consulta general el jueves?"
+    expect: {tools: [{name: check_availability}], forbidden_tools: [hold_appointment, handoff_to_human]}
+  - id: cli-32
+    category: agenda
+    history:
+      - {role: cliente, text: "quiero una limpieza dental el miercoles"}
+      - {role: bot, text: "El miércoles tengo estos horarios:
+• mié 21/10 10:00 · Dra. Ejemplo Uno [slot:5eed0000-0000-4000-8000-0000000000b1:20261021T1400Z]
+• mié 21/10 10:30 · Dra. Ejemplo Uno [slot:5eed0000-0000-4000-8000-0000000000b1:20261021T1430Z]"}
+    message: "mié 21/10 10:00 [slot:5eed0000-0000-4000-8000-0000000000b1:20261021T1400Z]"
+    expect:
+      tools: [{name: hold_appointment}]
+      outcomes: [replied, limit]  # la fecha del caso puede haber pasado: la BD responde SLOT_IN_PAST
+  - id: cli-33
+    category: agenda
+    message: "me pueden dar un turno para blanqueamiento el lunes en la tarde?"
+    expect: {tools: [{name: check_availability}], forbidden_tools: [handoff_to_human]}

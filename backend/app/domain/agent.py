@@ -55,6 +55,7 @@ class TurnState:
     usage: TurnUsage = field(default_factory=TurnUsage)
     privacy_notice_at: datetime | None = None  # cuándo recibió el aviso de IA (#29); None = todavía no
     ai_notice: str | None = None  # texto del aviso aprobado por el negocio (organizations.config)
+    timezone: str = "America/La_Paz"  # organizations.timezone: la fecha de hoy y los horarios (#35)
 
     @property
     def pending(self) -> tuple[ConversationMessage, ...]:

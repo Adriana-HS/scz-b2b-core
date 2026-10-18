@@ -8,16 +8,18 @@ import json
 import logging
 import re
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import TracebackType
 from typing import Any, Self
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from app.application.agent_tools import QUOTE_DOCUMENT_NOTE, TOOL_NAMES, AgentToolbox, TurnContext
 from app.domain.ai import ToolCall
+from app.domain.booking import Appointment, Slot, slot_token
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus, TaxMode
 from app.domain.errors import AccessDeniedError, BusinessRuleError, ErrorCode
 from app.domain.orders import Quote, QuoteRequest
@@ -54,6 +56,16 @@ SKUS = [("FRE-001", ITEM), ("FRE001", OTHER), ("FIL-002", UUID("00000000-0000-40
 
 def _norm(sku: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", sku).upper()
+
+
+# Agenda (#35): dos horarios libres pasado mañana a las 10:00 y 10:30 en La Paz (14:00 y 14:30 UTC)
+LA_PAZ = ZoneInfo("America/La_Paz")
+RESOURCE = UUID("00000000-0000-4000-8000-0000000000d1")
+DAY = (datetime.now(LA_PAZ) + timedelta(days=2)).date()
+SLOTS = [
+    Slot(RESOURCE, "Dra. Ejemplo Uno", start, start + timedelta(minutes=30))
+    for start in (datetime(DAY.year, DAY.month, DAY.day, 10, minute, tzinfo=LA_PAZ) for minute in (0, 30))
+]
 
 
 class Calls(list[tuple[str, Any]]):
@@ -93,6 +105,27 @@ class FakeOrders:
 
     async def request_quote_document(self, order_id: UUID, conversation_id: UUID) -> None:
         self.calls.append(("quote_document", (order_id, conversation_id)))
+
+    async def business_timezone(self) -> str:
+        return "America/La_Paz"
+
+    async def available_slots(self, service_item_id: UUID, day: date) -> list[Slot]:
+        self.calls.append(("slots", (service_item_id, day)))
+        return [s for s in SLOTS if s.start.astimezone(LA_PAZ).date() == day]
+
+    async def hold_appointment(
+        self,
+        customer_id: UUID,
+        conversation_id: UUID,
+        service_item_id: UUID,
+        resource_id: UUID,
+        start: datetime,
+    ) -> Appointment:
+        self.calls.append(("hold", (customer_id, conversation_id, service_item_id, resource_id, start)))
+        if self.error:
+            raise self.error
+        return Appointment("CITA-2026-000007", "Dra. Ejemplo Uno", start, start + timedelta(minutes=30),
+                           Decimal("150.00"), Decimal("45.00"), start - timedelta(hours=20))  # fmt: skip
 
 
 class FakeConversations:
@@ -151,7 +184,14 @@ def test_expone_las_cuatro_herramientas_con_esquemas_cerrados() -> None:
     assert (
         set(specs)
         == set(TOOL_NAMES)
-        == {"search_catalog", "get_item_details", "create_quote", "handoff_to_human"}
+        == {
+            "search_catalog",
+            "get_item_details",
+            "create_quote",
+            "check_availability",
+            "hold_appointment",
+            "handoff_to_human",
+        }
     )
     for spec in specs.values():
         assert spec.input_schema["additionalProperties"] is False
@@ -419,3 +459,80 @@ async def test_cada_llamada_cuenta_por_herramienta_y_resultado(metric: MetricVal
 
     assert metric("agent_tool_calls", tool="search_catalog", outcome="OK") == ok_before + 1
     assert metric("agent_tool_calls", tool="create_quote", outcome="INVALID_ARGUMENTS") == invalid_before + 1
+
+
+# --- Agenda (#35): horarios libres y reserva ------------------------------------------------------
+async def test_los_horarios_salen_con_etiqueta_en_hora_del_negocio_y_su_slot() -> None:
+    toolbox, calls = _toolbox()
+
+    is_error, data = await _run(
+        toolbox, "check_availability", {"service_item_id": str(ITEM), "day": DAY.isoformat()}
+    )
+
+    assert not is_error
+    assert ("slots", (ITEM, DAY)) in calls
+    first = data["slots"][0]
+    assert first["slot"] == slot_token(RESOURCE, SLOTS[0].start)
+    assert first["label"].endswith("10:00") and first["professional"] == "Dra. Ejemplo Uno"
+
+
+async def test_el_servicio_se_puede_pedir_por_codigo() -> None:
+    toolbox, calls = _toolbox()
+
+    await _run(toolbox, "check_availability", {"service_sku": "fil-002", "day": DAY.isoformat()})
+
+    assert ("slots", (UUID("00000000-0000-4000-8000-0000000000cc"), DAY)) in calls
+
+
+@pytest.mark.parametrize("days", [-3, 91])
+async def test_solo_ofrece_desde_hoy_hasta_tres_meses(days: int) -> None:
+    toolbox, calls = _toolbox()
+    day = (datetime.now(UTC) + timedelta(days=days)).date().isoformat()
+
+    is_error, data = await _run(toolbox, "check_availability", {"service_item_id": str(ITEM), "day": day})
+
+    assert is_error and data["error"] == "INVALID_DATE"
+    assert not [kind for kind, _ in calls if kind == "slots"]
+
+
+async def test_reservar_usa_el_slot_y_el_cliente_del_contexto() -> None:
+    toolbox, calls = _toolbox()
+    slot = slot_token(RESOURCE, SLOTS[0].start)
+
+    is_error, data = await _run(toolbox, "hold_appointment", {"service_item_id": str(ITEM), "slot": slot})
+
+    assert not is_error, data
+    hold = next(arg for kind, arg in calls if kind == "hold")
+    assert hold == (CUSTOMER, CONVERSATION, ITEM, RESOURCE, SLOTS[0].start)
+    assert data["reference_code"] == "CITA-2026-000007" and data["start"].endswith("10:00")
+    assert (data["total_bs"], data["deposit_required_bs"]) == ("150.00", "45.00")  # texto exacto (grounding)
+
+
+async def test_si_el_horario_se_ocupo_devuelve_alternativas_del_mismo_dia() -> None:
+    toolbox, calls = _toolbox(error=BusinessRuleError(ErrorCode.SLOT_TAKEN, "exclusion"))
+    late = datetime(DAY.year, DAY.month, DAY.day, 20, 30, tzinfo=LA_PAZ)  # en UTC ya es el día siguiente
+    slot = slot_token(RESOURCE, late)
+
+    is_error, data = await _run(toolbox, "hold_appointment", {"service_item_id": str(ITEM), "slot": slot})
+
+    assert is_error and data["error"] == "SLOT_TAKEN" and data["customer_message"]
+    assert [s["slot"] for s in data["slots"]] == [s.token for s in SLOTS]
+    assert ("slots", (ITEM, DAY)) in calls  # el día en la hora del negocio, no en UTC
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"service_item_id": str(uuid4()), "slot": "slot:no-es-un-horario"},
+        {"service_item_id": str(uuid4()), "slot": f"slot:{RESOURCE}:2026-10-21 10:00"},
+        {"slot": f"slot:{RESOURCE}:20261021T1400Z"},  # sin servicio
+        {"service_item_id": str(ITEM), "service_sku": "X", "slot": f"slot:{RESOURCE}:20261021T1400Z"},
+    ],
+)
+async def test_un_slot_o_servicio_mal_formado_no_reserva(arguments: dict[str, Any]) -> None:
+    toolbox, calls = _toolbox()
+
+    is_error, data = await _run(toolbox, "hold_appointment", arguments)
+
+    assert is_error and data["error"] == "INVALID_ARGUMENTS"
+    assert not [kind for kind, _ in calls if kind == "hold"]

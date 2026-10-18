@@ -171,6 +171,14 @@ Mutaciones comprobadas:
 * **Contra la BD** (`test_agent_turn_db.py`): webhook → turno → una respuesta en el outbox y el historial, el precio desde la herramienta y el costo en `llm_calls`; repetir el trabajo no duplica; con una persona a cargo no se llama al modelo.
 * **Mutaciones comprobadas** (9 de 9 detectadas): clave de idempotencia sin el último `wa_message_id`; responder con una persona a cargo; sin tope de herramientas; sin presupuesto de tiempo; no marcar los mensajes con una persona a cargo; no pasar a una persona si la IA cae; guardar en el historial lo que el outbox rechazó; una BAJA despierta al agente; mandar una respuesta vacía. Y 7 de 7 de la barrera de alcance: dejar pasar código; dejar pasar fragmentos del prompt; comparar con mayúsculas; bloquear líneas cortas como el nombre del negocio; un rubro sin las reglas; las reglas al principio del prompt; quitar "no escribes código".
 
+### Agenda (#35)
+
+* **Dominio y WhatsApp** (`test_agenda.py`): el `slot` va y vuelve sin perder nada y rechaza los que no ofrecimos; la etiqueta va en la hora del negocio y entra en una fila; la lista respeta los límites de Meta (cuerpo, botón, filas, ids repetidos) y sale como `interactive/list`; el webhook entrega el horario elegido con su `slot` y otras opciones solo con su título.
+* **Herramientas** (`test_agent_tools.py`): horarios con etiqueta y `slot`; servicio por código; solo desde hoy hasta 90 días; reservar usa el cliente y la conversación del turno, con montos como texto exacto; `SLOT_TAKEN` devuelve alternativas del día local; `slot` o servicio mal formados no reservan.
+* **Turno** (`test_agent_turn.py`): los horarios salen como lista interactiva en un mensaje y el historial guarda los `slot`; una respuesta de más de 1024 caracteres sale como texto; el modelo sabe qué día es hoy.
+* **Contra la BD** (`test_agenda_db.py`, seeds del consultorio): reservar un horario lo deja `HELD` para ese paciente y otro paciente recibe `SLOT_TAKEN` con alternativas sin ese horario; los horarios llegan al outbox como `INTERACTIVE`.
+* **Mutaciones comprobadas** (11 de 11): sin alternativas al ocuparse el horario; alternativas del día UTC; reservar para otro cliente; sin tope de días; los horarios como texto; la lista sin límite de cuerpo; el historial sin los `slot`; sin la fecha de hoy; etiqueta en UTC; el webhook pierde el `slot`; la clínica sin agenda.
+
 ### Evals golden del agente (#28)
 
 * **Suite** (`test_agent_evals.py`): ≥ 30 casos por rubro con todas las categorías; los códigos esperados existen en los seeds; solo se esperan herramientas que el rubro tiene; un caso mal escrito falla al cargar.

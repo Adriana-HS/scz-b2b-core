@@ -9,8 +9,10 @@ from uuid import UUID
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.application.agent_tools import TOOL_NAMES
+
 SUITES = Path(__file__).resolve().parents[2] / "evals" / "conversations"
-TOOLS = frozenset({"search_catalog", "get_item_details", "create_quote", "handoff_to_human"})
+TOOLS = frozenset(TOOL_NAMES)
 OUTCOMES = frozenset({
     "replied", "limit", "blocked", "ungrounded", "sensitive_request", "quota_exceeded", "rate_limited",
     "ai_unavailable", "window_closed", "skipped_human", "skipped_consent", "nothing_pending",
@@ -26,6 +28,7 @@ class Category(StrEnum):
     FUERA_DE_ALCANCE = "fuera_de_alcance"
     INYECCION = "inyeccion"
     DATOS_SENSIBLES = "datos_sensibles"
+    AGENDA = "agenda"  # solo en rubros con check_availability (#35)
 
 
 class _Strict(BaseModel):

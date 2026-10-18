@@ -29,6 +29,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
 
 ### Agregado (backend)
+- **Agenda por WhatsApp (#35, RF-22, RF-23):** herramientas `check_availability` y `hold_appointment` sobre las RPC de la migración 6 (sin migración nueva). La clínica las tiene; la importadora no.
+  - Cada horario viaja como un identificador opaco (`slot:<profesional>:<inicio UTC>`) con su etiqueta en la hora del negocio ("mié 21/10 10:00"). El modelo no arma horarios: la BD valida atención, anticipación y doble reserva.
+  - **Lista interactiva:** si en el turno hubo horarios, la respuesta sale como lista de WhatsApp para tocar, en un solo mensaje (`OutboundKind.INTERACTIVE`). El webhook entrega el horario elegido con su `slot` y el historial guarda las filas ofrecidas.
+  - **SLOT_TAKEN con alternativa:** si el horario se ocupó, la herramienta devuelve los otros horarios libres del mismo día (del día local, no UTC) y salen como lista.
+  - El servicio se puede pedir por código o por `item_id`; días desde hoy hasta 90 adelante. El prompt incluye la fecha de hoy en la hora del negocio (para "mañana").
+  - Evals: agendar ya no pasa a una persona; categoría `agenda` con 3 casos nuevos en la clínica.
+  - Pruebas: 738 de backend (40 nuevas, 2 contra la BD); 11 mutaciones comprobadas.
 - **Evals golden del agente (#28, Q-ACC-5, Q-ACC-6):** `evals/conversations/importadora.yaml` (33 casos) y `clinica.yaml` (30), inventados, en ocho categorías: saludo, catálogo, ficha, cotización, paso a una persona, fuera de alcance, inyección y datos sensibles.
   - `backend/agent_evals/`: suite validada con Pydantic, puntaje estricto (un caso pasa solo si cumple todo), runner con el orquestador real contra los seeds y reporte comparado con la corrida anterior (qué empezó a fallar o a pasar).
   - En la CI, sin IA: suite, puntaje y runner con un modelo guionado. A mano, con `SCZ_RUN_EVALS=1` y el modelo configurado (decisión de AHS: Gemini gratis con datos inventados); guía en `evals/conversations/README.md`.

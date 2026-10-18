@@ -37,6 +37,10 @@ def _body(to: str, kind: OutboundKind, payload: dict[str, Any]) -> dict[str, Any
         if payload.get("caption"):
             document["caption"] = payload["caption"]
         return {**base, "type": "document", "document": document}
+    if kind == OutboundKind.INTERACTIVE:
+        action = {"button": payload["button"], "sections": [{"title": "Opciones", "rows": payload["rows"]}]}
+        interactive = {"type": "list", "body": {"text": payload["body"]}, "action": action}
+        return {**base, "type": "interactive", "interactive": interactive}
     if kind == OutboundKind.TEMPLATE:
         template = {
             "name": payload["name"],

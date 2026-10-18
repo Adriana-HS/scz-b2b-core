@@ -81,6 +81,10 @@ Puertos `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText` en `app/doma
 
 `ProcessConversation` (`app/application/agent.py`) atiende un turno: lee el estado, llama al modelo con el prompt del rubro y las herramientas habilitadas (3 rondas, 4 herramientas y 20 s como máximo) y deja en una transacción la respuesta en el outbox, el historial y los mensajes atendidos. Si se pasa de los límites o la IA no responde, contesta una plantilla (`TEMPLATE_LIMIT`, `TEMPLATE_AI_UNAVAILABLE`). Para un rubro nuevo: una clase con `enabled_tools` y `system_prompt(business_name)` en `app/verticals/` y su entrada en `VERTICAL_POLICIES`; un rubro sin política es un error permanente del trabajo, no una respuesta inventada.
 
+### Agenda (#35)
+
+`check_availability` y `hold_appointment` (`app/application/agent_tools.py`) sobre las RPC `available_slots` y `hold_appointment`. Los horarios son `slot` opacos (`app/domain/booking.py`); el orquestador los manda como lista interactiva (`OutboundRequest.interactive_list`) y el webhook devuelve el elegido entre corchetes. Para que un rubro agende: agregar las dos herramientas a su `enabled_tools` y explicarlo en su prompt.
+
 ### Evals golden (#28)
 
 `agent_evals/` (fuera de `app/`: no se despliega) corre las conversaciones de `evals/conversations/` con el orquestador real. Para medir un cambio de prompt o de modelo: `SCZ_RUN_EVALS=1 uv run pytest tests/integration/test_agent_evals_live.py -s --no-cov` con la IA configurada en el `.env` (guía en `evals/conversations/README.md`).

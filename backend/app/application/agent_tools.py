@@ -20,16 +20,25 @@ import logging
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ValidationError
 
 from app.core import telemetry
-from app.domain.agent_tools import CreateQuoteArgs, GetItemDetailsArgs, HandoffArgs, SearchCatalogArgs
+from app.domain.agent_tools import (
+    CheckAvailabilityArgs,
+    CreateQuoteArgs,
+    GetItemDetailsArgs,
+    HandoffArgs,
+    HoldAppointmentArgs,
+    SearchCatalogArgs,
+)
 from app.domain.ai import ToolCall, ToolResult, ToolSpec
+from app.domain.booking import Slot, parse_slot_token, slot_label
 from app.domain.catalog import CatalogMatch, CatalogSearch, ItemDetails, PriceStatus
 from app.domain.errors import CodedError, ErrorCode
 from app.domain.orders import QuoteLine, QuoteRequest
@@ -38,7 +47,11 @@ from app.domain.tenancy import Actor, TenantContext
 
 logger = logging.getLogger("scz.agent.tools")
 
-TOOL_NAMES = ("search_catalog", "get_item_details", "create_quote", "handoff_to_human")
+TOOL_NAMES = (
+    "search_catalog", "get_item_details", "create_quote", "check_availability", "hold_appointment",
+    "handoff_to_human",
+)  # fmt: skip
+_MAX_DAYS_AHEAD = 90  # la agenda se ofrece hasta 3 meses adelante
 # Lo que el modelo sabe del PDF (#26): sale solo por este chat, después de su respuesta
 QUOTE_DOCUMENT_NOTE = "El PDF de esta cotización le llega al cliente por este chat en unos segundos."
 
@@ -53,6 +66,10 @@ CUSTOMER_MESSAGES: Mapping[str, str] = {
     ErrorCode.DUPLICATE_ITEM: "El mismo producto aparece dos veces; lo junto en una sola línea.",
     ErrorCode.NOT_FOUND: "No encontré esa conversación.",
     "INVALID_ARGUMENTS": "No pude procesar ese pedido; ¿me lo podría repetir con más detalle?",
+    ErrorCode.SLOT_TAKEN: "Ese horario se acaba de ocupar. Le ofrezco otros horarios libres.",
+    ErrorCode.SLOT_IN_PAST: "Ese horario ya pasó o está muy próximo; elija uno más adelante.",
+    ErrorCode.OUTSIDE_BUSINESS_HOURS: "Ese horario está fuera de la atención del consultorio.",
+    "INVALID_DATE": "Solo puedo ofrecer horarios desde hoy y hasta tres meses adelante.",
     "UNKNOWN_TOOL": "Eso no lo puedo hacer desde aquí; puedo comunicarle con una persona del equipo.",
 }
 _DEFAULT_MESSAGE = "Tuve un problema para hacerlo. Puedo comunicarle con una persona del equipo."
@@ -69,6 +86,12 @@ _SPEC_TEXT: Mapping[str, str] = {
     "create_quote": "Crea una cotización con ítems y cantidades del catálogo. Cada ítem va con su código "
     "(sku, el que devolvió search_catalog o el que dio el cliente) o su item_id. La base de datos calcula "
     "subtotal, IVA, total, seña y vigencia; usa solo esas cifras al responder.",
+    "check_availability": "Horarios libres de un servicio en un día (AAAA-MM-DD). Devuelve cada horario "
+    "con su "
+    "etiqueta y su slot; el cliente los ve como una lista para elegir. No inventes horarios.",
+    "hold_appointment": "Reserva el horario que eligió el cliente con el slot que vino de check_availability "
+    "(o en su respuesta, entre corchetes). Devuelve la referencia, el horario, el total, la seña y hasta "
+    "cuándo queda reservado. Si el horario se ocupó, devuelve alternativas.",
     "handoff_to_human": "Pasa la conversación a una persona del equipo cuando el cliente lo pide, cuando "
     "algo no se puede resolver aquí o ante un reclamo.",
 }
@@ -113,6 +136,29 @@ def _item(match: CatalogMatch | ItemDetails) -> dict[str, Any]:
     return dict(data)
 
 
+def _slot(slot: Slot, timezone: str) -> dict[str, str]:
+    return {"slot": slot.token, "label": slot_label(slot.start, timezone), "professional": slot.resource_name}
+
+
+async def _resolve_sku(uow: UnitOfWork, sku: str) -> UUID:
+    """Un código -> el ítem del negocio (#89). Gana el exacto; ambiguo o inexistente: ITEM_NOT_FOUND."""
+    candidates = [
+        (code, ref) for code, ref in await uow.catalog.find_by_skus([sku]) if _sku_key(code) == _sku_key(sku)
+    ]
+    exact = [ref for code, ref in candidates if code.casefold() == sku.casefold()]
+    matches = exact or [ref for _, ref in candidates]
+    if len(matches) != 1:
+        raise _ToolError(ErrorCode.ITEM_NOT_FOUND.value)
+    return matches[0]
+
+
+async def _service_id(uow: UnitOfWork, args: CheckAvailabilityArgs | HoldAppointmentArgs) -> UUID:
+    if args.service_item_id is not None:
+        return args.service_item_id
+    assert args.service_sku is not None  # noqa: S101 - lo garantiza el modelo de argumentos
+    return await _resolve_sku(uow, args.service_sku)
+
+
 def _sku_key(sku: str) -> str:
     """El mismo normalizado que catalog_items.sku_normalized."""
     return re.sub(r"[^A-Za-z0-9]", "", sku).upper()
@@ -146,6 +192,8 @@ class AgentToolbox:
             "search_catalog": (SearchCatalogArgs, self._search),
             "get_item_details": (GetItemDetailsArgs, self._details),
             "create_quote": (CreateQuoteArgs, self._quote),
+            "check_availability": (CheckAvailabilityArgs, self._availability),
+            "hold_appointment": (HoldAppointmentArgs, self._hold),
             "handoff_to_human": (HandoffArgs, self._handoff),
         }
 
@@ -156,6 +204,7 @@ class AgentToolbox:
         )
 
     async def execute(self, call: ToolCall) -> ToolResult:
+        args: BaseModel | None = None
         try:
             if call.name not in self._enabled:
                 raise _ToolError("UNKNOWN_TOOL")
@@ -171,6 +220,9 @@ class AgentToolbox:
         except _ToolError as error:
             return self._error(call, error.code, fields=error.fields)
         except CodedError as error:
+            if error.code is ErrorCode.SLOT_TAKEN and isinstance(args, HoldAppointmentArgs):
+                # La transacción que falló quedó abortada: las alternativas, en una nueva
+                return self._error(call, error.code.value, extra=await self._alternatives(args))
             return self._error(call, error.code.value)
         except Exception as error:
             logger.error("agente: la herramienta %s falló (%s)", call.name, type(error).__name__)
@@ -178,7 +230,14 @@ class AgentToolbox:
         telemetry.agent_tool_calls.add(1, telemetry.attributes(tool=call.name, outcome="OK"))
         return ToolResult(tool_call_id=call.id, content=json.dumps(data, ensure_ascii=False))
 
-    def _error(self, call: ToolCall, code: str, *, fields: list[str] | None = None) -> ToolResult:
+    def _error(
+        self,
+        call: ToolCall,
+        code: str,
+        *,
+        fields: list[str] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> ToolResult:
         tool = call.name if call.name in TOOL_NAMES else "unknown"
         telemetry.agent_tool_calls.add(1, telemetry.attributes(tool=tool, outcome=code))
         body: dict[str, Any] = {
@@ -187,6 +246,7 @@ class AgentToolbox:
         }
         if fields:
             body["fields"] = fields
+        body.update(extra or {})
         return ToolResult(tool_call_id=call.id, content=json.dumps(body, ensure_ascii=False), is_error=True)
 
     # --- Herramientas -------------------------------------------------------------------------------
@@ -216,6 +276,50 @@ class AgentToolbox:
         await uow.orders.request_quote_document(quote.order_id, self._context.conversation_id)
         data = _plain(quote.model_dump(exclude={"order_id"}))  # el id interno no le sirve al modelo
         return {**data, "document": QUOTE_DOCUMENT_NOTE}
+
+    async def _availability(self, uow: UnitOfWork, args: BaseModel) -> dict[str, Any]:
+        assert isinstance(args, CheckAvailabilityArgs)  # noqa: S101
+        today = datetime.now(UTC).date()
+        if not today - timedelta(days=1) <= args.day <= today + timedelta(days=_MAX_DAYS_AHEAD):
+            raise _ToolError("INVALID_DATE")
+        service = await _service_id(uow, args)
+        slots = await uow.orders.available_slots(service, args.day)
+        timezone = await uow.orders.business_timezone()
+        return {"day": args.day.isoformat(), "slots": [_slot(s, timezone) for s in slots]}
+
+    async def _hold(self, uow: UnitOfWork, args: BaseModel) -> dict[str, Any]:
+        assert isinstance(args, HoldAppointmentArgs)  # noqa: S101
+        try:
+            resource_id, start = parse_slot_token(args.slot)
+        except ValueError:
+            raise _ToolError("INVALID_ARGUMENTS", fields=["slot"]) from None
+        service = await _service_id(uow, args)
+        appointment = await uow.orders.hold_appointment(
+            self._context.customer_id, self._context.conversation_id, service, resource_id, start
+        )
+        timezone = await uow.orders.business_timezone()
+        return {
+            "reference_code": appointment.reference_code,
+            "start": slot_label(appointment.start, timezone),
+            "end": slot_label(appointment.end, timezone),
+            "professional": appointment.resource_name,
+            "total_bs": str(appointment.total_bs),
+            "deposit_required_bs": str(appointment.deposit_required_bs),
+            "held_until": slot_label(appointment.valid_until, timezone),
+        }
+
+    async def _alternatives(self, args: HoldAppointmentArgs) -> dict[str, Any]:
+        """Otros horarios libres del mismo día, para que el bot los ofrezca (criterio del #35)."""
+        _, start = parse_slot_token(args.slot)
+        try:
+            async with self._unit_of_work(TenantContext(self._context.organization_id, Actor.BOT)) as uow:
+                service = await _service_id(uow, args)
+                timezone = await uow.orders.business_timezone()
+                local_day = start.astimezone(ZoneInfo(timezone)).date()  # el día en la hora del negocio
+                slots = await uow.orders.available_slots(service, local_day)
+        except (CodedError, _ToolError):
+            return {"slots": []}
+        return {"slots": [_slot(s, timezone) for s in slots]}
 
     @staticmethod
     async def _quote_lines(uow: UnitOfWork, args: CreateQuoteArgs) -> tuple[QuoteLine, ...]:
