@@ -6,6 +6,8 @@ conversación) y la BD decide CUÁNTO. Estas pruebas fijan esa frontera.
 
 import json
 import logging
+import re
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import TracebackType
@@ -45,6 +47,15 @@ QUOTE = Quote(
 )  # fmt: skip
 
 
+# Catálogo del doble para resolver códigos: dos ítems cuyo código normalizado coincide (FRE-001 y FRE001)
+OTHER = UUID("00000000-0000-4000-8000-0000000000bb")
+SKUS = [("FRE-001", ITEM), ("FRE001", OTHER), ("FIL-002", UUID("00000000-0000-4000-8000-0000000000cc"))]
+
+
+def _norm(sku: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]", "", sku).upper()
+
+
 class Calls(list[tuple[str, Any]]):
     pass
 
@@ -64,6 +75,10 @@ class FakeCatalog:
         if self.error:
             raise self.error
         return DETAILS if item_id == ITEM else None
+
+    async def find_by_skus(self, skus: Sequence[str]) -> list[tuple[str, UUID]]:
+        self.calls.append(("skus", tuple(skus)))
+        return [(sku, item) for sku, item in SKUS if any(_norm(sku) == _norm(s) for s in skus)]
 
 
 class FakeOrders:
@@ -234,6 +249,62 @@ async def test_una_herramienta_desconocida() -> None:
     is_error, data = await _run(toolbox, "approve_payment", {"order": "COT-1"})
 
     assert is_error and data["error"] == "UNKNOWN_TOOL" and calls == []
+
+
+# --- create_quote por código (#89): el servidor resuelve el SKU dentro del negocio -----------------
+async def test_cotizar_por_codigo_resuelve_el_item_del_negocio() -> None:
+    toolbox, calls = _toolbox()
+
+    is_error, _ = await _run(toolbox, "create_quote", {"items": [{"sku": "fil-002", "quantity": 3}]})
+
+    assert not is_error
+    request = next(arg for kind, arg in calls if kind == "quote")
+    assert [(line.item_id, line.quantity) for line in request.lines] == [
+        (UUID("00000000-0000-4000-8000-0000000000cc"), 3)
+    ]
+
+
+async def test_con_codigos_parecidos_gana_el_exacto() -> None:
+    toolbox, calls = _toolbox()
+
+    await _run(toolbox, "create_quote", {"items": [{"sku": "FRE-001", "quantity": 1}]})
+
+    request = next(arg for kind, arg in calls if kind == "quote")
+    assert request.lines[0].item_id == ITEM
+
+
+@pytest.mark.parametrize("sku", ["NO-EXISTE", "fre 001"])  # inexistente, o ambiguo sin coincidencia exacta
+async def test_un_codigo_que_no_se_puede_resolver_no_cotiza(sku: str) -> None:
+    toolbox, calls = _toolbox()
+
+    is_error, data = await _run(toolbox, "create_quote", {"items": [{"sku": sku, "quantity": 1}]})
+
+    assert is_error and data["error"] == "ITEM_NOT_FOUND"
+    assert not [kind for kind, _ in calls if kind == "quote"]  # no llega a la BD de órdenes
+
+
+async def test_se_pueden_mezclar_codigo_e_item_id() -> None:
+    toolbox, calls = _toolbox()
+
+    await _run(toolbox, "create_quote", {"items": [{"sku": "FIL-002", "quantity": 1},
+                                                    {"item_id": str(ITEM), "quantity": 2}]})  # fmt: skip
+
+    request = next(arg for kind, arg in calls if kind == "quote")
+    assert [line.quantity for line in request.lines] == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "item",
+    [{"quantity": 1}, {"sku": "FRE-001", "item_id": str(ITEM), "quantity": 1}, {"sku": "", "quantity": 1},
+     {"sku": "x" * 65, "quantity": 1}],
+)  # fmt: skip
+async def test_cada_linea_lleva_codigo_o_item_id_pero_no_los_dos(item: dict[str, Any]) -> None:
+    toolbox, calls = _toolbox()
+
+    is_error, data = await _run(toolbox, "create_quote", {"items": [item]})
+
+    assert is_error and data["error"] == "INVALID_ARGUMENTS"
+    assert not [kind for kind, _ in calls if kind in ("quote", "skus")]
 
 
 # --- create_quote: el servidor pone el cliente y la conversación ----------------------------------

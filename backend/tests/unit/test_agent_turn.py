@@ -274,14 +274,28 @@ async def test_con_herramientas_ejecuta_y_vuelve_al_modelo() -> None:
 # --- Límites (§7.1) -------------------------------------------------------------------------------
 async def test_si_el_modelo_sigue_pidiendo_herramientas_responde_la_plantilla() -> None:
     state = _state(_msg("IN", "cotiza todo", 1, pending=True))
-    model = ScriptedChatModel(_tools("search_catalog"), _tools("search_catalog"))
+    model = ScriptedChatModel(_tools("search_catalog"), _tools("search_catalog"), _tools("search_catalog"))
     handler, log, _, _ = _handler(state, model)
 
     await handler(_job())
 
-    assert len(model.calls) == 2  # máximo 2 rondas
+    assert len(model.calls) == 3  # máximo 3 rondas (#89)
     assert _enqueued(log)[0].payload == {"body": TEMPLATE_LIMIT}
     assert ("processed", (1,)) in log
+
+
+async def test_buscar_cotizar_y_responder_entra_en_un_turno() -> None:
+    """#89: buscar -> cotizar -> responder son 3 rondas; antes el límite de 2 lo impedía."""
+    state = _state(_msg("IN", "cotíceme 2 pastillas delanteras", 1, pending=True))
+    model = ScriptedChatModel(
+        _tools("search_catalog"), _tools("create_quote"), _text("Listo, le envío la cotización.")
+    )
+    handler, log, _, _ = _handler(state, model)
+
+    await handler(_job())
+
+    assert [arg for kind, arg in log if kind == "tool"] == ["search_catalog", "create_quote"]
+    assert _enqueued(log)[0].payload == {"body": "Listo, le envío la cotización."}
 
 
 async def test_mas_de_cuatro_herramientas_no_se_ejecutan() -> None:
