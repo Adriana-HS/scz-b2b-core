@@ -29,6 +29,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
 
 ### Agregado (backend)
+- **Evals golden del agente (#28, Q-ACC-5, Q-ACC-6):** `evals/conversations/importadora.yaml` (33 casos) y `clinica.yaml` (30), inventados, en ocho categorías: saludo, catálogo, ficha, cotización, paso a una persona, fuera de alcance, inyección y datos sensibles.
+  - `backend/agent_evals/`: suite validada con Pydantic, puntaje estricto (un caso pasa solo si cumple todo), runner con el orquestador real contra los seeds y reporte comparado con la corrida anterior (qué empezó a fallar o a pasar).
+  - En la CI, sin IA: suite, puntaje y runner con un modelo guionado. A mano, con `SCZ_RUN_EVALS=1` y el modelo configurado (decisión de AHS: Gemini gratis con datos inventados); guía en `evals/conversations/README.md`.
+  - `ProcessConversation.run(job)` devuelve el resultado del turno (lo usan las evals); mypy revisa también `agent_evals`.
+  - Pruebas: 698 de backend (28 nuevas: 25 unitarias y 3 contra la BD) y 2 de la corrida con IA, omitidas por defecto; 7 mutaciones del puntaje y el reporte comprobadas.
 - **Cotizar por código y hasta 3 rondas por turno (#89, decisión de AHS):** buscar → cotizar → responder necesitaba 3 rondas y el límite era 2, así que el bot nunca completaba una cotización (lo detectó el diseño de las evals, #28).
   - `create_quote` acepta el código del producto (`sku`) o el `item_id`, uno de los dos por línea. El servidor resuelve el código dentro del negocio; con dos códigos que se normalizan igual gana el exacto, y si sigue ambiguo, `ITEM_NOT_FOUND`.
   - Hasta 3 rondas del modelo por turno; 4 herramientas y 20 s no cambian. Los turnos que usan la tercera ronda cuestan una llamada más (el ADR-0018 estimaba 1,5 llamadas por turno).

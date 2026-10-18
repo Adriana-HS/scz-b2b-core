@@ -511,7 +511,7 @@ Cada rubro es un paquete `app/verticals/<rubro>/` que implementa `VerticalPolicy
 
 ### 7.5 Evaluación continua
 
-* `evals/conversations/<rubro>/*.yaml`: conversaciones *golden* con la herramienta y los argumentos esperados (Q-ACC-5). Corren en CI con un modelo fijado y se comparan contra la versión anterior en cada cambio de prompt o de modelo.
+* `evals/conversations/<rubro>.yaml`: conversaciones *golden* con la herramienta y los argumentos esperados (Q-ACC-5). **Implementación (#28):** 33 casos de importadora y 30 de consultorio en ocho categorías (saludo, catálogo, ficha, cotización, paso a una persona, fuera de alcance, inyección y datos sensibles). El runner (`backend/agent_evals/`) corre cada caso con el orquestador real contra los seeds. En la CI corren **sin IA**: se validan la suite, el puntaje y el runner con un modelo guionado. Con un modelo de verdad corren **a mano** (decisión de AHS: Gemini gratis, solo datos inventados, ADR-0019) y dejan un reporte comparado con la corrida anterior (`evals/conversations/results/`).
 * `evals/ocr/`: dataset etiquetado de comprobantes de los principales bancos bolivianos (anonimizados), con métricas por campo (Q-ACC-4) y umbrales de confianza calibrados con esos datos.
 * Las métricas en producción (tasa de `NEEDS_REVIEW`, tasa de handoff, discrepancias detectadas por el grounding) alimentan el backlog.
 

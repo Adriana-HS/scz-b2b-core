@@ -171,6 +171,15 @@ Mutaciones comprobadas:
 * **Contra la BD** (`test_agent_turn_db.py`): webhook → turno → una respuesta en el outbox y el historial, el precio desde la herramienta y el costo en `llm_calls`; repetir el trabajo no duplica; con una persona a cargo no se llama al modelo.
 * **Mutaciones comprobadas** (9 de 9 detectadas): clave de idempotencia sin el último `wa_message_id`; responder con una persona a cargo; sin tope de herramientas; sin presupuesto de tiempo; no marcar los mensajes con una persona a cargo; no pasar a una persona si la IA cae; guardar en el historial lo que el outbox rechazó; una BAJA despierta al agente; mandar una respuesta vacía. Y 7 de 7 de la barrera de alcance: dejar pasar código; dejar pasar fragmentos del prompt; comparar con mayúsculas; bloquear líneas cortas como el nombre del negocio; un rubro sin las reglas; las reglas al principio del prompt; quitar "no escribes código".
 
+### Evals golden del agente (#28)
+
+* **Suite** (`test_agent_evals.py`): ≥ 30 casos por rubro con todas las categorías; los códigos esperados existen en los seeds; solo se esperan herramientas que el rubro tiene; un caso mal escrito falla al cargar.
+* **Puntaje:** pasa solo si cumple todo: las herramientas en orden (con otras entre medio permitidas), los argumentos (palabras de la consulta, códigos y cantidades, motivo del paso a una persona), ninguna herramienta prohibida, el resultado y la respuesta, sin importar mayúsculas ni acentos.
+* **Reporte:** Q-ACC-5 y Q-ACC-6, por categoría, y qué casos empezaron a fallar o a pasar contra la corrida anterior.
+* **Runner contra la BD** (`test_agent_evals_db.py`, modelo guionado): una cotización por código pasa con las herramientas reales; el historial se carga y solo el último mensaje queda pendiente; un turno que no cumple falla con su motivo.
+* **Con IA, a mano** (`test_agent_evals_live.py`, `SCZ_RUN_EVALS=1`): ver `evals/conversations/README.md`.
+* **Mutaciones comprobadas** (7 de 7): ignorar el orden de las herramientas; no revisar la consulta, los ítems ni las prohibidas; comparar con acentos; no contar las cifras inventadas; no detectar los casos que empezaron a fallar.
+
 ### Cotizar por código (#89)
 
 * **Herramienta** (`test_agent_tools.py`): el código se resuelve en el negocio (sin importar mayúsculas ni guiones); con códigos parecidos gana el exacto; uno inexistente o ambiguo da `ITEM_NOT_FOUND` sin llegar a cotizar; se pueden mezclar código e `item_id`; cada línea lleva uno de los dos.
