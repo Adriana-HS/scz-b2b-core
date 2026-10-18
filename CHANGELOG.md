@@ -17,6 +17,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - `persist-credentials: false` en todos los `checkout`; `prune-cache: true` en `setup-uv` (desde v9 el default es `false`).
 - El binario de gitleaks se verifica por sha256 antes de extraerlo.
 
+### Agregado (base de datos)
+- **Seeds sintéticos por rubro (#27):** `supabase/seed/seed_importadora.sql` (30 repuestos de 8 categorías en USD y Bs, sin marcas, TC inicial 11,68 Bs/USD) y `seed_clinica.sql` (16 servicios, 2 profesionales con horario). Sin clientes ni datos personales; números y tokens ficticios. Los cargan `supabase db start` y `db reset`.
+  - Prueba pgTAP `17_seeds` (13 casos); 281 pgTAP en total (con las de #22). Dos mutaciones comprobadas: con una marca real, o sin el TC, falla.
+  - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
+
 ### Agregado (backend)
 - **Puertos de IA (#22):** detalle en `docs/ai-ports.md`.
   - Puertos segregados `ChatModel`, `VisionExtractor`, `Embedder` y `SpeechToText`, con tipos propios (mensajes, herramientas, uso de tokens, extracción de comprobantes) y errores con código estable (`TransientAiError`, `PermanentAiError`, `AiUnavailableError`).
