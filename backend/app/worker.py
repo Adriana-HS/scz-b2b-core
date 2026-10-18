@@ -5,7 +5,7 @@ Ejecutar en local:  uv run python -m app.worker   (requiere DATABASE_URL)
 Handlers registrados: SEND_OUTBOUND (outbox, #18) y SEND_QUOTE_PDF (PDF de cotización, #26), si
 hay META_GRAPH_API_VERSION, y
 PROCESS_CONVERSATION (agente, #81), si hay LLM_API_KEY, LLM_MODEL y sus precios. Los demás
-llegan con sus issues: EMBED_ITEM (#23) y PRICE_CHANGE_ALERT.
+llegan con sus issues: PRICE_CHANGE_ALERT. EMBED_ITEM ya no se encola (sin embeddings, ADR-0020).
 Un tipo sin handler NO se reclama: espera en la cola, sin gastar intentos.
 """
 

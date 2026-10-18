@@ -13,7 +13,7 @@ En Windows, `.\scripts\test-db.ps1` corre lo mismo que la CI: migraciones, pgTAP
 
 | Job | Qué verifica | Bloquea el PR |
 | :--- | :--- | :---: |
-| `database` | Migraciones y seeds sobre la imagen oficial de Supabase y las 297 pruebas pgTAP | Sí |
+| `database` | Migraciones y seeds sobre la imagen oficial de Supabase y las 313 pruebas pgTAP | Sí |
 | `database` → lint | `supabase db lint --fail-on error` (plpgsql_check) sobre las funciones | Sí (el primer reporte, del 16-oct-2026, salió sin errores) |
 | `backend` | `ruff`, `mypy --strict`, `import-linter`, `pytest` (cobertura ≥ 85 %) y `pip-audit` sobre `backend/` (ver abajo) | Sí |
 | `alerts` | `promtool check rules` y `promtool test rules` sobre `ops/alerts/` (imagen oficial de Prometheus fijada por digest): sintaxis y disparo de cada alerta con series sintéticas | Sí |
@@ -43,7 +43,8 @@ La versión de Supabase CLI está fijada en `SUPABASE_CLI_VERSION`. Se actualiza
 | `16_llm_calls.test.sql` | #22: el backend registra el costo de IA en su tenant y no en otro; la conversación debe ser del mismo negocio (FK compuesta, migración 19); tokens, costo y latencia no negativos; aislamiento | 9 |
 | `17_seeds.test.sql` | #27: la importadora y la clínica de ejemplo existen; ≥ 25 repuestos en USD y Bs de ≥ 5 categorías, con uno sin stock; TC inicial explícito y todo repuesto cotizable; búsqueda de texto; ≥ 15 servicios con duración y profesionales con horario; sin marcas, sin clientes y con números sintéticos | 13 |
 | `18_agent_tools.test.sql` | #24: la ficha de un ítem da el mismo precio, stock y estado que la búsqueda; descuenta reservas; con el TC vencido no hay precio en USD; solo atributos públicos; nada de otro negocio ni de ítems dados de baja; el paso a una persona guarda motivo y resumen, con motivo de una lista cerrada y resumen acotado; solo el backend | 16 |
-| **Total** | | **297** |
+| `19_search_synonyms.test.sql` | #23: sinónimos por rubro de solo lectura y normalizados; expansión en singular o plural; un rubro no usa los de otro; sin operadores inyectados; búsquedas con los seeds; sin trabajos `EMBED_ITEM` (ADR-0020) | 16 |
+| **Total** | | **313** |
 
 `_fixtures.psql` crea dos tenants sintéticos y helpers (`tests.as_user`, `tests.as_backend`, `tests.as_anon`). Cada archivo corre dentro de `BEGIN … ROLLBACK`.
 
@@ -169,6 +170,13 @@ Mutaciones comprobadas:
 * **Prompts por rubro** (`test_verticals.py`): todo rubro termina con las reglas de alcance y confidencialidad, con el nombre del negocio y sin marcadores sin llenar; solo herramientas que existen y siempre `handoff_to_human`. IA no disponible → plantilla y paso a una persona. Rubro sin política o trabajo mal formado → error permanente.
 * **Contra la BD** (`test_agent_turn_db.py`): webhook → turno → una respuesta en el outbox y el historial, el precio desde la herramienta y el costo en `llm_calls`; repetir el trabajo no duplica; con una persona a cargo no se llama al modelo.
 * **Mutaciones comprobadas** (9 de 9 detectadas): clave de idempotencia sin el último `wa_message_id`; responder con una persona a cargo; sin tope de herramientas; sin presupuesto de tiempo; no marcar los mensajes con una persona a cargo; no pasar a una persona si la IA cae; guardar en el historial lo que el outbox rechazó; una BAJA despierta al agente; mandar una respuesta vacía. Y 7 de 7 de la barrera de alcance: dejar pasar código; dejar pasar fragmentos del prompt; comparar con mayúsculas; bloquear líneas cortas como el nombre del negocio; un rubro sin las reglas; las reglas al principio del prompt; quitar "no escribes código".
+
+### Sinónimos de búsqueda (#23, ADR-0020)
+
+* **pgTAP** (`19_search_synonyms`): solo lectura para el backend y el panel; términos normalizados; plural y mayúsculas; un rubro no usa los sinónimos de otro; solo palabras vacías → sin consulta; los operadores de tsquery no se interpretan; búsquedas reales con los seeds; un ítem nuevo no encola `EMBED_ITEM`.
+* **Eval** (`test_search_eval_db.py`, `evals/search/*.yaml`): MRR@5 con y sin sinónimos sobre el catálogo de los seeds. Hoy: importadora 0,86 → 1,00; consultorio 0,71 → 0,92 (falla "quisiera una limpieza para mi hijo"). Correr con `-s` para ver el resultado. Necesita los seeds (`supabase db reset`).
+* **Mutaciones comprobadas** (4 de 4, aplicadas en la BD local): no expandir; usar sinónimos de cualquier rubro; comparar el término sin el stemmer (falla el plural); volver a encolar `EMBED_ITEM`.
+* **Ojo con la base local:** las pruebas de integración dejan trabajos en cola; antes de `supabase test db` conviene `supabase db reset` (la prueba 03 cuenta trabajos en cola).
 
 ### PDF de cotización (#26)
 

@@ -66,7 +66,7 @@ SELECT tests.reset();
 
 -- --- Cola durable: debounce y serialización por conversación ------------------------
 -- Se reclama solo PROCESS_CONVERSATION, como el worker real: la cola es de toda la plataforma
--- y puede tener otros trabajos (los seeds dejan EMBED_ITEM en cola, #27).
+-- y puede tener otros trabajos (los de otras pruebas o, antes de la migración 21, EMBED_ITEM).
 SELECT private.enqueue_conversation('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 0, 0);
 SELECT private.enqueue_conversation('a0000000-0000-4000-8000-000000000000', 'c0000000-0000-4000-8000-00000000000a', 0, 0);
 SELECT is((SELECT count(*)::int FROM private.jobs WHERE kind = 'PROCESS_CONVERSATION' AND status = 'QUEUED'), 1,

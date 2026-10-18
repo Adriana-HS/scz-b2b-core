@@ -16,5 +16,5 @@ Datos **sintéticos** por rubro para desarrollo y demos (#27). Los cargan solos 
 
 ## Efectos que conviene saber
 
-* **Cola de embeddings.** Cada ítem nuevo encola un trabajo `EMBED_ITEM`, así que los seeds dejan **46 trabajos `EMBED_ITEM` en cola**. Es lo esperado: los procesará el worker cuando exista el handler (#23). Mientras tanto, una prueba que reclame trabajos debe filtrar por tipo, como el worker real (`claim_jobs(..., p_kinds)`).
+* **Sin cola de embeddings.** Desde la migración 21 (ADR-0020) un ítem nuevo ya no encola `EMBED_ITEM`: los seeds no dejan trabajos en cola. Igual, una prueba que reclame trabajos debe filtrar por tipo, como el worker real (`claim_jobs(..., p_kinds)`).
 * **TC vencido en una BD vieja.** Si la base local lleva más de 24 h levantada, la importadora de ejemplo cuenta en `fx_stale_tenants` y en la alerta `FxRateStale`. La prueba 15 compara contra una línea de base para no depender de eso.

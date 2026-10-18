@@ -96,7 +96,7 @@ Antes de enviar, el orquestador verifica la respuesta con `app/domain/guardrails
 ## Worker (ADR-0005)
 
 `uv run python -m app.worker` (requiere `DATABASE_URL`).
-* **Handlers:** se registran en `build_handlers()` de `app/worker.py`. `SEND_OUTBOUND` (outbox, #18) se registra si hay `META_GRAPH_API_VERSION`; `PROCESS_CONVERSATION` (orquestador del agente, #81) si hay `LLM_API_KEY`, `LLM_MODEL` y los cuatro precios; si falta algo, el worker lo avisa en el log y no lo reclama. `EMBED_ITEM` llega con el #23. Sin handler, el worker no reclama ese tipo; el trabajo espera en la cola sin gastar intentos.
+* **Handlers:** se registran en `build_handlers()` de `app/worker.py`. `SEND_OUTBOUND` (outbox, #18) se registra si hay `META_GRAPH_API_VERSION`; `PROCESS_CONVERSATION` (orquestador del agente, #81) si hay `LLM_API_KEY`, `LLM_MODEL` y los cuatro precios; si falta algo, el worker lo avisa en el log y no lo reclama. `EMBED_ITEM` ya no se encola: la búsqueda usa sinónimos por rubro, sin embeddings (ADR-0020). Sin handler, el worker no reclama ese tipo; el trabajo espera en la cola sin gastar intentos.
 * **Contrato de un handler (*at-least-once*):** puede ejecutarse más de una vez, así que debe ser idempotente. Trabaja dentro de una `UnitOfWork` (si el worker muere, se revierte) y envía mensajes por el outbox con clave de idempotencia (#18). `PermanentJobError` = no reintentar.
 * **Variables:** `WORKER_CONCURRENCY` (16), `WORKER_POLL_INTERVAL_S` (0,25), `JOB_TIMEOUT_S` (60) y `JOB_LEASE_S` (300; debe ser mayor que el timeout).
 
