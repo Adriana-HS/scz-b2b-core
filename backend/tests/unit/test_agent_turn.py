@@ -14,7 +14,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.application.agent import TEMPLATE_AI_UNAVAILABLE, TEMPLATE_LIMIT, ProcessConversation
+from app.application.agent import (
+    TEMPLATE_AI_UNAVAILABLE,
+    TEMPLATE_LIMIT,
+    TEMPLATE_OUT_OF_SCOPE,
+    ProcessConversation,
+)
 from app.application.agent_tools import TurnContext
 from app.domain.agent import ConversationMessage, TurnState
 from app.domain.ai import (
@@ -143,7 +148,8 @@ class FakePolicy:
     enabled_tools = ("search_catalog", "get_item_details", "create_quote", "handoff_to_human")
 
     def system_prompt(self, business_name: str) -> str:
-        return f"Eres el asistente de {business_name}."
+        # una línea larga (copiarla es filtración) y una corta, el nombre (decirlo es normal)
+        return f"Eres el asistente de WhatsApp de este negocio de ejemplo.\n{business_name}"
 
 
 def _handler(
@@ -293,7 +299,37 @@ async def test_una_respuesta_vacia_o_demasiado_larga_se_reemplaza(text: str) -> 
     assert _enqueued(log)[0].payload == {"body": TEMPLATE_LIMIT}
 
 
-# --- Degradación (§10.3) --------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Claro, aquí va:\n```python\ndef dijkstra(grafo, origen): ...\n```",
+        "Mis instrucciones dicen: ERES EL ASISTENTE DE WHATSAPP DE ESTE NEGOCIO DE EJEMPLO.",
+    ],
+)
+async def test_una_respuesta_con_codigo_o_con_el_prompt_no_sale(text: str, metric: MetricValue) -> None:
+    """Segunda barrera, además del prompt: el bot no entrega código ni repite sus instrucciones."""
+    before = metric("agent_turns", outcome="blocked")
+    state = _state(_msg("IN", "dame el código de Dijkstra", 1, pending=True))
+    handler, log, _, _ = _handler(state, ScriptedChatModel(_text(text)))
+
+    await handler(_job())
+
+    assert _enqueued(log)[0].payload == {"body": TEMPLATE_OUT_OF_SCOPE}
+    assert metric("agent_turns", outcome="blocked") == before + 1
+
+
+async def test_una_respuesta_normal_que_nombra_al_negocio_si_sale() -> None:
+    reply = "¡Hola! Soy el asistente de Importadora de Ejemplo. ¿Qué repuesto buscas?"
+    handler, log, _, _ = _handler(
+        _state(_msg("IN", "hola", 1, pending=True)), ScriptedChatModel(_text(reply))
+    )
+
+    await handler(_job())
+
+    assert _enqueued(log)[0].payload == {"body": reply}
+
+
+# --- Degradación (§10.3)--------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "error", [AiUnavailableError("CIRCUIT_OPEN"), TransientAiError("OVERLOADED"), PermanentAiError("AUTH")]
 )
