@@ -39,7 +39,7 @@ logger = logging.getLogger("scz.agent.tools")
 
 TOOL_NAMES = ("search_catalog", "get_item_details", "create_quote", "handoff_to_human")
 
-# Lo que el bot puede decirle al cliente ante cada error (el modelo lo reformula, sin inventar cifras)
+# Lo que el bot le dice al cliente ante cada error, de usted (el modelo lo reformula, sin inventar cifras)
 CUSTOMER_MESSAGES: Mapping[str, str] = {
     ErrorCode.ITEM_NOT_FOUND: "No encontré ese producto en el catálogo del negocio.",
     ErrorCode.INVALID_ITEMS: "Alguno de los productos ya no está disponible en el catálogo.",
@@ -49,10 +49,10 @@ CUSTOMER_MESSAGES: Mapping[str, str] = {
     ErrorCode.INVALID_QUANTITY: "La cantidad no es válida.",
     ErrorCode.DUPLICATE_ITEM: "El mismo producto aparece dos veces; lo junto en una sola línea.",
     ErrorCode.NOT_FOUND: "No encontré esa conversación.",
-    "INVALID_ARGUMENTS": "No pude procesar ese pedido; ¿me lo repites con más detalle?",
-    "UNKNOWN_TOOL": "Eso no lo puedo hacer desde aquí; puedo pasarte con una persona del equipo.",
+    "INVALID_ARGUMENTS": "No pude procesar ese pedido; ¿me lo podría repetir con más detalle?",
+    "UNKNOWN_TOOL": "Eso no lo puedo hacer desde aquí; puedo comunicarle con una persona del equipo.",
 }
-_DEFAULT_MESSAGE = "Tuve un problema para hacerlo. Puedo pasarte con una persona del equipo."
+_DEFAULT_MESSAGE = "Tuve un problema para hacerlo. Puedo comunicarle con una persona del equipo."
 _PRICE_NOTES: Mapping[PriceStatus, str] = {
     PriceStatus.FX_STALE: "Precio en actualización: lo confirma una persona del equipo.",
     PriceStatus.FX_MISSING: "Precio en actualización: lo confirma una persona del equipo.",

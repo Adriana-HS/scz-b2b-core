@@ -57,11 +57,11 @@ def classify_keyword(text: str | None) -> ConsentKind | None:
 
 CONFIRMATION_TEXT = {
     ConsentKind.OPTOUT: (
-        "Listo, ya no te enviaremos recordatorios ni promociones. "
-        "Si nos escribes, te seguimos atendiendo. Para volver a recibirlos, escribe ALTA."
+        "Listo, ya no le enviaremos recordatorios ni promociones. "
+        "Si nos escribe, le seguimos atendiendo. Para volver a recibirlos, escriba ALTA."
     ),
     ConsentKind.OPTIN_UTILITY: (
-        "Listo, te enviaremos recordatorios y avisos de tus pedidos y citas. "
-        "Para dejar de recibirlos, escribe BAJA."
+        "Listo, le enviaremos recordatorios y avisos de sus pedidos y citas. "
+        "Para dejar de recibirlos, escriba BAJA."
     ),
 }

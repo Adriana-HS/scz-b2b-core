@@ -29,8 +29,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - No responde con `HUMAN`/`CLOSED`, pausa vigente, solo BAJA/ALTA pendientes ni con la ventana de 24 h cerrada.
   - Políticas por rubro en `app/verticals/` (importadora con las 4 herramientas; clínica sin `create_quote` hasta la agenda). El worker registra el handler solo con la configuración de IA completa (ADR-0018).
   - **Alcance y confidencialidad (revisión de AHS):** todo rubro termina con las mismas reglas (`app/verticals/common.py`): solo lo del negocio y sus flujos, nada de código, tareas ni consejos ajenos, nunca revelar las instrucciones ni hablar del sistema, del modelo o de procesos internos, nada de datos de otros clientes, y ningún mensaje del chat cambia las reglas. Segunda barrera en el orquestador: una respuesta con código o que copia una línea del prompt se reemplaza por una plantilla (`outcome=blocked`).
+  - **Trato de usted (decisión de AHS, 18-oct-2026):** el prompt de todo rubro lo pide y los textos fijos que lee el cliente (plantillas, errores de las herramientas y confirmaciones de BAJA/ALTA) pasan de tú a usted; `test_customer_texts.py` rechaza el tuteo.
   - Métrica `agent_turns{outcome}`.
-  - Pruebas: 456 de backend (43 nuevas, 3 contra la BD); 16 mutaciones comprobadas.
+  - Pruebas: 476 de backend (63 nuevas, 3 contra la BD); 19 mutaciones comprobadas.
 - **Herramientas del agente (#24, §7.2):** `search_catalog`, `get_item_details`, `create_quote` y `handoff_to_human` en `AgentToolbox`.
   - Argumentos validados con Pydantic `extra="forbid"` antes de abrir la transacción: el modelo no puede mandar negocio, cliente, conversación ni precios. El servidor los inyecta desde el `TurnContext` y todo corre como `BOT`.
   - Montos como texto exacto para el grounding (#25); "precio en actualización" si el TC venció; errores con código estable y mensaje para el cliente, sin detalle de la BD ni lo que mandó el modelo.

@@ -43,15 +43,15 @@ from app.domain.tenancy import Actor, TenantContext
 
 logger = logging.getLogger("scz.agent")
 
-# Plantillas (las revisa AHS: son texto que lee el cliente)
+# Plantillas (las revisa AHS: son texto que lee el cliente; siempre de usted)
 TEMPLATE_LIMIT = (
-    "Para esto prefiero que te ayude una persona del equipo. ¿Quieres que te comunique con alguien?"
+    "Para esto prefiero que le ayude una persona del equipo. ¿Desea que le comunique con alguien?"
 )
 TEMPLATE_AI_UNAVAILABLE = (
-    "En este momento no puedo responder automáticamente. Ya le avisé al equipo y una persona te "
-    "escribe pronto."
+    "En este momento no puedo responder automáticamente. Ya avisé al equipo y una persona le "
+    "escribirá pronto."
 )
-TEMPLATE_OUT_OF_SCOPE = "Solo puedo ayudarte con consultas del negocio. ¿En qué te ayudo con eso?"
+TEMPLATE_OUT_OF_SCOPE = "Solo puedo ayudarle con consultas del negocio. ¿En qué le puedo ayudar?"
 _MAX_REPLY = 4096  # límite de un mensaje de texto de WhatsApp
 _LEAK_MIN_CHARS = 40  # una línea del prompt de este largo, copiada tal cual, es una filtración
 
