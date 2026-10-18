@@ -127,3 +127,35 @@ def test_la_clave_de_ia_no_aparece_al_imprimir_la_configuracion() -> None:
     settings = Settings(_env_file=None, environment="local", llm_api_key="sk-ant-clave-de-prueba")
 
     assert "sk-ant-clave-de-prueba" not in repr(settings)
+
+
+# --- Proveedor de IA (ADR-0018, ADR-0019) ---------------------------------------------------------
+_DEPLOYED: dict[str, Any] = {
+    "database_url": "postgresql://app_backend@db.invalid:6543/postgres",
+    "meta_app_secret": "secreto-de-prueba",
+    "meta_webhook_verify_token": "token-de-prueba",
+    "meta_graph_api_version": "v23.0",
+}
+
+
+def test_el_proveedor_por_defecto_es_anthropic() -> None:
+    assert Settings(_env_file=None, environment="local").llm_provider == "anthropic"
+
+
+@pytest.mark.parametrize("environment", ["local", "test"])
+def test_gemini_se_acepta_para_desarrollo(environment: str) -> None:
+    settings = Settings(_env_file=None, environment=environment, llm_provider="gemini")
+
+    assert settings.llm_provider == "gemini"
+
+
+@pytest.mark.parametrize("environment", ["staging", "production"])
+def test_gemini_no_arranca_donde_hay_datos_de_clientes(environment: str) -> None:
+    """Plan gratuito: Google puede usar y revisar lo enviado. Solo datos sintéticos (ADR-0019)."""
+    with pytest.raises(ValidationError, match="gemini"):
+        Settings(_env_file=None, environment=environment, llm_provider="gemini", **_DEPLOYED)
+
+
+def test_un_proveedor_desconocido_se_rechaza() -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, environment="local", llm_provider="deepseek")

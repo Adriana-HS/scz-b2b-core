@@ -151,6 +151,15 @@ Mutaciones comprobadas:
 * **Contra la BD** (`test_agent_tools_db.py`): precio calculado por la BD, ficha igual a la búsqueda, ítems de otro negocio inexistentes, la cotización reserva stock para el cliente del contexto, el paso a una persona deja la conversación en `HUMAN`.
 * **Mutaciones comprobadas** (9 de 9 detectadas): sin `extra="forbid"`; actor `SYSTEM` en vez de `BOT`; repetir el valor inválido; devolver el mensaje de un error inesperado; montos como número; otra conversación en la cotización; perder el aviso de precio; atributos internos visibles (pgTAP); stock sin descontar reservas (pgTAP).
 
+### Adaptador de Gemini (#83, ADR-0019)
+
+* **Formato** (`test_gemini_chat.py`): URL de generateContent con el modelo fijado; clave en `x-goog-api-key` y nunca en la URL; sistema, historial (`user`/`model`), herramientas con JSON Schema y `$ref` expandidos; resultados como objeto; un resultado sin su pedido falla.
+* **Firmas:** la firma de cada pedido de herramienta vuelve tal cual en la ronda siguiente; los ids que inventa el adaptador no se mandan.
+* **Respuesta:** sin los pensamientos; STOP con herramientas = TOOL_USE; motivos de corte; prompt bloqueado = rechazo; tokens cacheados y de razonamiento.
+* **Errores:** 429 (con `retry-after` o `RetryInfo`), 5xx, red y timeout transitorios; 4xx permanentes; la clave y el contenido nunca en un error.
+* **Configuración** (`test_config.py`): `gemini` solo en `local` y `test`; un proveedor desconocido se rechaza. El worker elige el adaptador (`test_worker.py`).
+* **Mutaciones comprobadas** (14 de 14 detectadas): no devolver la firma; perderla al leer; la clave en la URL; STOP con herramientas como END_TURN; los pensamientos en el texto; mandar los ids inventados; no expandir los `$ref`; el 429 permanente; ignorar `RetryInfo`; no cobrar el razonamiento; cobrar el cacheado como entrada; adivinar el nombre de un resultado huérfano; aceptar Gemini en producción; el worker siempre con Anthropic.
+
 ### Orquestador del agente (#81)
 
 * **Turno** (`test_agent_turn.py`, con modelo guionado y herramientas falsas): responde una vez y marca los mensajes; junta los mensajes seguidos del mismo lado y empieza por el cliente; el prompt del rubro y sus herramientas; el contexto del turno lo pone el servidor.

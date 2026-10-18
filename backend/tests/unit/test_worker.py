@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import pytest
 
@@ -67,3 +68,25 @@ async def test_sin_la_ia_configurada_las_conversaciones_esperan(caplog: pytest.L
 
     assert PROCESS_CONVERSATION not in handlers
     assert "LLM_API_KEY" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "adapter"),
+    [
+        ("anthropic", "claude-haiku-5-5", "AnthropicChatModel"),
+        ("gemini", "gemini-3.8-flash", "GeminiChatModel"),
+    ],
+)
+async def test_el_worker_usa_el_adaptador_del_proveedor_configurado(
+    provider: str, model: str, adapter: str
+) -> None:
+    import httpx
+
+    from app.worker import build_chat_adapter
+
+    llm: dict[str, Any] = {**_LLM, "llm_provider": provider, "llm_model": model}
+    settings = Settings(_env_file=None, environment="test", **llm)
+    async with httpx.AsyncClient() as http:
+        name, chat = build_chat_adapter(settings, http)
+
+    assert (name, type(chat).__name__) == (provider, adapter)

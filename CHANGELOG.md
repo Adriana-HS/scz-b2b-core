@@ -5,6 +5,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Sin publicar]
 
 ### Decisiones
+- **ADR-0019 (aceptado):** Gemini con el plan gratuito de Google AI Studio, **solo para pruebas de desarrollo** del agente, sin costo. Anthropic sigue en producción (ADR-0018). El plan gratuito permite a Google usar y leer lo enviado: solo datos sintéticos, y la configuración no arranca con Gemini en staging ni producción.
 - **ADR-0018 (aceptado):** Anthropic es el único proveedor de IA del agente; no se hace comparación con otros proveedores, para no sumar costo ni cuentas. Modelo inicial: Claude Haiku 5.5, confirmado por AHS; si las evals (#28) muestran que no alcanza, se revisa. Se descartan DeepSeek (datos en China) y correr un modelo en una computadora local (sin GPU no alcanza el tiempo de respuesta).
 - **Referencias corregidas:** varios documentos y comentarios atribuían el agente al #26 (que es el PDF) y EMBED_ITEM al #25. Ahora dicen #23 (embeddings), #24 (herramientas), #25 (guardrails y cuotas) y **#81**, el issue nuevo del orquestador del agente (`PROCESS_CONVERSATION`), que faltaba en el backlog (también en `scripts/github/backlog.json`). Los comentarios de las migraciones 18 y 19 quedan como están: las migraciones aplicadas no se editan.
 
@@ -23,6 +24,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
 
 ### Agregado (backend)
+- **Adaptador de Gemini (#83, ADR-0019):** `GeminiChatModel` (generateContent con httpx, sin SDK) y `LLM_PROVIDER` (`anthropic` por defecto, o `gemini`).
+  - Herramientas con `parametersJsonSchema` y los `$ref` de Pydantic expandidos; firmas de razonamiento (`thoughtSignature`) devueltas en la ronda siguiente por `ToolCall.signature`; STOP con herramientas se trata como TOOL_USE; el prompt cacheado y el razonamiento se cuentan aparte en el costo.
+  - Errores con código estable: 429 y 5xx transitorios (con la espera de `RetryInfo`), 4xx permanentes; la clave va en el encabezado, nunca en la URL ni en un error.
+  - Suite de contrato de `ChatModel` contra fake, Anthropic y Gemini.
+  - Pruebas: 507 de backend (51 nuevas); 14 mutaciones comprobadas.
 - **Orquestador del agente (#81, §7.1):** handler `PROCESS_CONVERSATION` (`ProcessConversation`).
   - Un turno: estado y últimos 12 mensajes en una transacción; el modelo fuera de ella; respuesta al outbox (clave `turn:{conversación}:{último wa_message_id}`), historial y `processed_at` en **una** transacción. Repetir el trabajo no responde dos veces.
   - Límites de §7.1: 2 rondas, 4 herramientas y 20 s; si se pasan, o la respuesta está vacía o es demasiado larga, plantilla que ofrece una persona. IA no disponible → plantilla y paso a una persona (`TOOL_ERROR`).

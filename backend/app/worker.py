@@ -34,6 +34,8 @@ from app.domain.jobs import PROCESS_CONVERSATION
 from app.domain.ports import ChatModel
 from app.infrastructure.ai.anthropic import PROVIDER as ANTHROPIC
 from app.infrastructure.ai.anthropic import AnthropicChatModel
+from app.infrastructure.ai.gemini import PROVIDER as GEMINI
+from app.infrastructure.ai.gemini import GeminiChatModel
 from app.infrastructure.postgres.jobs import PostgresJobQueue, PostgresMaintenance
 from app.infrastructure.postgres.pool import create_pool
 from app.infrastructure.postgres.unit_of_work import unit_of_work_factory
@@ -68,22 +70,32 @@ def build_handlers(
     return handlers
 
 
+def build_chat_adapter(settings: Settings, http: httpx.AsyncClient) -> tuple[str, ChatModel]:
+    """El adaptador del proveedor configurado: Anthropic (ADR-0018) o, solo en desarrollo, Gemini
+    (ADR-0019; la configuración lo rechaza en staging y producción)."""
+    assert settings.llm_api_key is not None and settings.llm_model is not None  # noqa: S101 - lo valida build_agent
+    key, model_id = settings.llm_api_key.get_secret_value(), settings.llm_model
+    if settings.llm_provider == GEMINI:
+        return GEMINI, GeminiChatModel(http, api_key=key, model=model_id)
+    return ANTHROPIC, AnthropicChatModel(http, api_key=key, model=model_id)
+
+
 def build_agent(
     settings: Settings, pool: asyncpg.Pool, http: httpx.AsyncClient
 ) -> ProcessConversation | None:
-    """El orquestador del agente (#81) con Anthropic (ADR-0018), o None si falta configuración."""
+    """El orquestador del agente (#81), o None si falta configuración."""
     pricing = settings.llm_pricing()
     if settings.llm_api_key is None or settings.llm_model is None or pricing is None:
         return None
     model_id = settings.llm_model
-    adapter = AnthropicChatModel(http, api_key=settings.llm_api_key.get_secret_value(), model=model_id)
-    breaker = CircuitBreaker()  # uno por proceso y proveedor: si Anthropic cae, todos los turnos degradan
+    provider, adapter = build_chat_adapter(settings, http)
+    breaker = CircuitBreaker()  # uno por proceso y proveedor: si el proveedor cae, todos los turnos degradan
     uow = unit_of_work_factory(pool)
     recorder = RecordLlmCalls(uow)
 
     def chat_model(organization_id: UUID, conversation_id: UUID) -> ChatModel:
         return resilient_chat_model(
-            adapter, breaker=breaker, recorder=recorder, pricing=pricing, provider=ANTHROPIC,
+            adapter, breaker=breaker, recorder=recorder, pricing=pricing, provider=provider,
             model=model_id, purpose=AiPurpose.CHAT, organization_id=organization_id,
             conversation_id=conversation_id,
         )  # fmt: skip

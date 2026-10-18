@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # IA (#22): modelo fijado por identificador exacto y sus precios en USD por millón de tokens.
     # Sin modelo no hay agente; con modelo, los cuatro precios son obligatorios (sin ellos el
     # costo se registraría en cero: falla cerrado, Q-COST-1).
+    # Proveedor: Anthropic en producción (ADR-0018); Gemini solo para desarrollo (ADR-0019).
+    llm_provider: Literal["anthropic", "gemini"] = "anthropic"
     llm_api_key: SecretStr | None = Field(default=None)
     llm_model: str | None = Field(default=None)
     llm_price_input_usd_per_mtok: Decimal | None = Field(default=None, ge=0)
@@ -57,6 +59,16 @@ class Settings(BaseSettings):
     def _model_has_prices(self) -> "Settings":
         if self.llm_model is not None and None in self._llm_prices():
             raise ValueError("con LLM_MODEL hacen falta los cuatro precios LLM_PRICE_*_USD_PER_MTOK")
+        return self
+
+    @model_validator(mode="after")
+    def _gemini_only_for_development(self) -> "Settings":
+        """Plan gratuito de Gemini: Google usa lo enviado y una persona puede leerlo. Donde hay
+        datos de clientes (staging y producción) el proceso no arranca (ADR-0019)."""
+        if self.llm_provider == "gemini" and self.environment not in ("local", "test"):
+            raise ValueError(
+                f"LLM_PROVIDER=gemini es solo para desarrollo (local o test), no {self.environment}"
+            )
         return self
 
     def _llm_prices(self) -> tuple[Decimal | None, ...]:

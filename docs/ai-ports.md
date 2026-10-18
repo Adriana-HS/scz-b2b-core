@@ -2,6 +2,8 @@
 
 Cómo el backend habla con los modelos de IA sin depender de un proveedor (#22, `docs/architecture/principios-y-patrones.md` §2.1 y §3). El agente (#81, con las herramientas de #24 y los guardrails de #25) usa estos puertos; nunca un SDK.
 
+**Adaptadores de chat:** Anthropic (`infrastructure/ai/anthropic.py`, producción, ADR-0018) y Gemini (`infrastructure/ai/gemini.py`, **solo desarrollo** con el plan gratuito, ADR-0019). `LLM_PROVIDER` elige; con `gemini`, la configuración no arranca en staging ni producción. La suite de contrato corre contra los dos. Gemini devuelve una firma de razonamiento con cada pedido de herramienta: viaja opaca en `ToolCall.signature` y el adaptador la devuelve en la ronda siguiente.
+
 ## Puertos
 
 | Puerto | Qué hace | Implementación hoy |
