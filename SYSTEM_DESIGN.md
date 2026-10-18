@@ -548,6 +548,7 @@ Cada rubro es un paquete `app/verticals/<rubro>/` que implementa `VerticalPolicy
 * Verificación HMAC **antes** de parsear el JSON. Cuerpo máximo de 1 MB. Solo se procesan los campos esperados.
 * Media: descarga inmediata (las URLs de Meta expiran y requieren token), límite de 5 MB para imágenes y de 16 MB para audio, tipo verificado por *magic bytes*. El SHA-256 se calcula sobre los **bytes originales**; luego se re-codifica la imagen (sin EXIF) para guardarla y procesarla.
 * Documentos al cliente (PDF de cotización o recibo): se **suben a Meta** y se envían por `media_id`. No se envían enlaces firmados de 15 minutos que caducan antes de que el cliente los abra.
+  * **Implementación (#26):** `create_quote` encola `SEND_QUOTE_PDF` en su misma transacción, con la conversación como `conversation_key` (corre después del turno). El handler `SendQuoteDocument` lee la cotización y sus líneas (cifras de la BD), genera el PDF con reportlab en un *thread pool*, lo sube a Meta (`/<phone_number_id>/media`) y lo encola en el outbox como `DOCUMENT` con clave `quote-pdf:{orden}`. Fechas en la zona horaria del negocio, montos en formato boliviano, TC aplicado, IVA según el régimen y la aclaración de que no es una factura. El PDF no se guarda en Storage todavía: lo retiene Meta 30 días y se puede regenerar desde la orden.
 
 ### 8.4 Secretos y almacenamiento
 

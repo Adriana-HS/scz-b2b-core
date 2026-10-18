@@ -24,6 +24,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   - Las pruebas 03 y 15 dejan de suponer una base vacía: la 03 reclama solo `PROCESS_CONVERSATION`, como el worker real (los seeds dejan `EMBED_ITEM` en cola), y la 15 cuenta el TC vencido contra una línea de base.
 
 ### Agregado (backend)
+- **PDF de cotización por WhatsApp (#26, RF-20, §8.3):** `create_quote` encola `SEND_QUOTE_PDF` en la misma transacción; el worker genera el PDF con reportlab en un thread pool, lo sube a Meta y lo envía por `media_id` desde el outbox (clave `quote-pdf:{orden}`, nunca un enlace firmado).
+  - El PDF muestra emisor y NIT, referencia, fecha y vigencia en la hora del negocio, líneas, subtotal, IVA según el régimen, total, seña, TC aplicado y la aclaración de que no es una factura. Las cifras son las de la BD; Python solo las formatea (1.252,00).
+  - Snapshot del PDF byte a byte (`tests/snapshots/cotizacion_iva_incluido.pdf`, modo invariante de reportlab); se regenera con `SCZ_UPDATE_SNAPSHOTS=1`.
+  - `CloudApiSender.upload_media` con la misma clasificación de errores que los envíos.
+  - Dependencias nuevas: `reportlab` (BSD, la que nombra SYSTEM_DESIGN §4) y `tzdata` (zonas horarias en cualquier SO); en desarrollo, `pypdf` y `types-reportlab`. `pip-audit` sin hallazgos.
+  - Pruebas: 656 de backend (44 nuevas); 17 mutaciones comprobadas, 16 detectadas. La que sobrevive (quitar el filtro por negocio en la consulta) la sigue frenando RLS, como prueba la integración.
 - **Aviso de IA y privacidad en el primer contacto (#29, RF-03):** la primera respuesta del bot a cada cliente empieza con el aviso (asistente automático con IA, cómo pedir una persona y para qué se usan sus mensajes), de usted y en el mismo mensaje. `customers.privacy_notice_at` se registra en la misma transacción, solo la primera vez. El negocio puede aprobar su propio texto en `organizations.config.ai_notice`; si falta o no es válido, va el de por defecto. Sin migración.
   - Pruebas: 612 de backend (20 nuevas); 12 mutaciones comprobadas.
 - **Guardrails y cuotas del agente (#25, §7.4, RF-07, RF-09, RF-51):**
